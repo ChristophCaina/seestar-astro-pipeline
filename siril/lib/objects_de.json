@@ -1,0 +1,157 @@
+{
+ "_hinweis": "Deutsche Namen und gerundete Entfernungen für häufige Seestar-Ziele. Schlüssel: M-Nummer oder NGC/IC ohne Leerzeichen und führende Nullen.",
+ "M1": {
+  "common": "Krebsnebel",
+  "dist": "6.500 Lj"
+ },
+ "M8": {
+  "common": "Lagunennebel",
+  "dist": "4.100 Lj"
+ },
+ "M13": {
+  "common": "Herkuleshaufen",
+  "dist": "22.200 Lj"
+ },
+ "M16": {
+  "common": "Adlernebel",
+  "dist": "7.000 Lj"
+ },
+ "M17": {
+  "common": "Omeganebel",
+  "dist": "5.500 Lj"
+ },
+ "M20": {
+  "common": "Trifidnebel",
+  "dist": "5.200 Lj"
+ },
+ "M27": {
+  "common": "Hantelnebel",
+  "dist": "1.360 Lj"
+ },
+ "M31": {
+  "common": "Andromeda-Galaxie",
+  "dist": "2,5 Mio. Lj"
+ },
+ "M32": {
+  "dist": "2,5 Mio. Lj"
+ },
+ "M33": {
+  "common": "Dreiecksgalaxie",
+  "dist": "2,7 Mio. Lj"
+ },
+ "M42": {
+  "common": "Orionnebel",
+  "dist": "1.340 Lj"
+ },
+ "M43": {
+  "common": "De Mairans Nebel",
+  "dist": "1.340 Lj"
+ },
+ "M44": {
+  "common": "Praesepe",
+  "dist": "580 Lj"
+ },
+ "M45": {
+  "common": "Plejaden",
+  "dist": "444 Lj"
+ },
+ "M51": {
+  "common": "Whirlpool-Galaxie",
+  "dist": "23 Mio. Lj"
+ },
+ "M57": {
+  "common": "Ringnebel",
+  "dist": "2.300 Lj"
+ },
+ "M63": {
+  "common": "Sonnenblumen-Galaxie",
+  "dist": "29 Mio. Lj"
+ },
+ "M64": {
+  "common": "Black-Eye-Galaxie",
+  "dist": "17 Mio. Lj"
+ },
+ "M81": {
+  "common": "Bodes Galaxie",
+  "dist": "12 Mio. Lj"
+ },
+ "M82": {
+  "common": "Zigarrengalaxie",
+  "dist": "12 Mio. Lj"
+ },
+ "M97": {
+  "common": "Eulennebel",
+  "dist": "2.000 Lj"
+ },
+ "M101": {
+  "common": "Feuerradgalaxie",
+  "dist": "21 Mio. Lj"
+ },
+ "M104": {
+  "common": "Sombrero-Galaxie",
+  "dist": "31 Mio. Lj"
+ },
+ "M110": {
+  "dist": "2,7 Mio. Lj"
+ },
+ "NGC7000": {
+  "common": "Nordamerikanebel",
+  "dist": "2.600 Lj"
+ },
+ "IC5070": {
+  "common": "Pelikannebel",
+  "dist": "1.800 Lj"
+ },
+ "NGC6960": {
+  "common": "Westlicher Cirrusnebel",
+  "dist": "2.400 Lj"
+ },
+ "NGC6992": {
+  "common": "Östlicher Cirrusnebel",
+  "dist": "2.400 Lj"
+ },
+ "NGC7293": {
+  "common": "Helixnebel",
+  "dist": "650 Lj"
+ },
+ "NGC2237": {
+  "common": "Rosettennebel",
+  "dist": "5.200 Lj"
+ },
+ "IC1805": {
+  "common": "Herznebel",
+  "dist": "7.500 Lj"
+ },
+ "IC1848": {
+  "common": "Seelennebel",
+  "dist": "7.500 Lj"
+ },
+ "NGC869": {
+  "common": "h Persei",
+  "dist": "7.500 Lj"
+ },
+ "NGC884": {
+  "common": "χ Persei",
+  "dist": "7.500 Lj"
+ },
+ "NGC2024": {
+  "common": "Flammennebel",
+  "dist": "1.350 Lj"
+ },
+ "NGC6888": {
+  "common": "Crescentnebel",
+  "dist": "5.000 Lj"
+ },
+ "NGC281": {
+  "common": "Pacman-Nebel",
+  "dist": "9.500 Lj"
+ },
+ "NGC7635": {
+  "common": "Blasennebel",
+  "dist": "7.100 Lj"
+ },
+ "NGC253": {
+  "common": "Sculptor-Galaxie",
+  "dist": "11 Mio. Lj"
+ }
+}

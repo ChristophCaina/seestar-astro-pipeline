@@ -36,12 +36,12 @@ Neben jedem fertigen Stack-JPG liegt eine `<name>.meta.json`. Der Builder (`buil
 }
 ```
 
-## Woher die Werte kommen (siril-auto, geplant)
+## Woher die Werte kommen (siril-auto)
 
 | Feld | Quelle |
 |---|---|
-| `wcs` | FITS-Header nach `platesolve` (`CRVAL1/2`, `CRPIX1/2`, `CD1_1…CD2_2`). Umrechnung auf JPG-Konvention: `x = CRPIX1 − 1`, `y = NAXIS2 − CRPIX2`, zweite CD-Zeile/-Spalte für die y-Achse spiegeln, wenn das FITS bottom-up gespeichert ist |
-| `objects` | `conesearch -out=objekte.csv` (Siril-Kataloge: Messier, NGC, IC, Sh2, Sterne) plus eine kleine Textdatenbank für Typ, Name und Entfernung |
+| `wcs` | FITS-Header nach `platesolve` (`CRVAL`, `CRPIX`, `CD` bzw. `PC`+`CDELT`), gelesen von `siril/lib/fitsheader.py`. Umrechnung auf JPG-Konvention: `x = CRPIX1 − 1`, `y = NAXIS2 − CRPIX2`, und weil das FITS bottom-up gespeichert ist, wechselt die zweite CD-**Spalte** (Koeffizient von y) das Vorzeichen. Mit `NO_FLIP_Y=1` entfällt die Spiegelung. |
+| `objects` | [OpenNGC](https://github.com/mattiaverga/OpenNGC) (Messier, NGC, IC mit Typ, Größe, Positionswinkel, Helligkeit), deutsche Namen und Entfernungen aus `siril/lib/objects_de.json`, alles über die WCS aufs Bildfeld gefiltert (`siril/lib/write_meta.py`) |
 | `nights`, `exposure_s`, `filter` | aus der Gruppierung in siril-auto bzw. den FITS-Headern der Subs |
 
 Liegt ein Objekt außerhalb des Bildes, zeigt die Galerie es automatisch als Randhinweis („M 110 · 14′ außerhalb“).

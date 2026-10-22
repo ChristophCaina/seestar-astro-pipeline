@@ -7,8 +7,9 @@
 - [x] Galerie: Frontend, Builder, meta.json-Format, Beispieldaten, nginx-vhost
 - [ ] Seestar: feste IP, Station-Modus, Firmware prüfen, ggf. Interop-PEM
 - [ ] Siril-LXC: NAS-Volume, erster echter Durchlauf (Share-Name, Dateinamen, Orientierung prüfen)
-- [ ] siril-auto: Ziel + Filter, Alias-Liste, Master-Stack, `--master-full`
-- [ ] siril-auto: Plate-Solving + `meta.json` schreiben, `plot-constellations` für Immich
+- [x] siril-auto: Ziel + Filter, Alias-Liste, Master-Stack, `--master-full`
+- [x] siril-auto: Plate-Solving + `meta.json` (OpenNGC), Tests + CI (ungetestet mit echtem Siril)
+- [ ] `plot-constellations` → beschriftetes JPG für Immich
 - [ ] Immich: External Library, Stack-Zuordnung App ↔ Siril
 - [ ] Galerie im nginx-LXC einrichten (erst mit Beispieldaten), dann echte Stacks
 - [ ] Nachhol-Job für ältere Bilder

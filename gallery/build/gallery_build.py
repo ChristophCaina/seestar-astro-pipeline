@@ -79,7 +79,19 @@ def build_entry(meta_path: Path, out: Path, web_w: int, thumb_w: int) -> dict:
     eid = m["id"]
     w, h = resize(src, out / "img" / f"{eid}.jpg", web_w, 86)
     resize(src, out / "img" / f"{eid}_t.jpg", thumb_w, 80)
-    k = w / m.get("width", w)
+    k = w / (m.get("width") or w)
+    nights = sorted(m.get("nights", []), key=lambda n: n["date"])
+    frames = sum(n["frames"] for n in nights)
+    base = {
+        "id": eid, "target": m["target"], "stack": m.get("stack", "night"), "filter": m.get("filter", ""),
+        "exposure_s": m.get("exposure_s"), "gain": m.get("gain"),
+        "nights": nights, "frames": frames, "seconds": frames * (m.get("exposure_s") or 0),
+        "last": nights[-1]["date"] if nights else None,
+        "image": {"web": f"img/{eid}.jpg", "thumb": f"img/{eid}_t.jpg", "w": w, "h": h},
+        "caption": m.get("caption", ""), "versions": m.get("versions", []), "sample": bool(m.get("sample")),
+    }
+    if not m.get("wcs"):            # Plate-Solving fehlgeschlagen: Bild ohne Annotationen
+        return {**base, "wcs": None, "solve": None, "annotations": [], "offscreen": []}
     wcs = scale_wcs(m["wcs"], k)
     scale = pixscale_arcsec(wcs)                     # "/px im Web-Bild
     px_per_arcmin = 60 / scale
@@ -119,21 +131,11 @@ def build_entry(meta_path: Path, out: Path, web_w: int, thumb_w: int) -> dict:
             "label": [v * k for v in o["label"]] if o.get("label") else None,
         })
 
-    nights = sorted(m.get("nights", []), key=lambda n: n["date"])
-    frames = sum(n["frames"] for n in nights)
-    return {
-        "id": eid, "target": m["target"], "stack": m.get("stack", "night"), "filter": m.get("filter", ""),
-        "exposure_s": m.get("exposure_s"), "gain": m.get("gain"),
-        "nights": nights, "frames": frames, "seconds": frames * (m.get("exposure_s") or 0),
-        "last": nights[-1]["date"] if nights else None,
-        "image": {"web": f"img/{eid}.jpg", "thumb": f"img/{eid}_t.jpg", "w": w, "h": h},
-        "wcs": wcs,
-        "solve": {"ra": fmt_ra(ra_c), "dec": fmt_dec(dec_c), "pixscale": round(scale, 2),
-                  "fov": [round(w * scale / 3600, 2), round(h * scale / 3600, 2)],
-                  "north": north, "east": east, "north_txt": north_txt},
-        "annotations": annotations, "offscreen": offscreen,
-        "caption": m.get("caption", ""), "versions": m.get("versions", []), "sample": bool(m.get("sample")),
-    }
+    return {**base, "wcs": wcs,
+            "solve": {"ra": fmt_ra(ra_c), "dec": fmt_dec(dec_c), "pixscale": round(scale, 2),
+                      "fov": [round(w * scale / 3600, 2), round(h * scale / 3600, 2)],
+                      "north": north, "east": east, "north_txt": north_txt},
+            "annotations": annotations, "offscreen": offscreen}
 
 
 def main() -> int:
