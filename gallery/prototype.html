@@ -1,0 +1,657 @@
+<title>Astro-Galerie</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: Sternwarten-Logbuch. Uebersicht = Katalogtafel (Bildkacheln + Beobachtungskalender),
+   Detail = grosses Bild mit Sternkarten-Overlay + Aufnahmeprotokoll. Bewusst nur dunkel (Nachtsicht), plus Rotlicht. */
+:root{
+  --sky:#090c14;        /* Seitenhintergrund */
+  --panel:#10141f;      /* Flaechen */
+  --rule:#222839;       /* Linien */
+  --fg:#e2e5ee;         /* Text */
+  --muted:#8d94a8;      /* Nebentext */
+  --chart:#e9c97c;      /* Annotation, Sternkarten-Gold */
+  --star:#9fc4ff;       /* Sterne-Kategorie */
+  --grid:#6f86b8;       /* Koordinatengitter */
+  --halpha:#e0707a;     /* LP-/H-alpha-Filter */
+  --f-display:"Instrument Serif", "Iowan Old Style", Georgia, serif;
+  --f-body:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+*{box-sizing:border-box}
+html,body{background:var(--sky);color:var(--fg)}
+body{font-family:var(--f-body);font-size:15px;line-height:1.5;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+  padding-block:20px 40px}
+html.redlight{filter:grayscale(1) sepia(1) hue-rotate(-38deg) saturate(5) brightness(.75)}
+[hidden]{display:none!important}
+.wrap{max-width:1280px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+.view{width:100%;min-width:0;display:flex;flex-direction:column;gap:22px}
+button{font:inherit;color:inherit}
+
+/* Kopf */
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px;border-bottom:1px solid var(--rule);padding-bottom:14px}
+.eyebrow{font-family:var(--f-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0 0 4px}
+h1{font-family:var(--f-display);font-weight:400;font-size:clamp(34px,5vw,54px);line-height:1;margin:0;text-wrap:balance}
+h1 em{color:var(--chart);font-style:italic}
+.headtools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.demo{font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;color:var(--sky);background:var(--chart);padding:3px 8px;border-radius:2px;text-transform:uppercase}
+.back{appearance:none;background:none;border:0;padding:0;color:var(--muted);font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;cursor:pointer;margin-bottom:6px}
+.back:hover{color:var(--chart)}
+.back:focus-visible{outline:2px solid var(--chart);outline-offset:3px}
+
+/* Toggle-Pillen */
+.tgl{appearance:none;font-size:13px;background:var(--panel);border:1px solid var(--rule);padding:6px 11px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+.tgl::before{content:"";width:8px;height:8px;border-radius:50%;border:1px solid var(--muted)}
+.tgl[aria-pressed="true"]{border-color:var(--chart)}
+.tgl[aria-pressed="true"]::before{background:var(--chart);border-color:var(--chart)}
+.tgl:focus-visible,.chip:focus-visible,select:focus-visible{outline:2px solid var(--chart);outline-offset:2px}
+
+/* ---------- Uebersicht ---------- */
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule)}
+.stat{background:var(--sky);padding:14px 16px}
+.stat b{display:block;font-family:var(--f-display);font-weight:400;font-size:34px;line-height:1.05;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted)}
+@media (max-width:640px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.cal{border:1px solid var(--rule);padding:12px 14px 10px;display:flex;flex-direction:column;gap:8px}
+.cal-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.cal-head h2,.sec-h{font-family:var(--f-mono);font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+.cal{min-width:0}
+.cal-scroll{overflow-x:auto;min-width:0;max-width:100%}
+.cal-svg{display:block;min-width:620px;width:100%;height:auto}
+.cal-svg text{font-family:var(--f-mono);font-size:10px;fill:var(--muted)}
+.cal-svg .tick{stroke:var(--rule)}
+.cal-svg .night{fill:var(--chart)}
+.cal-svg .night.lp{fill:var(--halpha)}
+.cal-svg .moonfull{fill:var(--fg)}
+.cal-svg .moonnew{fill:none;stroke:var(--fg)}
+
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{appearance:none;font-size:13px;background:none;border:1px solid var(--rule);color:var(--fg);padding:5px 12px;border-radius:999px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--fg);color:var(--sky);border-color:var(--fg)}
+.chip small{color:inherit;opacity:.6;margin-left:4px;font-family:var(--f-mono)}
+.filters .sep{flex:1}
+.sortl{font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:center}
+select{font:inherit;font-size:13px;background:var(--panel);color:var(--fg);border:1px solid var(--rule);padding:5px 8px;border-radius:4px}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:22px 18px}
+.tile{appearance:none;background:none;border:0;padding:0;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:10px;min-width:0}
+.thumb{position:relative;width:100%;max-width:100%;aspect-ratio:16/9;border:1px solid var(--rule);background:#000;overflow:hidden}
+.thumb canvas,.thumb svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.thumb svg{opacity:0;transition:opacity .3s}
+.thumb .lbl{font-size:120px;stroke-width:10px}
+.tile:hover .thumb svg,.tile:focus-visible .thumb svg{opacity:1}
+.tile:hover .thumb,.tile:focus-visible .thumb{border-color:var(--chart)}
+.tile:focus-visible{outline:none}
+.tile-t{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.tile-t h3{font-family:var(--f-display);font-weight:400;font-size:27px;line-height:1;margin:0}
+.tile-t h3 em{font-style:italic;color:var(--muted);font-size:19px}
+.badge{font-family:var(--f-mono);font-size:11px;padding:1px 7px;border:1px solid var(--chart);color:var(--chart);border-radius:2px;white-space:nowrap}
+.badge.lp{border-color:var(--halpha);color:var(--halpha)}
+.tile-m{display:flex;flex-wrap:wrap;gap:4px 14px;font-family:var(--f-mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tile-m b{color:var(--fg);font-weight:500}
+.empty{color:var(--muted)}
+
+/* ---------- Detail ---------- */
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start}
+@media (max-width:900px){.layout{grid-template-columns:minmax(0,1fr)}}
+.viewer{display:flex;flex-direction:column;gap:10px;min-width:0}
+.frame{position:relative;width:100%;max-width:100%;aspect-ratio:16/9;background:#000;border:1px solid var(--rule);overflow:hidden;cursor:crosshair;touch-action:manipulation}
+.frame canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.frame svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.overlay{opacity:0;transition:opacity .35s ease}
+.frame:hover .overlay,.frame.pinned .overlay,.frame:focus-visible .overlay{opacity:1}
+.frame:focus-visible{outline:2px solid var(--chart);outline-offset:2px}
+.hint{position:absolute;left:12px;bottom:10px;font-family:var(--f-mono);font-size:11px;color:var(--muted);background:rgba(9,12,20,.7);padding:3px 8px;border-radius:2px;pointer-events:none;transition:opacity .3s}
+.frame:hover .hint,.frame.pinned .hint{opacity:0}
+
+.mk{cursor:pointer}
+.mk .hit{fill:transparent;stroke:none}
+.dso .shape{fill:none;stroke:var(--chart);stroke-width:1.4;vector-effect:non-scaling-stroke}
+.dso .shape.big{stroke-dasharray:10 8}
+.star .shape{fill:none;stroke:var(--star);stroke-width:1.2;vector-effect:non-scaling-stroke}
+.lbl{font-family:var(--f-display);font-size:46px;fill:var(--chart);paint-order:stroke;stroke:rgba(0,0,0,.65);stroke-width:5px}
+.star .lbl{font-family:var(--f-mono);font-size:23px;fill:var(--star)}
+.lead{stroke:var(--chart);stroke-width:1;vector-effect:non-scaling-stroke;opacity:.8}
+.star .lead{stroke:var(--star)}
+.mk:hover .shape,.mk.active .shape{stroke-width:2.4}
+.offscreen .lbl{font-size:28px;font-family:var(--f-mono)}
+.offscreen path{fill:var(--chart)}
+.gridl line{stroke:var(--grid);stroke-width:1;stroke-dasharray:6 8;vector-effect:non-scaling-stroke;opacity:.55}
+.gridl text{font-family:var(--f-mono);font-size:17px;fill:var(--grid)}
+.compass line,.scalebar line{stroke:var(--fg);stroke-width:1.4;vector-effect:non-scaling-stroke}
+.compass text,.scalebar text{font-family:var(--f-mono);font-size:20px;fill:var(--fg)}
+.hide-dso .dso,.hide-star .star,.hide-grid .gridl{display:none}
+
+.card{position:absolute;z-index:3;width:min(270px,70%);background:rgba(16,20,31,.96);border:1px solid var(--rule);border-left:3px solid var(--chart);padding:10px 12px;pointer-events:none;font-size:13px;line-height:1.4}
+.card h3{margin:0 0 2px;font-family:var(--f-display);font-weight:400;font-size:24px;line-height:1.1}
+.card .type{color:var(--muted);margin:0 0 8px}
+.card dl{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:0;font-family:var(--f-mono);font-size:12px}
+.card dt{color:var(--muted)}
+.card dd{margin:0;font-variant-numeric:tabular-nums}
+
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.caption{color:var(--muted);font-size:13px;margin:0;max-width:70ch}
+
+aside{display:flex;flex-direction:column;gap:18px;min-width:0}
+aside h2{font-family:var(--f-mono);font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid var(--rule)}
+.facts{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:0}
+.facts dt{color:var(--muted);font-size:13px}
+.facts dd{margin:0;font-family:var(--f-mono);font-size:13px;font-variant-numeric:tabular-nums;text-align:right}
+.big{font-family:var(--f-display);font-size:40px;line-height:1;margin:0 0 4px}
+.big small{font-family:var(--f-body);font-size:14px;color:var(--muted)}
+.nights{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.nights li{display:grid;grid-template-columns:82px 1fr 44px;align-items:center;gap:10px;font-family:var(--f-mono);font-size:12px;font-variant-numeric:tabular-nums}
+.bar{height:6px;background:var(--rule);position:relative}
+.bar i{position:absolute;inset:0 auto 0 0;background:var(--chart)}
+.bar.lp i{background:var(--halpha)}
+.nights .n{text-align:right;color:var(--muted)}
+.versions{list-style:none;margin:0;padding:0}
+.versions li{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--rule);font-size:13px}
+.versions li span:last-child{font-family:var(--f-mono);color:var(--muted);font-size:12px;text-align:right}
+.versions .cur{color:var(--chart)}
+.note{font-size:12px;color:var(--muted);margin:8px 0 0}
+@media (prefers-reduced-motion:reduce){.overlay,.hint,.thumb svg{transition:none}}
+</style>
+
+<div class="wrap">
+  <!-- ================= Uebersicht ================= -->
+  <div id="v-list" class="view">
+    <header>
+      <div>
+        <p class="eyebrow">Seestar S50 · Siril-Stacks</p>
+        <h1>Astro-<em>Galerie</em></h1>
+      </div>
+      <div class="headtools">
+        <button class="tgl red-t" aria-pressed="false">Rotlicht</button>
+        <span class="demo">Beispieldaten – Bilder simuliert</span>
+      </div>
+    </header>
+
+    <div class="stats" id="stats"></div>
+
+    <section class="cal" aria-label="Beobachtungskalender">
+      <div class="cal-head">
+        <h2>Beobachtungsnächte · Sep – Okt 2026</h2>
+        <div class="legend">
+          <span><i style="background:var(--chart)"></i>IRCUT</span>
+          <span><i style="background:var(--halpha)"></i>LP-Filter</span>
+          <span><i style="background:var(--fg)"></i>Vollmond</span>
+          <span><i style="border:1px solid var(--fg)"></i>Neumond</span>
+        </div>
+      </div>
+      <div class="cal-scroll"><svg class="cal-svg" id="cal" viewBox="0 0 900 64" role="img" aria-label="Kalender der Beobachtungsnächte"></svg></div>
+    </section>
+
+    <div class="filters">
+      <div class="filters" role="group" aria-label="Objekttyp" id="chips"></div>
+      <span class="sep"></span>
+      <label class="sortl" for="sort">Sortieren
+        <select id="sort">
+          <option value="recent">Zuletzt aufgenommen</option>
+          <option value="exposure">Längste Belichtung</option>
+          <option value="catalog">Katalog</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <!-- ================= Detail ================= -->
+  <div id="v-detail" class="view" hidden>
+    <header>
+      <div>
+        <button class="back" id="back">← ALLE OBJEKTE</button>
+        <p class="eyebrow" id="d-eyebrow"></p>
+        <h1 id="d-title"></h1>
+      </div>
+      <div class="headtools">
+        <button class="tgl red-t" aria-pressed="false">Rotlicht</button>
+        <span class="demo">Beispieldaten – Bild simuliert</span>
+      </div>
+    </header>
+
+    <div class="layout">
+      <div class="viewer">
+        <div class="frame" id="frame" tabindex="0" aria-label="Aufnahme. Beschriftungen beim Überfahren mit der Maus oder per Tippen einblenden.">
+          <canvas id="sky" width="1920" height="1080"></canvas>
+          <svg id="ov" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+            <g class="overlay" id="ovg"></g>
+          </svg>
+          <div class="card" id="card" hidden></div>
+          <span class="hint">Maus über das Bild bewegen · Tippen zum Fixieren</span>
+        </div>
+        <div class="tools" role="group" aria-label="Anzeige">
+          <button class="tgl" id="t-pin" aria-pressed="false">Beschriftung fixieren</button>
+          <button class="tgl" id="t-dso" aria-pressed="true">Deep-Sky-Objekte</button>
+          <button class="tgl" id="t-star" aria-pressed="true">Sterne</button>
+          <button class="tgl" id="t-grid" aria-pressed="false">RA/Dec-Gitter</button>
+        </div>
+        <p class="caption" id="d-caption"></p>
+      </div>
+
+      <aside>
+        <section>
+          <h2>Belichtung</h2>
+          <p class="big" id="d-integ"></p>
+          <dl class="facts" id="d-exp"></dl>
+        </section>
+        <section>
+          <h2>Nächte</h2>
+          <ul class="nights" id="d-nights"></ul>
+        </section>
+        <section>
+          <h2>Plate-Solving</h2>
+          <dl class="facts" id="d-solve"></dl>
+        </section>
+        <section>
+          <h2>Versionen</h2>
+          <ul class="versions" id="d-versions"></ul>
+          <p class="note">In der echten Galerie führen die Einträge zur jeweiligen Datei bzw. zu Immich.</p>
+        </section>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ================= Konstanten =================
+  const W = 1920, H = 1080, S = 60 / 2.39;          // px pro Bogenminute (Seestar S50)
+  const NS = "http://www.w3.org/2000/svg";
+  const P = (a) => [W/2 + a[0]*S, H/2 + a[1]*S];      // Bogenminuten (Bildkoordinaten) -> Pixel
+  const fmtInt = (s) => { const h = Math.floor(s/3600), m = Math.round((s%3600)/60); return h ? `${h} h ${String(m).padStart(2,"0")} min` : `${m} min`; };
+  const de = (n) => n.toLocaleString("de-DE");
+  const dayName = ["So","Mo","Di","Mi","Do","Fr","Sa"];
+  const fmtDay = (iso) => { const d = new Date(iso+"T12:00:00"); return `${dayName[d.getDay()]} ${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")}.`; };
+
+  // ================= Zeichen-Helfer =================
+  function mkRng(seed){ let s = seed; const r = () => (s = (s*16807) % 2147483647) / 2147483647;
+    const gs = () => { let u=0,v=0; while(!u) u=r(); while(!v) v=r(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); };
+    return { r, gs }; }
+  function blob(g, x, y, rx, ry, rot, stops){
+    g.save(); g.translate(x,y); g.rotate(rot||0); g.scale(1, ry/rx);
+    const gr = g.createRadialGradient(0,0,0,0,0,rx); stops.forEach(([o,c]) => gr.addColorStop(o,c));
+    g.fillStyle = gr; g.beginPath(); g.arc(0,0,rx,0,Math.PI*2); g.fill(); g.restore();
+  }
+  function starfield(g, R, n, k, opt={}){
+    const list = [];
+    for (let i=0;i<n;i++){
+      let x, y;
+      if (opt.cluster){ x = W/2 + opt.cluster[0]*S + R.gs()*opt.cluster[2]*S; y = H/2 + opt.cluster[1]*S + R.gs()*opt.cluster[2]*S; }
+      else { x = R.r()*W; y = R.r()*H; }
+      list.push({ x, y, m: (opt.m0||7.5) + Math.pow(R.r(), opt.pow||0.3) * 7.5 });
+    }
+    list.sort((a,b)=>b.m-a.m);
+    for (const s of list){
+      const r = Math.max(0.9/k, (15 - s.m) * 0.6), a = Math.min(.95, (15.5 - s.m)/8);
+      const h = R.r(), col = h<.25 ? "255,210,170" : h<.6 ? "240,244,255" : "200,220,255";
+      const gr = g.createRadialGradient(s.x,s.y,0,s.x,s.y,r*2.6);
+      gr.addColorStop(0,`rgba(${col},${a})`); gr.addColorStop(.35,`rgba(${col},${a*.5})`); gr.addColorStop(1,`rgba(${col},0)`);
+      g.fillStyle = gr; g.beginPath(); g.arc(s.x,s.y,r*2.6,0,Math.PI*2); g.fill();
+    }
+    return list;
+  }
+
+  // ================= Objektbilder (prozedural) =================
+  const DRAW = {
+    m31(g, R){
+      const [x,y] = P([8,0]), t = -7*Math.PI/180;
+      g.globalCompositeOperation = "lighter";
+      blob(g,x,y,2300,700,t,[[0,"rgba(120,110,120,.35)"],[.5,"rgba(70,70,95,.18)"],[1,"rgba(0,0,0,0)"]]);
+      blob(g,x,y,1300,360,t,[[0,"rgba(200,180,160,.55)"],[.6,"rgba(110,110,140,.22)"],[1,"rgba(0,0,0,0)"]]);
+      blob(g,x,y,520,150,t,[[0,"rgba(255,236,205,.85)"],[.7,"rgba(200,170,140,.25)"],[1,"rgba(0,0,0,0)"]]);
+      blob(g,x,y,110,52,t,[[0,"rgba(255,250,240,1)"],[1,"rgba(255,230,200,0)"]]);
+      g.globalCompositeOperation = "source-over";
+      g.save(); g.translate(x,y); g.rotate(t); g.filter = "blur(10px)";
+      [[0,-95,820,120,.38],[30,-165,1100,190,.25],[-20,-240,1400,260,.16]].forEach(([dx,dy,rx,ry,a])=>{
+        g.strokeStyle = `rgba(8,6,6,${a})`; g.lineWidth = 26; g.beginPath(); g.ellipse(dx,dy*.25,rx,ry,0,Math.PI*1.05,Math.PI*1.95); g.stroke(); });
+      g.restore(); g.filter = "none";
+      g.globalCompositeOperation = "lighter";
+      { const [a,b]=P([-32.4,4.9]); blob(g,a,b,70,40,t,[[0,"rgba(150,180,255,.55)"],[1,"rgba(0,0,0,0)"]]); }
+      { const [a,b]=P([-13,-12.1]); blob(g,a,b,80,64,0,[[0,"rgba(255,245,230,.95)"],[.35,"rgba(230,210,190,.35)"],[1,"rgba(0,0,0,0)"]]); }
+      return { n:1700 };
+    },
+    m42(g, R){
+      g.globalCompositeOperation = "lighter";
+      const [cx,cy] = P([0,2]);
+      blob(g,cx,cy,900,700,0,[[0,"rgba(170,60,90,.45)"],[.6,"rgba(90,30,60,.2)"],[1,"rgba(0,0,0,0)"]]);
+      for (let i=0;i<70;i++){
+        const a = R.r()*Math.PI*2, d = Math.pow(R.r(),.7)*620;
+        const x = cx + Math.cos(a)*d*1.25, y = cy + Math.sin(a)*d*.95 + 60;
+        const r = 60 + R.r()*190;
+        blob(g,x,y,r,r*(.5+R.r()*.5),a,[[0,`rgba(255,${90+R.r()*60|0},${110+R.r()*40|0},${.10+R.r()*.14})`],[1,"rgba(0,0,0,0)"]]);
+      }
+      blob(g,cx,cy-40,360,260,.3,[[0,"rgba(255,180,170,.55)"],[1,"rgba(0,0,0,0)"]]);
+      blob(g,...P([0,0]),170,130,0,[[0,"rgba(220,255,250,.95)"],[.5,"rgba(140,220,220,.45)"],[1,"rgba(0,0,0,0)"]]);
+      g.globalCompositeOperation = "source-over";
+      g.filter = "blur(18px)"; g.fillStyle = "rgba(6,4,8,.55)";
+      { const [x,y]=P([1,-4]); g.beginPath(); g.ellipse(x,y,150,46,-.25,0,Math.PI*2); g.fill(); }
+      g.filter = "none";
+      g.globalCompositeOperation = "lighter";
+      blob(g,...P([1,-7.5]),95,80,0,[[0,"rgba(255,150,160,.6)"],[1,"rgba(0,0,0,0)"]]);
+      [[-6,-4],[8,2],[-2,10],[5,-8]].forEach(([dx,dy])=>{ const [x,y]=P([0,0]); blob(g,x+dx*4,y+dy*4,16,16,0,[[0,"rgba(255,255,255,1)"],[1,"rgba(255,255,255,0)"]]); });
+      return { n:1300 };
+    },
+    m13(g, R, k){
+      g.globalCompositeOperation = "lighter";
+      blob(g,...P([6,6]),320,320,0,[[0,"rgba(255,235,200,.75)"],[.4,"rgba(200,190,170,.25)"],[1,"rgba(0,0,0,0)"]]);
+      starfield(g, R, 2600, k, { cluster:[6,6,3.2], m0:9.5, pow:.6 });
+      blob(g,...P([-10.7,-16.3]),36,16,.26,[[0,"rgba(220,220,255,.6)"],[1,"rgba(0,0,0,0)"]]);
+      return { n:1100 };
+    },
+    m27(g, R){
+      g.globalCompositeOperation = "lighter";
+      const [x,y] = P([0,0]), t = 30*Math.PI/180;
+      blob(g,x,y,150,120,t,[[0,"rgba(200,70,90,.35)"],[1,"rgba(0,0,0,0)"]]);
+      blob(g,x,y,120,70,t,[[0,"rgba(90,200,190,.55)"],[1,"rgba(0,0,0,0)"]]);
+      [-1,1].forEach(s => { const dx = Math.cos(t+Math.PI/2)*55*s, dy = Math.sin(t+Math.PI/2)*55*s;
+        blob(g,x+dx,y+dy,70,48,t,[[0,"rgba(150,240,215,.75)"],[.7,"rgba(210,90,110,.25)"],[1,"rgba(0,0,0,0)"]]); });
+      return { n:3600, pow:.4 };
+    },
+    m51(g, R){
+      g.globalCompositeOperation = "lighter";
+      const [x,y] = P([0,0]);
+      blob(g,x,y,170,140,0,[[0,"rgba(160,170,210,.35)"],[1,"rgba(0,0,0,0)"]]);
+      for (const arm of [0, Math.PI]){
+        for (let th=0.3; th<5.2; th+=0.06){
+          const r = 18*Math.exp(0.33*th), a = th + arm;
+          const px = x + Math.cos(a)*r*1.05, py = y + Math.sin(a)*r*.82;
+          blob(g,px,py,14+R.r()*8,10,a,[[0,`rgba(170,200,255,${.30+R.r()*.25})`],[1,"rgba(0,0,0,0)"]]);
+          if (R.r()<.2) blob(g,px+R.gs()*4,py+R.gs()*4,5,5,0,[[0,"rgba(255,140,170,.8)"],[1,"rgba(0,0,0,0)"]]);
+        }
+      }
+      blob(g,x,y,34,30,0,[[0,"rgba(255,240,210,1)"],[1,"rgba(0,0,0,0)"]]);
+      const [cx,cy] = P([-1.2,-4.3]);
+      blob(g,cx,cy,52,42,.4,[[0,"rgba(255,225,185,.9)"],[1,"rgba(0,0,0,0)"]]);
+      blob(g,(x+cx)/2,(y+cy)/2-10,40,90,-.2,[[0,"rgba(170,180,230,.18)"],[1,"rgba(0,0,0,0)"]]);
+      return { n:1300 };
+    },
+    ngc7000(g, R){
+      g.globalCompositeOperation = "lighter";
+      for (let i=0;i<90;i++){
+        const x = R.r()*W*1.1 - 100, y = R.r()*H;
+        if (x + (H-y)*0.9 > W*1.05) continue;              // rechts unten bleibt dunkel (Golf)
+        const r = 120 + R.r()*320;
+        blob(g,x,y,r,r*(.6+R.r()*.4),R.r()*3,[[0,`rgba(220,${50+R.r()*40|0},${70+R.r()*30|0},${.08+R.r()*.12})`],[1,"rgba(0,0,0,0)"]]);
+      }
+      for (let i=0;i<140;i++){ const u = R.r();
+        const x = 250 + u*1300 + R.gs()*40, y = H - 80 - u*820 + Math.sin(u*9)*40 + R.gs()*30;
+        const r = 40 + R.r()*110;
+        blob(g,x,y,r,r*(.35+R.r()*.4),-0.68+R.gs()*.3,[[0,`rgba(255,${120+R.r()*40|0},140,${.06+R.r()*.10})`],[1,"rgba(0,0,0,0)"]]); }
+      for (let i=0;i<40;i++){ const u = R.r();   // dunkle Seite der Wand
+        const x = 330 + u*1300 + 90, y = H - 20 - u*820 + 60;
+        g.globalCompositeOperation = "source-over";
+        blob(g,x,y,180,120,-0.68,[[0,"rgba(4,4,8,.18)"],[1,"rgba(0,0,0,0)"]]);
+        g.globalCompositeOperation = "lighter"; }
+      return { n:4200, pow:.4 };
+    }
+  };
+
+  // ================= Katalog (Beispieldaten) =================
+  const OBJ = [
+    { id:"m31", cat:1031, name:"M 31", common:"Andromeda-Galaxie", kind:"galaxy", filter:"IRCUT", exp:10, seed:31,
+      nights:[["2026-10-18",212],["2026-10-19",247],["2026-10-21",186],["2026-10-22",167]],
+      solve:{ ra:"00h 42m 22s", dec:"+41° 09′ 17″", north:"31° unter rechts" }, N:[0.857,0.515], grid:"m31",
+      caption:"Die Seestar-Bildfeldbreite reicht nicht für die ganze Galaxie – M 110 liegt knapp unterhalb.",
+      dso:[
+        { name:"M 31", alt:"NGC 224", type:"Spiralgalaxie (Sb)", at:[8,0], rx:42, ry:11, rot:-7, big:true, label:[60,-120], mag:"3,4", size:"190′ × 60′", dist:"2,5 Mio. Lj", main:true },
+        { name:"M 32", alt:"NGC 221", type:"Elliptische Zwerggalaxie (E2)", at:[-13,-12.1], rx:4.4, ry:3.3, label:[-40,-120], mag:"8,1", size:"8,7′ × 6,5′", dist:"2,5 Mio. Lj" },
+        { name:"NGC 206", alt:"Sternwolke in M 31", type:"Sternassoziation", at:[-32.4,4.9], rx:2.2, ry:1.4, rot:-7, label:[40,110], mag:"–", size:"≈ 4′ × 2′", dist:"2,5 Mio. Lj" } ],
+      off:[{ name:"M 110", at:[15.6,35.8], dist:14 }] },
+    { id:"m42", cat:1042, name:"M 42", common:"Orionnebel", kind:"nebula", filter:"IRCUT", exp:10, seed:42,
+      nights:[["2026-10-21",154],["2026-10-22",198]],
+      solve:{ ra:"05h 35m 17s", dec:"−05° 23′ 28″", north:"oben" }, N:[0,-1],
+      caption:"Kurze Belichtung pro Frame hält den hellen Kern um das Trapez nicht ausgebrannt.",
+      dso:[
+        { name:"M 42", alt:"NGC 1976", type:"Emissionsnebel (H-II-Region)", at:[2,3], rx:30, ry:20, big:true, label:[300,250], mag:"4,0", size:"85′ × 60′", dist:"1.340 Lj", main:true },
+        { name:"M 43", alt:"De Mairans Nebel", type:"Emissionsnebel", at:[1,-7.5], rx:3.4, ry:2.8, label:[-60,-90], mag:"9,0", size:"20′ × 15′", dist:"1.340 Lj" } ],
+      stars:[{ name:"θ¹ Ori (Trapez)", type:"Mehrfachstern", at:[0,0], mag:"≈ 5", size:"–", dist:"1.340 Lj" }],
+      off:[{ name:"NGC 1977", at:[0,-34], dist:12 }] },
+    { id:"m13", cat:1013, name:"M 13", common:"Herkuleshaufen", kind:"cluster", filter:"IRCUT", exp:10, seed:13,
+      nights:[["2026-09-26",143],["2026-10-02",120]],
+      solve:{ ra:"16h 42m 11s", dec:"+36° 33′ 35″", north:"oben" }, N:[0,-1],
+      caption:"Mit im Bild: die kleine Spiralgalaxie NGC 6207, rund 28′ nordöstlich.",
+      dso:[
+        { name:"M 13", alt:"NGC 6205", type:"Kugelsternhaufen", at:[6,6], rx:10, ry:10, label:[220,-230], mag:"5,8", size:"20′", dist:"22.200 Lj", main:true },
+        { name:"NGC 6207", alt:"", type:"Spiralgalaxie (Sc)", at:[-10.7,-16.3], rx:1.6, ry:.7, rot:15, label:[-30,-60], mag:"11,6", size:"3,0′ × 1,1′", dist:"≈ 30 Mio. Lj" } ] },
+    { id:"m27", cat:1027, name:"M 27", common:"Hantelnebel", kind:"nebula", filter:"IRCUT", exp:10, seed:27,
+      nights:[["2026-09-27",260],["2026-10-03",205]],
+      solve:{ ra:"19h 59m 36s", dec:"+22° 43′ 16″", north:"oben" }, N:[0,-1],
+      caption:"Dichtes Sternfeld der Milchstraße im Füchschen – der Nebel selbst ist klein im Seestar-Bild.",
+      dso:[{ name:"M 27", alt:"NGC 6853", type:"Planetarischer Nebel", at:[0,0], rx:4, ry:2.8, rot:30, label:[120,-150], mag:"7,5", size:"8,0′ × 5,6′", dist:"1.360 Lj", main:true }] },
+    { id:"m51", cat:1051, name:"M 51", common:"Whirlpool-Galaxie", kind:"galaxy", filter:"IRCUT", exp:10, seed:51,
+      nights:[["2026-09-14",96]],
+      solve:{ ra:"13h 29m 53s", dec:"+47° 11′ 43″", north:"oben" }, N:[0,-1],
+      caption:"Nur eine kurze Nacht, tief im Nordwesten – Kandidat für mehr Belichtung im Frühjahr.",
+      dso:[
+        { name:"M 51", alt:"NGC 5194", type:"Spiralgalaxie (Sc)", at:[0,0], rx:5.5, ry:3.6, label:[170,90], mag:"8,4", size:"11′ × 7′", dist:"23 Mio. Lj", main:true },
+        { name:"NGC 5195", alt:"Begleiter", type:"Zwerggalaxie", at:[-1.2,-4.3], rx:2.9, ry:2.3, label:[-60,-90], mag:"9,6", size:"5,8′ × 4,6′", dist:"23 Mio. Lj" } ] },
+    { id:"ngc7000", cat:7000, name:"NGC 7000", common:"Nordamerikanebel", kind:"nebula", filter:"LP", exp:10, seed:7000,
+      nights:[["2026-09-28",330],["2026-10-05",288],["2026-10-06",301]],
+      solve:{ ra:"≈ 20h 58m 48s", dec:"≈ +44° 20′ 00″", north:"oben" }, N:[0,-1],
+      caption:"Mit LP-Filter. Ein Seestar-Bildfeld zeigt nur die Region um die Cygnus-Wall – der ganze Nebel bräuchte ein Mosaik.",
+      dso:[
+        { name:"NGC 7000", alt:"Nordamerikanebel", type:"Emissionsnebel (H-II-Region)", at:[-12,-6], rx:34, ry:18, big:true, label:[-300,-200], mag:"4,0", size:"120′ × 100′", dist:"2.600 Lj", main:true },
+        { name:"Cygnus-Wall", alt:"Teil von NGC 7000", type:"Ionisationsfront", at:[0,4], rx:22, ry:4, rot:-38, label:[200,190], mag:"–", size:"≈ 20′", dist:"2.600 Lj" } ],
+      off:[{ name:"IC 5070", at:[75,0], dist:37 }] }
+  ];
+  OBJ.forEach(o => { o.frames = o.nights.reduce((s,n)=>s+n[1],0); o.secs = o.frames*o.exp; o.last = o.nights.map(n=>n[0]).sort().at(-1); });
+  const KIND = { galaxy:"Galaxien", nebula:"Nebel", cluster:"Sternhaufen" };
+  const KIND1 = { galaxy:"Galaxie", nebula:"Nebel", cluster:"Sternhaufen" };
+
+  // ================= Rendern =================
+  function renderSky(canvas, o, w, h){
+    canvas.width = w; canvas.height = h;
+    const g = canvas.getContext("2d"), k = w/W, R = mkRng(o.seed);
+    g.setTransform(1,0,0,1,0,0);
+    g.fillStyle = "#05070c"; g.fillRect(0,0,w,h);
+    g.setTransform(k,0,0,k,0,0);
+    const bg = g.createLinearGradient(0,0,W,H); bg.addColorStop(0,"rgba(30,26,40,.55)"); bg.addColorStop(1,"rgba(10,18,30,.35)");
+    g.fillStyle = bg; g.fillRect(0,0,W,H);
+    const res = DRAW[o.id](g, R, k) || {};
+    g.globalCompositeOperation = "lighter";
+    const stars = starfield(g, R, Math.round((res.n||1500) * (k<.5 ? .6 : 1)), k, { pow:res.pow||.3 });
+    g.globalCompositeOperation = "source-over";
+    g.setTransform(1,0,0,1,0,0);
+    const img = g.getImageData(0,0,w,h), d = img.data;
+    for (let i=0;i<d.length;i+=4){ const n = R.gs()*3; d[i]+=n; d[i+1]+=n; d[i+2]+=n*1.1; }
+    g.putImageData(img,0,0);
+    return stars;
+  }
+
+  const el = (n, a={}, p) => { const e = document.createElementNS(NS,n); for (const key in a) e.setAttribute(key,a[key]); if (p) p.appendChild(e); return e; };
+
+  function drawMarker(parent, o, cls, onShow){
+    const grp = el("g",{class:`mk ${cls}`}, parent);
+    const [x,y] = P(o.at);
+    if (o.rx) el("ellipse",{cx:x,cy:y,rx:o.rx*S,ry:o.ry*S,transform:`rotate(${o.rot||0} ${x} ${y})`,class:o.big?"shape big":"shape"},grp);
+    else el("circle",{cx:x,cy:y,r:18,class:"shape"},grp);
+    const lab = o.label || [34,-34];
+    const [lx,ly] = [x+lab[0], y+lab[1]];
+    el("line",{x1:x,y1:y,x2:lx,y2:ly+(lab[1]<0?8:-30),class:"lead"},grp);
+    const t = el("text",{x:lx,y:ly,class:"lbl","text-anchor":lab[0]<0?"end":"start"},grp); t.textContent = o.name;
+    if (onShow){
+      el("circle",{cx:x,cy:y,r:o.rx?Math.max(40,Math.min(o.ry*S,160)):30,class:"hit"},grp);
+      grp.addEventListener("pointerenter",()=>onShow(o,grp));
+      grp.addEventListener("pointerleave",hideCard);
+      grp.addEventListener("click",ev=>{ev.stopPropagation(); onShow(o,grp);});
+    }
+    return grp;
+  }
+
+  function drawOff(parent, o){
+    let [x,y] = P(o.at); const grp = el("g",{class:"dso offscreen"},parent);
+    let d, tx, ty, anchor = "start";
+    if (y > H){ x = Math.min(Math.max(x,60),W-420); d=`M${x-14} ${H-46} L${x+14} ${H-46} L${x} ${H-22} Z`; tx=x+24; ty=H-28; }
+    else if (y < 0){ x = Math.min(Math.max(x,60),W-420); d=`M${x-14} 46 L${x+14} 46 L${x} 22 Z`; tx=x+24; ty=50; }
+    else { y = Math.min(Math.max(y,60),H-60); d=`M${W-46} ${y-14} L${W-46} ${y+14} L${W-22} ${y} Z`; tx=W-56; ty=y+9; anchor="end"; }
+    el("path",{d},grp);
+    const t = el("text",{x:tx,y:ty,class:"lbl","text-anchor":anchor},grp); t.textContent = `${o.name} · ${o.dist}′ außerhalb`;
+  }
+
+  // ================= Uebersicht =================
+  const fmtDate = (iso) => { const [y,m,d] = iso.split("-"); return `${d}.${m}.`; };
+  function renderStats(){
+    const nights = new Set(OBJ.flatMap(o=>o.nights.map(n=>n[0])));
+    const frames = OBJ.reduce((s,o)=>s+o.frames,0), secs = OBJ.reduce((s,o)=>s+o.secs,0);
+    document.getElementById("stats").innerHTML = [
+      [OBJ.length,"Objekte"],[nights.size,"Beobachtungsnächte"],[de(frames),"Einzelframes"],[fmtInt(secs),"Gesamtbelichtung"]
+    ].map(([v,l])=>`<div class="stat"><b>${v}</b><span>${l}</span></div>`).join("");
+  }
+
+  function renderCal(){
+    const svg = document.getElementById("cal"); svg.innerHTML = "";
+    const start = new Date("2026-09-01T12:00:00"), days = 61, x0 = 20, x1 = 880, step = (x1-x0)/(days-1);
+    const X = (iso) => x0 + Math.round((new Date(iso+"T12:00:00") - start)/864e5)*step;
+    for (let i=0;i<days;i++){ const d = new Date(start.getTime()+i*864e5); const x = x0+i*step;
+      el("line",{x1:x,y1:30,x2:x,y2:d.getDate()===1?20:34,class:"tick"},svg);
+      if (d.getDate()===1 || d.getDate()%5===0){ const t = el("text",{x,y:52,"text-anchor":"middle"},svg); t.textContent = d.getDate()===1 ? (d.getMonth()===8?"1. Sep":"1. Okt") : d.getDate(); } }
+    el("line",{x1:x0,y1:32,x2:x1,y2:32,class:"tick"},svg);
+    [["2026-09-26","full"],["2026-10-26","full"],["2026-09-11","new"],["2026-10-10","new"]].forEach(([d,t]) =>
+      el("circle",{cx:X(d),cy:10,r:4,class:t==="full"?"moonfull":"moonnew"},svg));
+    const per = {};
+    OBJ.forEach(o => o.nights.forEach(([d,f]) => { (per[d] ||= []).push({o,f}); }));
+    Object.entries(per).forEach(([d,list]) => list.forEach((it,i) => {
+      const c = el("circle",{cx:X(d),cy:24 - i*9,r:4,class:"night"+(it.o.filter==="LP"?" lp":"")},svg);
+      const ti = el("title",{},c); ti.textContent = `${fmtDay(d)} – ${it.o.name}, ${it.f} Frames`;
+    }));
+    svg.setAttribute("viewBox","0 -6 900 64");
+  }
+
+  let kindFilter = "all", sortBy = "recent";
+  function renderChips(){
+    const counts = OBJ.reduce((m,o)=>(m[o.kind]=(m[o.kind]||0)+1,m),{});
+    const items = [["all","Alle",OBJ.length], ...Object.entries(KIND).map(([k,l])=>[k,l,counts[k]||0])];
+    const box = document.getElementById("chips");
+    box.innerHTML = items.map(([k,l,n]) => `<button class="chip" data-k="${k}" aria-pressed="${k===kindFilter}">${l}<small>${n}</small></button>`).join("");
+    box.querySelectorAll(".chip").forEach(b => b.onclick = () => { kindFilter = b.dataset.k; renderChips(); renderGrid(); });
+  }
+
+  const thumbCache = {};
+  function renderGrid(){
+    let list = OBJ.filter(o => kindFilter==="all" || o.kind===kindFilter);
+    list.sort(sortBy==="recent" ? (a,b)=>b.last.localeCompare(a.last) : sortBy==="exposure" ? (a,b)=>b.secs-a.secs : (a,b)=>a.cat-b.cat);
+    const grid = document.getElementById("grid"); grid.innerHTML = "";
+    if (!list.length){ grid.innerHTML = `<p class="empty">Keine Objekte in dieser Kategorie.</p>`; return; }
+    list.forEach(o => {
+      const b = document.createElement("button"); b.className = "tile"; b.setAttribute("aria-label", `${o.name} ${o.common} öffnen`);
+      b.innerHTML = `<div class="thumb"></div>
+        <div class="tile-t"><h3>${o.name} <em>${o.common}</em></h3><span class="badge${o.filter==="LP"?" lp":""}">${o.filter}</span></div>
+        <div class="tile-m"><span><b>${fmtInt(o.secs)}</b> Belichtung</span><span><b>${o.nights.length}</b> ${o.nights.length===1?"Nacht":"Nächte"}</span><span>zuletzt <b>${fmtDate(o.last)}</b></span></div>`;
+      const th = b.querySelector(".thumb");
+      if (!thumbCache[o.id]){ const c = document.createElement("canvas"); renderSky(c,o,640,360); thumbCache[o.id] = c; }
+      th.appendChild(thumbCache[o.id]);
+      const svg = el("svg",{viewBox:`0 0 ${W} ${H}`,preserveAspectRatio:"xMidYMid meet","aria-hidden":"true"});
+      const gO = el("g",{class:"dso"},svg); drawMarker(gO, o.dso.find(d=>d.main), "dso");
+      th.appendChild(svg);
+      b.onclick = () => open(o.id);
+      grid.appendChild(b);
+    });
+  }
+  document.getElementById("sort").onchange = e => { sortBy = e.target.value; renderGrid(); };
+
+  // ================= Detail =================
+  const frame = document.getElementById("frame"), card = document.getElementById("card"), ovg = document.getElementById("ovg"), svgD = document.getElementById("ov");
+  function showCard(o, grp){
+    ovg.querySelectorAll(".mk.active").forEach(m=>m.classList.remove("active")); grp.classList.add("active");
+    card.innerHTML = `<h3>${o.name}</h3><p class="type">${o.type}${o.alt?" · "+o.alt:""}</p>
+      <dl><dt>Helligkeit</dt><dd>${o.mag} mag</dd><dt>Größe</dt><dd>${o.size}</dd><dt>Entfernung</dt><dd>${o.dist}</dd></dl>`;
+    card.hidden = false;
+    const fr = frame.getBoundingClientRect(), b = grp.getBoundingClientRect();
+    let left = b.right - fr.left + 12, top = b.top - fr.top;
+    if (left + card.offsetWidth > fr.width - 8) left = Math.max(8, b.left - fr.left - card.offsetWidth - 12);
+    top = Math.min(Math.max(8, top), fr.height - card.offsetHeight - 8);
+    card.style.left = left+"px"; card.style.top = top+"px";
+  }
+  function hideCard(){ card.hidden = true; ovg.querySelectorAll(".mk.active").forEach(m=>m.classList.remove("active")); }
+
+  function drawGrid(parent){
+    const beta = (128-7)*Math.PI/180, gG = el("g",{class:"gridl"},parent);
+    const sky = (xi,eta) => { const x=-xi, y=-eta; return [x*Math.cos(beta)-y*Math.sin(beta)+8, x*Math.sin(beta)+y*Math.cos(beta)]; };
+    const line = (a,b,txt,ta) => { const [x1,y1]=P(sky(...a)), [x2,y2]=P(sky(...b)); el("line",{x1,y1,x2,y2},gG);
+      const [tx,ty]=P(sky(...ta)); const t=el("text",{x:tx,y:ty},gG); t.textContent=txt; };
+    [[-31.15,"40°45′"],[-16.15,"41°00′"],[-1.15,"41°15′"],[13.85,"41°30′"],[28.85,"41°45′"]].forEach(([eta,t]) => line([-90,eta],[90,eta],t,[-28,eta+0.8]));
+    [[-30.9,"0h40m"],[-19.6,"0h41m"],[-8.3,"0h42m"],[2.95,"0h43m"],[14.2,"0h44m"],[25.5,"0h45m"]].forEach(([xi,t]) => line([xi,-90],[xi,90],t,[xi+0.6,-12]));
+  }
+
+  function open(id){
+    const o = OBJ.find(x=>x.id===id); if (!o) return;
+    document.getElementById("v-list").hidden = true; document.getElementById("v-detail").hidden = false;
+    try { history.replaceState(null,"","#"+id); } catch(e){}
+    window.scrollTo(0,0);
+    document.getElementById("d-eyebrow").textContent = `${KIND1[o.kind]} · ${o.nights.length===1?"Einzelnacht":"Master aus "+o.nights.length+" Nächten"} · Seestar S50`;
+    document.getElementById("d-title").innerHTML = `${o.name} <em>${o.common}</em>`;
+    document.getElementById("d-caption").textContent = `Objektpositionen aus dem Plate-Solving (Siril platesolve + conesearch), umgerechnet über die WCS-Daten des Stacks. ${o.caption}`;
+    document.getElementById("d-integ").innerHTML = `${fmtInt(o.secs)} <small>gesamt</small>`;
+    document.getElementById("d-exp").innerHTML = `<dt>Frames</dt><dd>${de(o.frames)} × ${o.exp} s</dd><dt>Nächte</dt><dd>${o.nights.length}</dd><dt>Filter</dt><dd>${o.filter}</dd><dt>Gain</dt><dd>80</dd>`;
+    const max = Math.max(...o.nights.map(n=>n[1]));
+    document.getElementById("d-nights").innerHTML = o.nights.map(([d,n]) =>
+      `<li><span>${fmtDay(d)}</span><span class="bar${o.filter==="LP"?" lp":""}"><i style="width:${(n/max*100).toFixed(1)}%"></i></span><span class="n">${n}</span></li>`).join("");
+    document.getElementById("d-solve").innerHTML = `<dt>Bildmitte RA</dt><dd>${o.solve.ra}</dd><dt>Bildmitte Dec</dt><dd>${o.solve.dec}</dd>
+      <dt>Bildfeld</dt><dd>1,28° × 0,72°</dd><dt>Pixelmaßstab</dt><dd>2,39″/px</dd><dt>Norden</dt><dd>${o.solve.north}</dd><dt>Optik</dt><dd>250 mm · f/5</dd>`;
+    const range = o.nights.length>1 ? `${fmtDate(o.nights[0][0]).slice(0,3)}–${fmtDate(o.last)}` : fmtDate(o.last);
+    document.getElementById("d-versions").innerHTML = (o.nights.length>1 ? `<li class="cur"><span>Master · Siril</span><span>${o.nights.length} Nächte</span></li><li><span>Einzelnacht · Siril</span><span>${range}</span></li>`
+      : `<li class="cur"><span>Einzelnacht · Siril</span><span>${range}</span></li>`) +
+      `<li><span>Seestar-App-Stack</span><span>Handy → Immich</span></li><li><span>Beschriftet · plot-constellations</span><span>Immich</span></li>`;
+
+    // Bild + Overlay
+    const stars = renderSky(document.getElementById("sky"), o, W, H);
+    ovg.innerHTML = ""; hideCard(); setPin(false);
+    if (o.grid) drawGrid(ovg);
+    const gridBtn = document.getElementById("t-grid"); gridBtn.hidden = !o.grid;
+    gridBtn.setAttribute("aria-pressed","false"); svgD.classList.add("hide-grid");
+    o.dso.forEach(d => drawMarker(ovg, d, "dso", showCard));
+    (o.off||[]).forEach(d => drawOff(ovg, d));
+    (o.stars||[]).forEach(s => drawMarker(ovg, {...s, label:[34,-34]}, "star", showCard));
+    stars.slice(-6).reverse().forEach(s => {
+      if (s.x<120||s.x>W-200||s.y<80||s.y>H-90) return;
+      const at = [(s.x-W/2)/S, (s.y-H/2)/S];
+      if (o.dso.some(d => Math.hypot(d.at[0]-at[0], d.at[1]-at[1]) < Math.max(d.rx,4))) return;
+      const m = s.m.toFixed(1).replace(".",",");
+      drawMarker(ovg, { name:`${m} mag`, type:"Feldstern (Beispiel)", alt:"Katalogname aus Gaia/Tycho", at, mag:m, size:"–", dist:"–" }, "star", showCard);
+    });
+    // Kompass + Massstab
+    const c = el("g",{class:"compass"},ovg), ox=W-120, oy=110, L=70, N=o.N, E=[N[1],-N[0]];
+    el("line",{x1:ox,y1:oy,x2:ox+N[0]*L,y2:oy+N[1]*L},c); el("line",{x1:ox,y1:oy,x2:ox+E[0]*L*.7,y2:oy+E[1]*L*.7},c);
+    el("text",{x:ox+N[0]*(L+18)-6,y:oy+N[1]*(L+18)+7},c).textContent = "N";
+    el("text",{x:ox+E[0]*(L*.7+18)-6,y:oy+E[1]*(L*.7+18)+7},c).textContent = "O";
+    const sb = el("g",{class:"scalebar"},ovg), len = 10*S;
+    el("line",{x1:W-60-len,y1:H-40,x2:W-60,y2:H-40},sb); el("text",{x:W-60-len,y:H-52},sb).textContent = "10′";
+  }
+
+  function close(){
+    document.getElementById("v-detail").hidden = true; document.getElementById("v-list").hidden = false;
+    try { history.replaceState(null,"",location.pathname+location.search); } catch(e){}
+  }
+  document.getElementById("back").onclick = close;
+
+  // ================= Bedienung =================
+  const pinBtn = document.getElementById("t-pin");
+  function setPin(v){ frame.classList.toggle("pinned",v); pinBtn.setAttribute("aria-pressed",v); if(!v) hideCard(); }
+  pinBtn.onclick = () => setPin(!frame.classList.contains("pinned"));
+  let lastPointer = "mouse";
+  frame.addEventListener("pointerdown", e => { lastPointer = e.pointerType || "mouse"; });
+  frame.addEventListener("click", () => { if (lastPointer !== "mouse") setPin(!frame.classList.contains("pinned")); else hideCard(); });
+  frame.addEventListener("keydown", e => { if (e.key==="Enter"||e.key===" "){ e.preventDefault(); setPin(!frame.classList.contains("pinned")); } });
+  const toggle = (id, cls) => { const b = document.getElementById(id); b.onclick = () => { const on = b.getAttribute("aria-pressed")!=="true"; b.setAttribute("aria-pressed",on); svgD.classList.toggle(cls,!on); }; };
+  toggle("t-dso","hide-dso"); toggle("t-star","hide-star"); toggle("t-grid","hide-grid");
+  document.querySelectorAll(".red-t").forEach(b => b.onclick = () => {
+    const on = !document.documentElement.classList.contains("redlight");
+    document.documentElement.classList.toggle("redlight",on);
+    document.querySelectorAll(".red-t").forEach(x=>x.setAttribute("aria-pressed",on));
+  });
+
+  // ================= Start =================
+  renderStats(); renderCal(); renderChips(); renderGrid();
+  const start = (location.hash||"").slice(1);
+  if (OBJ.some(o=>o.id===start)) open(start);
+})();
+</script>

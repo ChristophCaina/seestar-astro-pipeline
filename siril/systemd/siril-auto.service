@@ -1,0 +1,15 @@
+[Unit]
+Description=Seestar-Frames abholen und mit Siril stacken
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=siril
+Group=siril
+EnvironmentFile=/etc/siril-auto.env
+ExecStart=/opt/siril-auto/siril-auto.sh
+Nice=10
+IOSchedulingClass=idle
+# Siril darf alle Kerne nutzen, aber den Container nicht blockieren
+CPUWeight=50

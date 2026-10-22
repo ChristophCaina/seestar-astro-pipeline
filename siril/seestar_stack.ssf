@@ -1,0 +1,56 @@
+############################################################
+# Seestar S50 – automatisches Stacking (Siril >= 1.2)
+#
+# Erwartet im Arbeitsverzeichnis einen Ordner "light/" mit den
+# Einzelframes (Light_*.fit) des Seestar. Darks/Flats werden
+# nicht verwendet – bei vielen kurzen Subs entfernt die
+# Sigma-Rejection Hotpixel und Satelliten weitgehend.
+#
+# Ergebnis (im Arbeitsverzeichnis):
+#   result_linear.fit   – lineares Stack-Ergebnis (32 Bit)
+#   result_preview.jpg  – gestretchte Vorschau fuer Immich
+#   result_preview.tif  – gestretchte 16-Bit-TIFF
+#
+# Aufruf: siril-cli -d <arbeitsverzeichnis> -s seestar_stack.ssf
+############################################################
+
+requires 1.2.0
+
+# Zwischenschritte in 16 Bit halten (spart ~50 % Platz)
+set16bits
+setext fit
+
+# 1) Lights einlesen und debayern (Seestar-Subs sind CFA,
+#    das Bayer-Muster steht im FITS-Header)
+cd light
+convert light -debayer -out=../process
+cd ../process
+
+# 2) Registrieren (2-Pass: sucht den besten Referenz-Frame,
+#    kommt mit der Feldrotation der Alt/Az-Montierung klar)
+register light -2pass
+
+# 3) Registrierte Frames erzeugen, schlechte Frames verwerfen
+#    (Rundheit / FWHM schlechter als 2,5 Sigma)
+seqapplyreg light -filter-round=2.5k -filter-wfwhm=2.5k
+
+# 4) Stacken: Sigma-Clipping, Normalisierung, Ergebnis in 32 Bit
+set32bits
+stack r_light rej 3 3 -norm=addscale -output_norm -rgb_equal -out=../result_linear
+
+# 5) Nachbearbeitung fuer die Vorschau
+cd ..
+load result_linear
+subsky 1
+save result_linear
+
+# Falls das Ergebnis gespiegelt erscheint, folgende Zeile aktivieren
+# (am ersten echten Datensatz pruefen):
+# mirrorx -bottomup
+
+rmgreen
+autostretch
+savetif result_preview
+savejpg result_preview 95
+
+close

@@ -1,0 +1,9 @@
+# Seestar-Karte, nur sichtbar, wenn das Teleskop verbunden ist.
+# Entity-Präfix ("seestar_s50") an den Gerätenamen anpassen –
+# die echten IDs stehen auf der Geräteseite unter Einstellungen → Geräte & Dienste → MQTT.
+type: custom:seestar-card
+device: seestar_s50
+visibility:
+  - condition: state
+    entity: binary_sensor.seestar_s50_connected
+    state: "on"

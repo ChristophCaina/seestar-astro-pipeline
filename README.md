@@ -1,0 +1,46 @@
+# seestar-astro-pipeline
+
+Ein ZWO **Seestar S50** im Homelab: Steuerung und Telemetrie in **Home Assistant**, automatisches Stacking der Einzelframes mit **Siril**, Ablage auf dem NAS, Übergabe an **Immich** und eine eigene **Astro-Galerie** mit Objekt-Annotationen.
+
+> **Status:** im Aufbau. seestar_alp und das HA-Add-on laufen. Die Siril-Pipeline ist geschrieben, aber noch nicht mit echten Seestar-Daten getestet. Die Galerie ist ein Prototyp mit simulierten Bildern.
+
+```mermaid
+flowchart LR
+  S[Seestar S50] -- Alpaca / JSON-RPC --> A[seestar_alp<br/>LXC]
+  A -- Alpaca + Events --> B[HA-Add-on<br/>jaxzin/ha-seestar]
+  B -- MQTT Discovery --> HA[Home Assistant]
+  S -- SMB / rclone --> R[siril-auto<br/>LXC]
+  R -- Stacks + JPG --> N[(NAS<br/>/data/astro)]
+  R -- MQTT Status --> HA
+  N -- External Library --> I[Immich]
+  N -- JSON + Bilder --> G[Astro-Galerie<br/>nginx]
+```
+
+## Inhalt
+
+| Ordner | Inhalt |
+|---|---|
+| [`docs/`](docs) | Einrichtung Schritt für Schritt: seestar_alp-LXC, HA-Add-on, Siril-LXC, Remote-Zugriff, Immich & Galerie, Roadmap |
+| [`scripts/`](scripts) | Hilfsscripte, z. B. die seestar_alp-Installation auf amd64-LXC |
+| [`siril/`](siril) | `siril-auto`: Abholung, Gruppierung nach Ziel und Nacht, Siril-Script, systemd-Timer, MQTT-Status |
+| [`homeassistant/`](homeassistant) | Dashboard-Karte und Beispiel-Automationen |
+| [`gallery/`](gallery) | Prototyp der Astro-Galerie: Übersicht, Beobachtungskalender, Detailseiten mit Hover-Annotationen |
+
+## Komponenten
+
+| Baustein | Projekt | Rolle |
+|---|---|---|
+| Treiber | [smart-underworld/seestar_alp](https://github.com/smart-underworld/seestar_alp) | ASCOM-Alpaca-Treiber und Web-UI (eigener LXC) |
+| HA-Anbindung | [jaxzin/ha-seestar](https://github.com/jaxzin/ha-seestar) | Add-on im External-Modus, MQTT-Entities, abgesicherte Steuerung |
+| Dashboard | [jaxzin/seestar-lovelace-card](https://github.com/jaxzin/seestar-lovelace-card) | Lovelace-Karte (HACS) |
+| Stacking | [Siril](https://siril.org) | `siril-cli` mit [`siril/seestar_stack.ssf`](siril/seestar_stack.ssf) |
+| Annotation | Siril `platesolve`/`conesearch`, astrometry.net `plot-constellations` | Objektpositionen für Galerie und Immich |
+
+## Hinweise
+
+- **Firmware ≥ 7.18:** Steuerbefehle brauchen einen Interop-Key in seestar_alp (ab 3.2.2). Telemetrie und Vorschau gehen ohne Key. Der Key gehört **nicht** in dieses Repository.
+- Alle IPs, Hostnamen und Zugangsdaten in den Beispielen sind Platzhalter.
+
+## Lizenz
+
+[MIT](LICENSE) für die Inhalte dieses Repositorys. Die eingebundenen Projekte (seestar_alp: GPL-3.0, ha-seestar: Apache-2.0, Siril: GPL-3.0) behalten ihre eigenen Lizenzen und sind hier nicht enthalten.

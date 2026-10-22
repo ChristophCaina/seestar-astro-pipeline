@@ -1,0 +1,21 @@
+# Push-Nachricht, sobald siril-auto ein neues Stack-Ergebnis meldet.
+# Entity-ID und notify-Dienst an die eigene Installation anpassen.
+alias: Astro – neues Siril-Ergebnis
+description: Meldet fertig gestackte Nächte von siril-auto
+mode: queued
+triggers:
+  - trigger: state
+    entity_id: sensor.siril_auto_stacking_letztes_ergebnis
+conditions:
+  - condition: template
+    value_template: >
+      {{ trigger.from_state is not none
+         and trigger.from_state.state not in ['unknown', 'unavailable']
+         and trigger.to_state.state != trigger.from_state.state }}
+actions:
+  - action: notify.mobile_app_handy
+    data:
+      title: "🔭 {{ state_attr(trigger.entity_id, 'target') }} fertig gestackt"
+      message: >
+        Nacht {{ state_attr(trigger.entity_id, 'night') }} ·
+        {{ state_attr(trigger.entity_id, 'frames') }} Frames
