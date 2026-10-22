@@ -23,7 +23,7 @@ flowchart LR
 | [`docs/`](docs) | Einrichtung Schritt für Schritt: seestar_alp-LXC, HA-Add-on, Siril-LXC, Remote-Zugriff, Immich & Galerie, Roadmap |
 | [`scripts/`](scripts) | Hilfsscripte, z. B. die seestar_alp-Installation auf amd64-LXC |
 | [`siril/`](siril) | `siril-auto`: Abholung, Gruppierung nach Ziel und Nacht, Siril-Script, systemd-Timer, MQTT-Status |
-| [`homeassistant/`](homeassistant) | Dashboard-Karte und Beispiel-Automationen |
+| [`homeassistant/`](homeassistant) | Dashboard-Karte, Beispiel-Automationen, Package **Astro-Audit** (KI-Empfehlung → Helfer → Automationen) |
 | [`gallery/`](gallery) | Astro-Galerie: statisches Frontend, Builder (`meta.json` → Website), Beispieldaten, nginx-vhost |
 
 ## Komponenten

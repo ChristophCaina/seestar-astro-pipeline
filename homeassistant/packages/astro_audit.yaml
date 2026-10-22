@@ -1,0 +1,435 @@
+# =============================================================================
+# Astro-Audit – Package fuer Home Assistant
+#
+# Ablage: /config/packages/astro_audit.yaml
+#   configuration.yaml:  homeassistant:
+#                          packages: !include_dir_named packages
+#
+# Enthaelt:
+#   * Helfer: Empfehlung (an/aus), Stufe, Modus, Kurztext, Beobachtungsfenster
+#   * Script astro_audit: KI-Bewertung (ai_task) -> Helfer + Benachrichtigung
+#   * Automationen: Audit am Abend, Steuerung im Fenster freigeben/sperren,
+#     Tauheizung, Regenwarnung
+#
+# VOR DEM EINSATZ ANPASSEN (Suchen/Ersetzen):
+#   seestar_s50          -> Entity-Praefix deines Seestar (Geraeteseite in HA)
+#   notify.mobile_app_handy -> dein Benachrichtigungsdienst
+#   weather.renningen_2, sensor.astroweather_backyard_* -> wie in deinem Script
+# =============================================================================
+
+input_boolean:
+  astro_nacht_lohnt:
+    name: Astro – Nacht lohnt sich
+    icon: mdi:telescope
+  astro_automatik:
+    name: Astro – Automatik aktiv
+    icon: mdi:robot
+
+input_select:
+  astro_stufe:
+    name: Astro – Stufe
+    icon: mdi:weather-night
+    options: [ideal, gut, bedingt, eingeschraenkt, abbruch]
+  astro_modus:
+    name: Astro – Modus
+    icon: mdi:star-four-points
+    options: [deepsky, planetar, keiner]
+
+input_text:
+  astro_empfehlung:
+    name: Astro – Empfehlung
+    max: 255
+
+input_datetime:
+  astro_fenster_start:
+    name: Astro – Fenster Beginn
+    has_date: true
+    has_time: true
+  astro_fenster_ende:
+    name: Astro – Fenster Ende
+    has_date: true
+    has_time: true
+
+template:
+  - sensor:
+      - name: Astro – Taupunktabstand
+        unique_id: astro_taupunktabstand
+        unit_of_measurement: "K"
+        device_class: temperature
+        state_class: measurement
+        # Ecowitt-Sensoren sind vor Ort genauer – hier ggf. austauschen.
+        state: >-
+          {% set t = state_attr('weather.renningen_2', 'temperature') | float(none) %}
+          {% set d = states('sensor.astroweather_backyard_2m_dewpoint') | float(none) %}
+          {{ (t - d) | round(1) if t is not none and d is not none else none }}
+
+script:
+  astro_audit:
+    alias: 'Astro-Audit: Aktuelle Nacht prüfen'
+    description: >-
+      Führt ein KI-gestütztes Audit durch, das zwischen idealen Deepsky-Bedingungen
+      und möglichen Lunar/Planetary-Bedingungen unterscheidet, inklusive
+      detaillierter Wetter- und Sichtbarkeitsanalyse.
+    sequence:
+      - variables:
+          moon_ok: >-
+            {{
+            is_state('binary_sensor.astroweather_backyard_moon_always_down_during_darkness',
+            'on') }}
+          deepsky_score_today: >-
+            {{ states('sensor.astroweather_backyard_deepsky_forecast_today') |
+            int(0) }}
+          deepsky_score_tomorrow: >-
+            {{ states('sensor.astroweather_backyard_deepsky_forecast_tomorrow') |
+            int(0) }}
+          deepsky_desc_today: >-
+            {{
+            states('sensor.astroweather_backyard_deepsky_forecast_today_description')
+            }}
+          condition_pct: '{{ states(''sensor.astroweather_backyard_condition'') | int(0) }}'
+          wind_speed: '{{ states(''sensor.astroweather_backyard_10m_wind_speed'') | float(99) }}'
+          calm: '{{ states(''sensor.astroweather_backyard_calm_percentage'') | float(0) }}'
+          moon_altitude: '{{ states(''sensor.astroweather_backyard_moon_altitude'') | float(0) }}'
+          moon_phase: '{{ states(''sensor.astroweather_backyard_moon_phase'') }}'
+          moon_next_setting: '{{ states(''sensor.astroweather_backyard_moon_next_setting'') }}'
+          seeing: '{{ states(''sensor.astroweather_backyard_seeing'') | float(5) }}'
+          cloud_cover: '{{ states(''sensor.astroweather_backyard_cloud_cover'') | float(100) }}'
+          cloudless_pct: '{{ states(''sensor.astroweather_backyard_cloudless'') | float(0) }}'
+          transparency: '{{ states(''sensor.astroweather_backyard_transparency'') | int(0) }}'
+          lifted_index_plain: '{{ states(''sensor.astroweather_backyard_lifted_index_plain'') }}'
+          current_temp: '{{ state_attr(''weather.renningen_2'', ''temperature'') | float(-99) }}'
+          rel_humidity: >-
+            {{ states('sensor.astroweather_backyard_2m_relative_humidity') |
+            float(0) }}
+          dewpoint: '{{ states(''sensor.astroweather_backyard_2m_dewpoint'') | float(0) }}'
+          fog_prob: '{{ states(''sensor.astroweather_backyard_fog_area'') | float(0) }}'
+          fog_prob_ground: '{{ states(''sensor.astroweather_backyard_fog_2m_area'') | float(0) }}'
+          astro_dark_start: >-
+            {{ states('sensor.astroweather_backyard_sun_next_setting_astronomical')
+            }}
+          astro_dark_end: >-
+            {{ states('sensor.astroweather_backyard_sun_next_rising_astronomical')
+            }}
+          darkness_quality: >-
+            {% set sun_elev = state_attr('sun.sun', 'elevation') | float(0) %} {{
+            'Astronomische Dunkelheit (optimal)' if sun_elev <= -18 else 'Nautische
+            Dämmerung (akzeptabel)' if sun_elev <= -12 else 'Bürgerliche Dämmerung
+            (eingeschränkt)' if sun_elev <= -6 else 'Helle Nacht / Mitternachtssonne
+            (stark eingeschränkt)' }}
+          dew_warning: >-
+            {{ 'JA – Taugefahr (Temp: ' ~ current_temp ~ '°C / Taupunkt: ' ~
+            dewpoint ~ '°C)'
+               if (current_temp - dewpoint) <= 3 else 'Nein' }}
+      - data:
+          type: hourly
+        target:
+          entity_id: weather.renningen_2
+        response_variable: hourly_forecast
+        action: weather.get_forecasts
+      - variables:
+          forecast_data: '{{ hourly_forecast[''weather.renningen_2''].forecast }}'
+          min_night_temp: >-
+            {% set temps = forecast_data[:8] | map(attribute='temperature') | list
+            %} {{ temps | min | float(-99) }}
+          bad_conditions_later: >-
+            {% set bad_list = ['rainy', 'pouring', 'snowy', 'snowy-rainy',
+            'lightning', 'lightning-rainy'] %} {% set ns = namespace(found=false) %}
+            {% for entry in forecast_data[:8] %}
+              {% if not ns.found %}
+                {% if entry.condition in bad_list or (entry.get('cloud_coverage', 0) | int) > 75 %}
+                  {% set ns.found = true %}
+                {% endif %}
+              {% endif %}
+            {% endfor %} {{ 'Ja' if ns.found else 'Nein' }}
+          first_clearing_hour: >-
+            {% set ns = namespace(found=false, hour='Nein, keine Aufheiterung
+            erwartet') %} {% for entry in forecast_data[:8] %}
+              {% if not ns.found and loop.index > 1 %}
+                {% if (entry.get('cloud_coverage', 100) | int) < 30 %}
+                  {% set ns.found = true %}
+                  {% set ns.hour = 'Ja, ab ca. ' ~ ((now().hour + loop.index - 1) % 24) ~ ' Uhr' %}
+                {% endif %}
+              {% endif %}
+            {% endfor %} {{ ns.hour }}
+      - action: ai_task.generate_data
+        response_variable: astro_report
+        data:
+          task_name: Astro-Nacht-Audit
+          instructions: >
+            Du bist ein erfahrener Astrofotograf und bewertest die heutige Nacht für
+            den Standort Renningen (Baden-Württemberg, Deutschland).
+
+            == BEWERTUNGS-LOGIK ==
+
+            Bewerte ausschließlich anhand dieser PRIMÄREN Parameter (atmosphärische
+            Qualität):
+              - Deepsky Score (Hauptindikator)
+              - Seeing (1=perfekt, 5=schlecht) — niedriger = besser
+              - Transparenz (%)
+              - Wolkenbedeckung (%)
+              - Windgeschwindigkeit (km/h)
+
+            Die astronomische Dunkelheit (darkness_quality) ist ein SEKUNDÄRER,
+            informativer Parameter. Sie kann eine Session einschränken oder
+            verbessern, ist aber KEIN Ausschlusskriterium allein. Weise darauf hin,
+            erkläre den Einfluss, aber lass sie nicht allein über die Empfehlung
+            entscheiden.
+
+            EMPFEHLUNGS-STUFEN:
+              🌌 IDEAL        → Deepsky >= 70, Seeing <= 3, Wind < 10, Wolken < 20%
+              🌠 GUT          → Deepsky >= 50, Seeing <= 4, Wind < 15, Wolken < 40%
+              🌕 BEDINGT      → Seeing <= 3, Transparenz >= 50 (Planeten/Mond)
+              ⚠️ EINGESCHRÄNKT → Einzelne Parameter grenzwertig, Session aber möglich
+              ❌ ABBRUCH      → Wolken > 80% ODER Wind > 25 km/h ODER Seeing = 5
+
+            Wenn darkness_quality NICHT "Astronomische Dunkelheit (optimal)" ist,
+            passe die Stufe um maximal eine Kategorie nach unten an (nicht mehr).
+            Erkläre den Einfluss im Bericht und weise auf trotzdem beobachtbare
+            Objekte hin (Planeten, Mond, Doppelsterne, helle Nebel).
+
+            == AUSGABE-FORMAT ==
+
+            Verwende ausschließlich einfachen Text und HTML. KEIN Markdown. KEINE
+            Pipe-Tabellen. KEINE Sterne (*). KEINE eckigen Klammern.
+
+            Strukturiere die Antwort GENAU so:
+
+            Eine Zeile: Emoji + kurze Empfehlung.
+
+            Dann ein Absatz Zusammenfassung (2-3 Sätze).
+
+            Dann eine HTML-Tabelle mit den Messwerten: <b>📊 Messwerte</b> <table>
+              <tr><th>Parameter</th><th>Wert</th><th>Bewertung</th></tr>
+              <tr><td>Deepsky Score</td><td>WERT %</td><td>BEWERTUNG</td></tr>
+              <tr><td>Seeing</td><td>WERT</td><td>BEWERTUNG</td></tr>
+              <tr><td>Transparenz</td><td>WERT %</td><td>BEWERTUNG</td></tr>
+              <tr><td>Wolkenbedeckung</td><td>WERT %</td><td>BEWERTUNG</td></tr>
+              <tr><td>Wind</td><td>WERT km/h</td><td>BEWERTUNG</td></tr>
+              <tr><td>Mond</td><td>Phase / Höhe</td><td>stört / stört nicht</td></tr>
+              <tr><td>Dunkelheit</td><td colspan="2">WERT</td></tr>
+              <tr><td>Temperatur</td><td>WERT °C</td><td>Taupunkt: WERT °C</td></tr>
+            </table>
+
+            Dann ein Abschnitt Hinweise als HTML-Liste: <b>📝 Hinweise</b> <ul>
+              <li>Kleidung: Hinweis nur bei Temperatur <= 5°C</li>
+              <li>Tauwarnung: nur wenn dew_warning "JA" enthält</li>
+              <li>Nebel: nur wenn fog_prob_ground > 20%</li>
+              <li>Wetterprognose mit bad_conditions_later und first_clearing_hour</li>
+              <li>Ausblick morgen mit Deepsky Score</li>
+            </ul>
+
+            MESSDATEN: - Deepsky Score Heute: {{ deepsky_score_today }} % ({{
+            deepsky_desc_today }}) - Deepsky Score Morgen: {{ deepsky_score_tomorrow
+            }} % - Gesamtbedingung: {{ condition_pct }} % - Wind: {{ wind_speed |
+            round(0) }} km/h | Windruhe: {{ calm }} % - Seeing: {{ seeing }}
+            (1=perfekt, 5=schlecht) - Transparenz: {{ transparency }} % - Wolken: {{
+            cloud_cover }} % (wolkenlos: {{ cloudless_pct }} %) - Lifted Index: {{
+            lifted_index_plain }} - Mond stört: {{ 'Nein' if moon_ok else 'Ja' }} |
+            Phase: {{ moon_phase }} | Höhe: {{ moon_altitude }}° - Mond Untergang:
+            {{ moon_next_setting }} - Dunkelheit: {{ darkness_quality }} -
+            Astro-Dunkelheit: {{ astro_dark_start }} bis {{ astro_dark_end }} -
+            Temperatur: {{ current_temp }} °C | Taupunkt: {{ dewpoint }} °C -
+            Luftfeuchte: {{ rel_humidity }} % - Taugefahr: {{ dew_warning }} - Nebel
+            (Boden): {{ fog_prob_ground }} % | Gebiet: {{ fog_prob }} % -
+            Wetterverschlechterung: {{ bad_conditions_later }} - Aufheiterung: {{
+            first_clearing_hour }} - Min. Nachttemperatur: {{ min_night_temp }} °C
+          structure:
+            stufe:
+              description: >-
+                Empfehlungsstufe gemäß EMPFEHLUNGS-STUFEN, nach einer eventuellen
+                Abstufung wegen der Dunkelheit.
+              required: true
+              selector:
+                select:
+                  options:
+                    - ideal
+                    - gut
+                    - bedingt
+                    - eingeschraenkt
+                    - abbruch
+            modus:
+              description: >-
+                Wofür sich die Nacht eignet: deepsky (Nebel, Galaxien),
+                planetar (Mond, Planeten, Doppelsterne) oder keiner.
+              required: true
+              selector:
+                select:
+                  options:
+                    - deepsky
+                    - planetar
+                    - keiner
+            empfehlung_kurz:
+              description: >-
+                Nur Emoji + max. 4 Wörter. Beispiel: "🌌 Ideal – Deepsky". Kein
+                Markdown, kein Punkt am Ende.
+              required: true
+              selector:
+                text: null
+            begruendung_detailliert:
+              description: >-
+                Vollständiger Bericht in einfachem Text und HTML (table, ul, li, b).
+                Absolut kein Markdown, keine Pipe-Symbole, keine Sterne.
+              required: true
+              selector:
+                text: null
+      # ---- Ergebnis in Helfer schreiben (Grundlage fuer alle Folge-Automationen) ----
+      - variables:
+          stufe: "{{ astro_report.data.stufe | default('abbruch') }}"
+          modus: "{{ astro_report.data.modus | default('keiner') }}"
+          lohnt: "{{ stufe in ['ideal', 'gut', 'bedingt'] }}"
+          # Beobachtungsfenster: astronomische Dunkelheit; fuer Deep-Sky erst nach
+          # Monduntergang, wenn der Mond sonst stoert.
+          fenster_start: >-
+            {% set ds = as_datetime(astro_dark_start, none) %}
+            {% set de = as_datetime(astro_dark_end, none) %}
+            {% set ms = as_datetime(moon_next_setting, none) %}
+            {% if ds is none %}{{ none }}
+            {% elif modus == 'deepsky' and not moon_ok and ms is not none and de is not none and ds < ms < de %}{{ ms.isoformat() }}
+            {% else %}{{ ds.isoformat() }}{% endif %}
+          fenster_ende: "{{ (as_datetime(astro_dark_end, none) or now()).isoformat() }}"
+      - action: "input_boolean.turn_{{ 'on' if lohnt else 'off' }}"
+        target:
+          entity_id: input_boolean.astro_nacht_lohnt
+      - action: input_select.select_option
+        target:
+          entity_id: input_select.astro_stufe
+        data:
+          option: "{{ stufe }}"
+      - action: input_select.select_option
+        target:
+          entity_id: input_select.astro_modus
+        data:
+          option: "{{ modus }}"
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.astro_empfehlung
+        data:
+          value: "{{ astro_report.data.empfehlung_kurz[:250] }}"
+      - if: "{{ fenster_start not in [none, 'None', ''] }}"
+        then:
+          - action: input_datetime.set_datetime
+            target:
+              entity_id: input_datetime.astro_fenster_start
+            data:
+              timestamp: "{{ as_timestamp(fenster_start) }}"
+          - action: input_datetime.set_datetime
+            target:
+              entity_id: input_datetime.astro_fenster_ende
+            data:
+              timestamp: "{{ as_timestamp(fenster_ende) }}"
+      # ---- Benachrichtigung wie bisher ----
+      - action: persistent_notification.create
+        data:
+          title: '🔭 ASTRO-AUDIT: {{ astro_report.data.empfehlung_kurz }}'
+          message: '{{ astro_report.data.begruendung_detailliert }}'
+
+automation:
+  # Audit jeden Abend kurz nach Sonnenuntergang
+  - id: astro_audit_abends
+    alias: Astro – Audit am Abend
+    mode: single
+    triggers:
+      - trigger: sun
+        event: sunset
+        offset: "00:30:00"
+    actions:
+      - action: script.astro_audit
+
+  # Steuerung des Seestar im Beobachtungsfenster freigeben
+  - id: astro_steuerung_freigeben
+    alias: Astro – Steuerung freigeben
+    mode: single
+    triggers:
+      - trigger: time
+        at: input_datetime.astro_fenster_start
+    conditions:
+      - condition: state
+        entity_id: input_boolean.astro_automatik
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.astro_nacht_lohnt
+        state: "on"
+      - condition: state
+        entity_id: binary_sensor.seestar_s50_connected
+        state: "on"
+    actions:
+      - action: switch.turn_on
+        target:
+          entity_id: switch.seestar_s50_controls_enabled
+      - action: notify.mobile_app_handy
+        data:
+          title: 🔭 Beobachtungsfenster offen
+          message: >-
+            {{ states('input_text.astro_empfehlung') }} – Steuerung bis
+            {{ as_timestamp(states('input_datetime.astro_fenster_ende')) | timestamp_custom('%H:%M') }} freigegeben.
+
+  # ... und am Ende (oder spaetestens zur Daemmerung) wieder sperren
+  - id: astro_steuerung_sperren
+    alias: Astro – Steuerung sperren
+    mode: single
+    triggers:
+      - trigger: time
+        at: input_datetime.astro_fenster_ende
+      - trigger: sun
+        event: sunrise
+        offset: "-01:00:00"
+    actions:
+      - action: switch.turn_off
+        target:
+          entity_id:
+            - switch.seestar_s50_allow_power_actions
+            - switch.seestar_s50_controls_enabled
+      - action: switch.turn_off
+        target:
+          entity_id: switch.seestar_s50_dew_heater
+
+  # Tauheizung mit Hysterese (an <= 3 K, aus >= 5 K)
+  - id: astro_tauheizung
+    alias: Astro – Tauheizung
+    mode: single
+    triggers:
+      - trigger: numeric_state
+        entity_id: sensor.astro_taupunktabstand
+        below: 3
+        id: an
+      - trigger: numeric_state
+        entity_id: sensor.astro_taupunktabstand
+        above: 5
+        id: aus
+    conditions:
+      - condition: state
+        entity_id: switch.seestar_s50_controls_enabled
+        state: "on"
+    actions:
+      - action: "switch.turn_{{ 'on' if trigger.id == 'an' else 'off' }}"
+        target:
+          entity_id: switch.seestar_s50_dew_heater
+
+  # Regenwarnung waehrend einer Session
+  - id: astro_regenwarnung
+    alias: Astro – Regenwarnung
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: weather.renningen_2
+        to: [rainy, pouring, lightning, lightning-rainy, snowy, snowy-rainy, hail]
+      # Ecowitt-Regenrate waere schneller, z. B.:
+      # - trigger: numeric_state
+      #   entity_id: sensor.gw2000a_rain_rate
+      #   above: 0
+    conditions:
+      - condition: state
+        entity_id: binary_sensor.seestar_s50_connected
+        state: "on"
+    actions:
+      - action: notify.mobile_app_handy
+        data:
+          title: 🌧️ Regen – Seestar draußen?
+          message: Wetter meldet {{ states('weather.renningen_2') }}. Teleskop ggf. reinholen.
+          data:
+            priority: high
+      # Optional automatisch parken (braucht "Allow power actions" + Interop-Key):
+      # - action: switch.turn_on
+      #   target: {entity_id: switch.seestar_s50_allow_power_actions}
+      # - action: button.press
+      #   target: {entity_id: button.seestar_s50_park}
