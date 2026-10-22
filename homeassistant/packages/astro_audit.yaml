@@ -15,6 +15,8 @@
 #   seestar_s50          -> Entity-Praefix deines Seestar (Geraeteseite in HA)
 #   notify.mobile_app_handy -> dein Benachrichtigungsdienst
 #   weather.renningen_2, sensor.astroweather_backyard_* -> wie in deinem Script
+#   sensor.gw2000a_outdoor_temperature / _rain_rate     -> Namen deiner Ecowitt-Entities pruefen
+#   sensor.sternwarte_*  -> spaeterer Sensor am Teleskop (darf fehlen)
 # =============================================================================
 
 input_boolean:
@@ -52,16 +54,36 @@ input_datetime:
 
 template:
   - sensor:
+      # Taupunktabstand (Temperatur - Taupunkt) mit Prioritaetskette:
+      #   1. Sensor am Teleskop/Sternwarte (spaeter, z. B. ESPHome mit SHT45)
+      #   2. Ecowitt GW2000A im Garten
+      #   3. Wetter-Entity + AstroWeather (Modellwerte) als Rueckfallebene
       - name: Astro – Taupunktabstand
         unique_id: astro_taupunktabstand
         unit_of_measurement: "K"
         device_class: temperature
         state_class: measurement
-        # Ecowitt-Sensoren sind vor Ort genauer – hier ggf. austauschen.
+        icon: mdi:water-thermometer
         state: >-
-          {% set t = state_attr('weather.renningen_2', 'temperature') | float(none) %}
-          {% set d = states('sensor.astroweather_backyard_2m_dewpoint') | float(none) %}
-          {{ (t - d) | round(1) if t is not none and d is not none else none }}
+          {% set ns = namespace(t=none, d=none) %}
+          {% set quellen = [
+               ['sensor.sternwarte_temperatur', 'sensor.sternwarte_taupunkt'],
+               ['sensor.gw2000a_outdoor_temperature', 'sensor.gw2000a_dewpoint'] ] %}
+          {% for t_id, d_id in quellen if ns.t is none %}
+            {% set t = states(t_id) | float(none) %}
+            {% set d = states(d_id) | float(none) %}
+            {% if t is not none and d is not none %}{% set ns.t, ns.d = t, d %}{% endif %}
+          {% endfor %}
+          {% if ns.t is none %}
+            {% set ns.t = state_attr('weather.renningen_2', 'temperature') | float(none) %}
+            {% set ns.d = states('sensor.astroweather_backyard_2m_dewpoint') | float(none) %}
+          {% endif %}
+          {{ (ns.t - ns.d) | round(1) if ns.t is not none and ns.d is not none else none }}
+        attributes:
+          quelle: >-
+            {% if states('sensor.sternwarte_temperatur') | is_number and states('sensor.sternwarte_taupunkt') | is_number %}Sternwarte
+            {% elif states('sensor.gw2000a_outdoor_temperature') | is_number and states('sensor.gw2000a_dewpoint') | is_number %}Ecowitt Garten
+            {% else %}Wettermodell (AstroWeather){% endif %}
 
 script:
   astro_audit:
@@ -405,29 +427,42 @@ automation:
         target:
           entity_id: switch.seestar_s50_dew_heater
 
-  # Regenwarnung waehrend einer Session
+  # Regenwarnung waehrend einer Session (Ecowitt zuerst, Wettermodell als Rueckfall)
   - id: astro_regenwarnung
     alias: Astro – Regenwarnung
     mode: single
+    max_exceeded: silent
     triggers:
+      - trigger: state
+        entity_id: sensor.gw2000a_event_rain
+        id: ecowitt
+      - trigger: numeric_state
+        entity_id: sensor.gw2000a_rain_rate
+        above: 0
+        id: ecowitt
       - trigger: state
         entity_id: weather.renningen_2
         to: [rainy, pouring, lightning, lightning-rainy, snowy, snowy-rainy, hail]
-      # Ecowitt-Regenrate waere schneller, z. B.:
-      # - trigger: numeric_state
-      #   entity_id: sensor.gw2000a_rain_rate
-      #   above: 0
+        id: wetter
     conditions:
       - condition: state
         entity_id: binary_sensor.seestar_s50_connected
         state: "on"
+      # Event-Regen nur bei Zunahme (Reset auf 0 ignorieren)
+      - condition: template
+        value_template: >-
+          {{ trigger.id != 'ecowitt' or trigger.platform != 'state'
+             or (trigger.to_state.state | float(0)) > (trigger.from_state.state | float(0)) }}
     actions:
       - action: notify.mobile_app_handy
         data:
           title: 🌧️ Regen – Seestar draußen?
-          message: Wetter meldet {{ states('weather.renningen_2') }}. Teleskop ggf. reinholen.
+          message: >-
+            {{ 'Ecowitt misst Regen' if trigger.id == 'ecowitt'
+               else 'Wetter meldet ' ~ states('weather.renningen_2') }}. Teleskop ggf. reinholen.
           data:
             priority: high
+      - delay: "00:10:00"     # nicht im Minutentakt erneut warnen
       # Optional automatisch parken (braucht "Allow power actions" + Interop-Key):
       # - action: switch.turn_on
       #   target: {entity_id: switch.seestar_s50_allow_power_actions}
