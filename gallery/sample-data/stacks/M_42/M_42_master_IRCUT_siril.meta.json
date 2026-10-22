@@ -1,0 +1,130 @@
+{
+  "schema": 1,
+  "sample": true,
+  "id": "m_42_master_ircut_siril",
+  "target": {
+    "name": "M 42",
+    "common": "Orionnebel",
+    "kind": "nebula",
+    "sort": 1042
+  },
+  "stack": "master",
+  "filter": "IRCUT",
+  "exposure_s": 10,
+  "gain": 80,
+  "nights": [
+    {
+      "date": "2026-10-21",
+      "frames": 154
+    },
+    {
+      "date": "2026-10-22",
+      "frames": 198
+    }
+  ],
+  "image": "M_42_master_IRCUT_siril.jpg",
+  "width": 1920,
+  "height": 1080,
+  "wcs": {
+    "crval": [
+      83.81875,
+      -5.3897222
+    ],
+    "crpix": [
+      960,
+      540
+    ],
+    "cd": [
+      [
+        -0.0006638888888888889,
+        -0.0
+      ],
+      [
+        -0.0,
+        -0.0006638888888888889
+      ]
+    ]
+  },
+  "objects": [
+    {
+      "name": "M 42",
+      "alt": "NGC 1976",
+      "type": "Emissionsnebel (H-II-Region)",
+      "ra": 83.822083,
+      "dec": -5.391111,
+      "major": 85,
+      "minor": 60,
+      "pa": 0,
+      "mag": 4.0,
+      "dist": "1.340 Lj",
+      "category": "dso",
+      "main": true,
+      "marker": [
+        60,
+        40
+      ],
+      "label": [
+        300,
+        250
+      ]
+    },
+    {
+      "name": "M 43",
+      "alt": "De Mairans Nebel",
+      "type": "Emissionsnebel",
+      "ra": 83.879167,
+      "dec": -5.2675,
+      "major": 20,
+      "minor": 15,
+      "pa": 0,
+      "mag": 9.0,
+      "dist": "1.340 Lj",
+      "category": "dso",
+      "marker": [
+        6.8,
+        5.6
+      ],
+      "label": [
+        -60,
+        -90
+      ]
+    },
+    {
+      "name": "θ¹ Ori (Trapez)",
+      "alt": "",
+      "type": "Mehrfachstern",
+      "ra": 83.81875,
+      "dec": -5.389722,
+      "major": 0,
+      "minor": 0,
+      "pa": 0,
+      "mag": 5.1,
+      "dist": "1.340 Lj",
+      "category": "star"
+    },
+    {
+      "name": "NGC 1977",
+      "alt": "Running-Man-Nebel",
+      "type": "Emissions-/Reflexionsnebel",
+      "ra": 83.816667,
+      "dec": -4.816667,
+      "major": 20,
+      "minor": 10,
+      "pa": 0,
+      "mag": null,
+      "dist": "1.500 Lj",
+      "category": "dso"
+    }
+  ],
+  "caption": "Kurze Belichtung pro Frame hält den hellen Kern um das Trapez nicht ausgebrannt.",
+  "versions": [
+    {
+      "label": "Seestar-App-Stack",
+      "where": "Handy → Immich"
+    },
+    {
+      "label": "Beschriftet · plot-constellations",
+      "where": "Immich"
+    }
+  ]
+}

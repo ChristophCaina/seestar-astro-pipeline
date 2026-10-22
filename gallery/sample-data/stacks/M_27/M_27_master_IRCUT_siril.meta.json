@@ -1,0 +1,79 @@
+{
+  "schema": 1,
+  "sample": true,
+  "id": "m_27_master_ircut_siril",
+  "target": {
+    "name": "M 27",
+    "common": "Hantelnebel",
+    "kind": "nebula",
+    "sort": 1027
+  },
+  "stack": "master",
+  "filter": "IRCUT",
+  "exposure_s": 10,
+  "gain": 80,
+  "nights": [
+    {
+      "date": "2026-09-27",
+      "frames": 260
+    },
+    {
+      "date": "2026-10-03",
+      "frames": 205
+    }
+  ],
+  "image": "M_27_master_IRCUT_siril.jpg",
+  "width": 1920,
+  "height": 1080,
+  "wcs": {
+    "crval": [
+      299.90125,
+      22.7211111
+    ],
+    "crpix": [
+      960,
+      540
+    ],
+    "cd": [
+      [
+        -0.0006638888888888889,
+        -0.0
+      ],
+      [
+        -0.0,
+        -0.0006638888888888889
+      ]
+    ]
+  },
+  "objects": [
+    {
+      "name": "M 27",
+      "alt": "NGC 6853",
+      "type": "Planetarischer Nebel",
+      "ra": 299.90125,
+      "dec": 22.721111,
+      "major": 8.0,
+      "minor": 5.6,
+      "pa": 60,
+      "mag": 7.5,
+      "dist": "1.360 Lj",
+      "category": "dso",
+      "main": true,
+      "label": [
+        120,
+        -150
+      ]
+    }
+  ],
+  "caption": "Dichtes Sternfeld der Milchstraße im Füchschen – der Nebel selbst ist klein im Seestar-Bild.",
+  "versions": [
+    {
+      "label": "Seestar-App-Stack",
+      "where": "Handy → Immich"
+    },
+    {
+      "label": "Beschriftet · plot-constellations",
+      "where": "Immich"
+    }
+  ]
+}

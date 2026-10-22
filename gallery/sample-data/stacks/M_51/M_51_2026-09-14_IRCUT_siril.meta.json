@@ -1,0 +1,92 @@
+{
+  "schema": 1,
+  "sample": true,
+  "id": "m_51_2026-09-14_ircut_siril",
+  "target": {
+    "name": "M 51",
+    "common": "Whirlpool-Galaxie",
+    "kind": "galaxy",
+    "sort": 1051
+  },
+  "stack": "night",
+  "filter": "IRCUT",
+  "exposure_s": 10,
+  "gain": 80,
+  "nights": [
+    {
+      "date": "2026-09-14",
+      "frames": 96
+    }
+  ],
+  "image": "M_51_2026-09-14_IRCUT_siril.jpg",
+  "width": 1920,
+  "height": 1080,
+  "wcs": {
+    "crval": [
+      202.4695833,
+      47.1952778
+    ],
+    "crpix": [
+      960,
+      540
+    ],
+    "cd": [
+      [
+        -0.0006638888888888889,
+        -0.0
+      ],
+      [
+        -0.0,
+        -0.0006638888888888889
+      ]
+    ]
+  },
+  "objects": [
+    {
+      "name": "M 51",
+      "alt": "NGC 5194",
+      "type": "Spiralgalaxie (Sc)",
+      "ra": 202.469583,
+      "dec": 47.195278,
+      "major": 11,
+      "minor": 7,
+      "pa": 163,
+      "mag": 8.4,
+      "dist": "23 Mio. Lj",
+      "category": "dso",
+      "main": true,
+      "label": [
+        170,
+        90
+      ]
+    },
+    {
+      "name": "NGC 5195",
+      "alt": "Begleiter",
+      "type": "Zwerggalaxie",
+      "ra": 202.498333,
+      "dec": 47.266111,
+      "major": 5.8,
+      "minor": 4.6,
+      "pa": 79,
+      "mag": 9.6,
+      "dist": "23 Mio. Lj",
+      "category": "dso",
+      "label": [
+        -60,
+        -90
+      ]
+    }
+  ],
+  "caption": "Nur eine kurze Nacht, tief im Nordwesten – Kandidat für mehr Belichtung im Frühjahr.",
+  "versions": [
+    {
+      "label": "Seestar-App-Stack",
+      "where": "Handy → Immich"
+    },
+    {
+      "label": "Beschriftet · plot-constellations",
+      "where": "Immich"
+    }
+  ]
+}

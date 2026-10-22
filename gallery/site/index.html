@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Astro-Galerie</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+  <!-- ================= Uebersicht ================= -->
+  <div id="v-list" class="view">
+    <header>
+      <div>
+        <p class="eyebrow">Seestar S50 · Siril-Stacks</p>
+        <h1>Astro-<em>Galerie</em></h1>
+      </div>
+      <div class="headtools">
+        <button class="tgl red-t" aria-pressed="false">Rotlicht</button>
+        <span class="demo" id="sample-badge" hidden>Beispieldaten – Bilder simuliert</span>
+      </div>
+    </header>
+
+    <p class="status" id="status">Lade Katalog …</p>
+
+    <div class="stats" id="stats" hidden></div>
+
+    <section class="cal" id="cal-box" aria-label="Beobachtungskalender" hidden>
+      <div class="cal-head">
+        <h2 id="cal-title">Beobachtungsnächte</h2>
+        <div class="legend">
+          <span><i style="background:var(--chart)"></i>IRCUT</span>
+          <span><i style="background:var(--halpha)"></i>LP-Filter</span>
+          <span><i style="background:var(--fg)"></i>Vollmond</span>
+          <span><i style="border:1px solid var(--fg)"></i>Neumond</span>
+        </div>
+      </div>
+      <div class="cal-scroll"><svg class="cal-svg" id="cal" role="img" aria-label="Kalender der Beobachtungsnächte"></svg></div>
+    </section>
+
+    <div class="filters" id="filterbar" hidden>
+      <div class="filters" role="group" aria-label="Objekttyp" id="chips"></div>
+      <span class="sep"></span>
+      <label class="sortl" for="sort">Sortieren
+        <select id="sort">
+          <option value="recent">Zuletzt aufgenommen</option>
+          <option value="exposure">Längste Belichtung</option>
+          <option value="catalog">Katalog</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <!-- ================= Detail ================= -->
+  <div id="v-detail" class="view" hidden>
+    <header>
+      <div>
+        <button class="back" id="back">← ALLE OBJEKTE</button>
+        <p class="eyebrow" id="d-eyebrow"></p>
+        <h1 id="d-title"></h1>
+      </div>
+      <div class="headtools">
+        <button class="tgl red-t" aria-pressed="false">Rotlicht</button>
+        <span class="demo" id="d-sample" hidden>Beispieldaten – Bild simuliert</span>
+      </div>
+    </header>
+
+    <div class="layout">
+      <div class="viewer">
+        <div class="frame" id="frame" tabindex="0" aria-label="Aufnahme. Beschriftungen beim Überfahren mit der Maus oder per Tippen einblenden.">
+          <img id="d-img" alt="">
+          <svg id="ov" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><g class="overlay" id="ovg"></g></svg>
+          <div class="card" id="card" hidden></div>
+          <span class="hint">Maus über das Bild bewegen · Tippen zum Fixieren</span>
+        </div>
+        <div class="tools" role="group" aria-label="Anzeige">
+          <button class="tgl" id="t-pin" aria-pressed="false">Beschriftung fixieren</button>
+          <button class="tgl" id="t-dso" aria-pressed="true">Deep-Sky-Objekte</button>
+          <button class="tgl" id="t-star" aria-pressed="true">Sterne</button>
+          <button class="tgl" id="t-grid" aria-pressed="false">RA/Dec-Gitter</button>
+        </div>
+        <p class="caption" id="d-caption"></p>
+      </div>
+
+      <aside>
+        <section><h2>Belichtung</h2><p class="big" id="d-integ"></p><dl class="facts" id="d-exp"></dl></section>
+        <section><h2>Nächte</h2><ul class="nights" id="d-nights"></ul></section>
+        <section><h2>Plate-Solving</h2><dl class="facts" id="d-solve"></dl></section>
+        <section><h2>Versionen</h2><ul class="versions" id="d-versions"></ul></section>
+      </aside>
+    </div>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

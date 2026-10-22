@@ -1,0 +1,138 @@
+{
+  "schema": 1,
+  "sample": true,
+  "id": "m_31_master_ircut_siril",
+  "target": {
+    "name": "M 31",
+    "common": "Andromeda-Galaxie",
+    "kind": "galaxy",
+    "sort": 1031
+  },
+  "stack": "master",
+  "filter": "IRCUT",
+  "exposure_s": 10,
+  "gain": 80,
+  "nights": [
+    {
+      "date": "2026-10-18",
+      "frames": 212
+    },
+    {
+      "date": "2026-10-19",
+      "frames": 247
+    },
+    {
+      "date": "2026-10-21",
+      "frames": 186
+    },
+    {
+      "date": "2026-10-22",
+      "frames": 167
+    }
+  ],
+  "image": "M_31_master_IRCUT_siril.jpg",
+  "width": 1920,
+  "height": 1080,
+  "wcs": {
+    "crval": [
+      10.6845833,
+      41.2691667
+    ],
+    "crpix": [
+      1160.836820083682,
+      540
+    ],
+    "cd": [
+      [
+        0.0003419280552875082,
+        -0.0005690638468550134
+      ],
+      [
+        0.0005690638468550134,
+        0.0003419280552875082
+      ]
+    ]
+  },
+  "objects": [
+    {
+      "name": "M 31",
+      "alt": "NGC 224",
+      "type": "Spiralgalaxie (Sb)",
+      "ra": 10.684583,
+      "dec": 41.269167,
+      "major": 190,
+      "minor": 60,
+      "pa": 38,
+      "mag": 3.4,
+      "dist": "2,5 Mio. Lj",
+      "category": "dso",
+      "main": true,
+      "marker": [
+        84,
+        22
+      ],
+      "label": [
+        60,
+        -120
+      ]
+    },
+    {
+      "name": "M 32",
+      "alt": "NGC 221",
+      "type": "Elliptische Zwerggalaxie (E2)",
+      "ra": 10.674167,
+      "dec": 40.865278,
+      "major": 8.7,
+      "minor": 6.5,
+      "pa": 170,
+      "mag": 8.1,
+      "dist": "2,5 Mio. Lj",
+      "category": "dso",
+      "label": [
+        -40,
+        -120
+      ]
+    },
+    {
+      "name": "NGC 206",
+      "alt": "Sternwolke in M 31",
+      "type": "Sternassoziation",
+      "ra": 10.130417,
+      "dec": 40.733333,
+      "major": 4.4,
+      "minor": 2.8,
+      "pa": 38,
+      "mag": null,
+      "dist": "2,5 Mio. Lj",
+      "category": "dso",
+      "label": [
+        40,
+        110
+      ]
+    },
+    {
+      "name": "M 110",
+      "alt": "NGC 205",
+      "type": "Elliptische Zwerggalaxie (E5)",
+      "ra": 10.092083,
+      "dec": 41.685278,
+      "major": 21.9,
+      "minor": 11,
+      "pa": 170,
+      "mag": 8.5,
+      "dist": "2,7 Mio. Lj",
+      "category": "dso"
+    }
+  ],
+  "caption": "Die Seestar-Bildfeldbreite reicht nicht für die ganze Galaxie – M 110 liegt knapp unterhalb.",
+  "versions": [
+    {
+      "label": "Seestar-App-Stack",
+      "where": "Handy → Immich"
+    },
+    {
+      "label": "Beschriftet · plot-constellations",
+      "where": "Immich"
+    }
+  ]
+}

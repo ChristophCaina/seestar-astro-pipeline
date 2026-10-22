@@ -2,7 +2,7 @@
 
 Ein ZWO **Seestar S50** im Homelab: Steuerung und Telemetrie in **Home Assistant**, automatisches Stacking der Einzelframes mit **Siril**, Ablage auf dem NAS, Übergabe an **Immich** und eine eigene **Astro-Galerie** mit Objekt-Annotationen.
 
-> **Status:** im Aufbau. seestar_alp und das HA-Add-on laufen. Die Siril-Pipeline ist geschrieben, aber noch nicht mit echten Seestar-Daten getestet. Die Galerie ist ein Prototyp mit simulierten Bildern.
+> **Status:** im Aufbau. seestar_alp und das HA-Add-on laufen. Die Siril-Pipeline ist geschrieben, aber noch nicht mit echten Seestar-Daten getestet. Die Galerie ist lauffähig, aktuell mit Beispieldaten (Bilder simuliert, Objektdaten und WCS real).
 
 ```mermaid
 flowchart LR
@@ -24,7 +24,7 @@ flowchart LR
 | [`scripts/`](scripts) | Hilfsscripte, z. B. die seestar_alp-Installation auf amd64-LXC |
 | [`siril/`](siril) | `siril-auto`: Abholung, Gruppierung nach Ziel und Nacht, Siril-Script, systemd-Timer, MQTT-Status |
 | [`homeassistant/`](homeassistant) | Dashboard-Karte und Beispiel-Automationen |
-| [`gallery/`](gallery) | Prototyp der Astro-Galerie: Übersicht, Beobachtungskalender, Detailseiten mit Hover-Annotationen |
+| [`gallery/`](gallery) | Astro-Galerie: statisches Frontend, Builder (`meta.json` → Website), Beispieldaten, nginx-vhost |
 
 ## Komponenten
 

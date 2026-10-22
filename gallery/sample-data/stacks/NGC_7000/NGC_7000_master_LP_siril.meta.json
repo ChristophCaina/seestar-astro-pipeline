@@ -1,0 +1,117 @@
+{
+  "schema": 1,
+  "sample": true,
+  "id": "ngc_7000_master_lp_siril",
+  "target": {
+    "name": "NGC 7000",
+    "common": "Nordamerikanebel",
+    "kind": "nebula",
+    "sort": 7000
+  },
+  "stack": "master",
+  "filter": "LP",
+  "exposure_s": 10,
+  "gain": 80,
+  "nights": [
+    {
+      "date": "2026-09-28",
+      "frames": 330
+    },
+    {
+      "date": "2026-10-05",
+      "frames": 288
+    },
+    {
+      "date": "2026-10-06",
+      "frames": 301
+    }
+  ],
+  "image": "NGC_7000_master_LP_siril.jpg",
+  "width": 1920,
+  "height": 1080,
+  "wcs": {
+    "crval": [
+      314.6666667,
+      44.3666667
+    ],
+    "crpix": [
+      960,
+      540
+    ],
+    "cd": [
+      [
+        -0.0006638888888888889,
+        -0.0
+      ],
+      [
+        -0.0,
+        -0.0006638888888888889
+      ]
+    ]
+  },
+  "objects": [
+    {
+      "name": "NGC 7000",
+      "alt": "Nordamerikanebel",
+      "type": "Emissionsnebel (H-II-Region)",
+      "ra": 314.820833,
+      "dec": 44.528889,
+      "major": 120,
+      "minor": 100,
+      "pa": 0,
+      "mag": 4.0,
+      "dist": "2.600 Lj",
+      "category": "dso",
+      "main": true,
+      "marker": [
+        68,
+        36
+      ],
+      "label": [
+        -300,
+        -200
+      ]
+    },
+    {
+      "name": "Cygnus-Wall",
+      "alt": "Teil von NGC 7000",
+      "type": "Ionisationsfront",
+      "ra": 314.666667,
+      "dec": 44.366667,
+      "major": 44,
+      "minor": 8,
+      "pa": 128,
+      "mag": null,
+      "dist": "2.600 Lj",
+      "category": "dso",
+      "label": [
+        200,
+        190
+      ]
+    },
+    {
+      "name": "IC 5070",
+      "alt": "Pelikannebel",
+      "type": "Emissionsnebel",
+      "ra": 312.691667,
+      "dec": 44.366667,
+      "major": 60,
+      "minor": 50,
+      "pa": 0,
+      "mag": 8.0,
+      "dist": "1.800 Lj",
+      "category": "dso"
+    }
+  ],
+  "caption": "Mit LP-Filter. Ein Seestar-Bildfeld zeigt nur die Region um die Cygnus-Wall – der ganze Nebel bräuchte ein Mosaik.",
+  "versions": [
+    {
+      "label": "Seestar-App-Stack",
+      "where": "Handy → Immich"
+    },
+    {
+      "label": "Beschriftet · plot-constellations",
+      "where": "Immich"
+    }
+  ]
+}
