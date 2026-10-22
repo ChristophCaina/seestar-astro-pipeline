@@ -1,0 +1,13 @@
+############################################################
+# Plate-Solving des linearen Stacks (schreibt die WCS in den FITS-Header)
+#
+# Nutzt die Zielkoordinaten, Brennweite und Pixelgroesse aus dem Header
+# der Seestar-Frames. Platzhalter @SOLVE_ARGS@ ersetzt siril-auto.sh
+# (Default "-noflip": Bild nicht spiegeln, das JPG ist schon exportiert).
+############################################################
+
+requires 1.2.0
+load result_linear
+platesolve @SOLVE_ARGS@
+save result_linear
+close

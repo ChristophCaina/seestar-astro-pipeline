@@ -4,3 +4,6 @@
 *.log
 /work/
 .DS_Store
+siril/data/
+__pycache__/
+*.pyc

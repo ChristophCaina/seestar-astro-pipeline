@@ -1,0 +1,8 @@
+# Alias-Liste fuer Zielnamen (Ablage: /etc/siril-auto.aliases)
+# Format:  Name wie im Seestar-Ordner = einheitlicher Name
+# Leerzeichen um das "=" sind egal, Gross-/Kleinschreibung zaehlt links.
+Andromeda Galaxy = M 31
+Andromeda-Galaxie = M 31
+Orion Nebula = M 42
+North America Nebula = NGC 7000
+Nordamerikanebel = NGC 7000

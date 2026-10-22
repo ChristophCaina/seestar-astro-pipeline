@@ -22,7 +22,8 @@ flowchart LR
 |---|---|
 | [`docs/`](docs) | Einrichtung Schritt für Schritt: seestar_alp-LXC, HA-Add-on, Siril-LXC, Remote-Zugriff, Immich & Galerie, Roadmap |
 | [`scripts/`](scripts) | Hilfsscripte, z. B. die seestar_alp-Installation auf amd64-LXC |
-| [`siril/`](siril) | `siril-auto`: Abholung, Gruppierung nach Ziel und Nacht, Siril-Script, systemd-Timer, MQTT-Status |
+| [`siril/`](siril) | `siril-auto`: Abholung, Gruppierung nach Ziel/Filter/Nacht, Master-Stack, Plate-Solving, `meta.json`, systemd-Timer, MQTT-Status |
+| [`tests/`](tests) | Tests ohne Siril und Teleskop (`python3 -m unittest discover -s tests`), laufen per GitHub Actions |
 | [`homeassistant/`](homeassistant) | Dashboard-Karte, Beispiel-Automationen, Package **Astro-Audit** (KI-Empfehlung → Helfer → Automationen) |
 | [`gallery/`](gallery) | Astro-Galerie: statisches Frontend, Builder (`meta.json` → Website), Beispieldaten, nginx-vhost |
 
@@ -41,6 +42,10 @@ flowchart LR
 - **Firmware ≥ 7.18:** Steuerbefehle brauchen einen Interop-Key in seestar_alp (ab 3.2.2). Telemetrie und Vorschau gehen ohne Key. Der Key gehört **nicht** in dieses Repository.
 - Alle IPs, Hostnamen und Zugangsdaten in den Beispielen sind Platzhalter.
 
+## Demo
+
+Die Galerie mit Beispieldaten kann per GitHub Pages veröffentlicht werden (`.github/workflows/pages.yml`: Pages-Quelle „GitHub Actions“, Repo-Variable `ENABLE_PAGES=true`).
+
 ## Lizenz
 
-[MIT](LICENSE) für die Inhalte dieses Repositorys. Die eingebundenen Projekte (seestar_alp: GPL-3.0, ha-seestar: Apache-2.0, Siril: GPL-3.0) behalten ihre eigenen Lizenzen und sind hier nicht enthalten.
+[MIT](LICENSE) für die Inhalte dieses Repositorys. Die eingebundenen Projekte (seestar_alp: GPL-3.0, ha-seestar: Apache-2.0, Siril: GPL-3.0) behalten ihre eigenen Lizenzen und sind hier nicht enthalten. Der Katalog [OpenNGC](https://github.com/mattiaverga/OpenNGC) (CC-BY-SA 4.0) wird bei der Installation geladen; `tests/fixtures/ngc_subset.csv` ist ein Auszug daraus.
