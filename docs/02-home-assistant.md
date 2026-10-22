@@ -37,6 +37,28 @@ Mit `MQTT_ENABLED=1` legt [`siril-auto`](../siril) per Discovery das Gerät **Si
 
 Eine Beispiel-Automation, die bei neuem Ergebnis eine Push-Nachricht schickt: [`homeassistant/automation-siril-ergebnis.yaml`](../homeassistant/automation-siril-ergebnis.yaml)
 
+## Astro-Audit (KI-Empfehlung → Automationen)
+
+[`homeassistant/packages/astro_audit.yaml`](../homeassistant/packages/astro_audit.yaml) baut auf dem KI-Script mit AstroWeather auf (`ai_task.generate_data`). Das Script liefert zusätzlich **Stufe** und **Modus** als strukturierte Felder und schreibt das Ergebnis in Helfer. Bisher kam das Ergebnis nur als Benachrichtigung.
+
+| Helfer | Inhalt |
+|---|---|
+| `input_boolean.astro_nacht_lohnt` | an bei Stufe ideal, gut oder bedingt |
+| `input_select.astro_stufe` / `astro_modus` | ideal … abbruch / deepsky, planetar, keiner |
+| `input_text.astro_empfehlung` | Kurztext, z. B. „🌌 Ideal – Deepsky“ |
+| `input_datetime.astro_fenster_start` / `_ende` | astronomische Dunkelheit; für Deep-Sky erst ab Monduntergang, wenn der Mond stört |
+| `input_boolean.astro_automatik` | Hauptschalter für die Automationen |
+| `sensor.astro_taupunktabstand` | Temperatur minus Taupunkt. Die Quelle wählt der Sensor selbst: Sensor am Teleskop (später), dann Ecowitt im Garten, zuletzt das Wettermodell. Welche gerade aktiv ist, zeigt das Attribut `quelle`. |
+
+Automationen:
+- **Audit am Abend:** 30 min nach Sonnenuntergang
+- **Steuerung freigeben:** zum Fensterbeginn, wenn die Nacht lohnt, die Automatik an ist und das Seestar verbunden ist. Dazu kommt eine Push-Nachricht.
+- **Steuerung sperren:** zum Fensterende, spätestens eine Stunde vor Sonnenaufgang. Dabei gehen auch Power-Aktionen und Tauheizung aus.
+- **Tauheizung:** mit Hysterese, an ab ≤ 3 K Abstand, aus ab ≥ 5 K
+- **Regenwarnung:** ausgelöst von Ecowitt (Event-Regen steigt oder Regenrate > 0) oder notfalls vom Wettermodell. Push mit hoher Priorität, höchstens alle 10 Minuten. Automatisches Parken ist vorbereitet, aber auskommentiert.
+
+Vor dem Einsatz musst du `seestar_s50` (Entity-Präfix) und `notify.mobile_app_handy` per Suchen und Ersetzen anpassen. Packages aktivierst du in der `configuration.yaml` mit `homeassistant: packages: !include_dir_named packages`.
+
 ## Ideen für Automationen
 
 | Idee | Auslöser / Bedingung | Braucht Interop-Key |
