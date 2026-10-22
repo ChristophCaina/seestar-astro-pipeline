@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+"""Ersatz fuer siril-cli in den Tests.
+
+* --version            -> gibt eine Versionszeile aus (FAKE_SIRIL_VERSION, Default 1.2.6)
+* -d <dir> -s <script> -> Stack-Script: schreibt result_linear.fit (ohne WCS) + result_preview.jpg/.tif
+                          Solve-Script (enthaelt "platesolve"): ergaenzt eine WCS um M 31
+* FAKE_SIRIL_FAIL=stack|master|solve  -> der jeweilige Lauf schlaegt fehl
+Jeder Aufruf wird in $FAKE_SIRIL_LOG protokolliert (JSON pro Zeile).
+"""
+import json
+import os
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "siril" / "lib"))
+from fitsheader import write_minimal_fits  # noqa: E402
+
+args = sys.argv[1:]
+if args[:1] == ["--version"]:
+    print(f"siril-cli {os.environ.get('FAKE_SIRIL_VERSION', '1.2.6')}")
+    sys.exit(0)
+
+work = Path(args[args.index("-d") + 1])
+script = Path(args[args.index("-s") + 1]).read_text()
+kind = "solve" if "platesolve" in script else ("master" if "stack r_stack" in script else "stack")
+lights = sorted(p.name for p in (work / "light").iterdir()) if (work / "light").exists() else []
+log = os.environ.get("FAKE_SIRIL_LOG")
+if log:
+    with open(log, "a") as f:
+        f.write(json.dumps({"kind": kind, "work": work.name, "lights": len(lights), "script": script}) + "\n")
+if os.environ.get("FAKE_SIRIL_FAIL") == kind:
+    print("fake: Fehler"); sys.exit(1)
+
+W, H = 192, 108          # klein halten; Pixelmassstab entsprechend 10x groeber
+if kind == "solve":
+    s = 2.39 * 10 / 3600
+    write_minimal_fits(work / "result_linear.fit", {
+        "CTYPE1": "RA---TAN", "CTYPE2": "DEC--TAN", "CRVAL1": 10.684583, "CRVAL2": 41.269167,
+        "CRPIX1": W / 2 + 0.5, "CRPIX2": H / 2 + 0.5, "CD1_1": -s, "CD1_2": 0.0, "CD2_1": 0.0, "CD2_2": s,
+        "EXPTIME": 10.0, "GAIN": 80, "STACKCNT": len(lights)}, nx=W, ny=H)
+else:
+    write_minimal_fits(work / "result_linear.fit", {"EXPTIME": 10.0, "GAIN": 80, "STACKCNT": len(lights)}, nx=W, ny=H)
+    try:
+        from PIL import Image
+        Image.new("RGB", (W, H), (5, 7, 12)).save(work / "result_preview.jpg")
+    except ImportError:
+        (work / "result_preview.jpg").write_bytes(b"\xff\xd8\xff\xd9")
+    (work / "result_preview.tif").write_bytes(b"II*\0")
+print(f"fake siril: {kind} mit {len(lights)} Dateien")

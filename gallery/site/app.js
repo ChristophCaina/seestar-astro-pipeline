@@ -148,7 +148,7 @@
     const k = imgW / 1920, grp = el("g", { class: `mk ${a.category === "star" ? "star" : "dso"}` }, parent);
     if (a.rx > 0) el("ellipse", { cx: a.x, cy: a.y, rx: a.rx, ry: a.ry, transform: `rotate(${a.rot} ${a.x} ${a.y})`, class: a.dashed ? "shape big" : "shape" }, grp);
     else el("circle", { cx: a.x, cy: a.y, r: 18 * k, class: "shape" }, grp);
-    const lab = a.label || (a.category === "star" ? [34 * k, -34 * k] : [Math.max(a.rx * 0.7, 40 * k), -Math.max(a.ry * 0.9, 60 * k)]);
+    const lab = a.label || (a.category === "star" ? [34 * k, -34 * k] : [Math.min(Math.max(a.rx * 0.7, 40 * k), 260 * k), -Math.min(Math.max(a.ry * 0.9, 60 * k), 220 * k)]);
     const lx = a.x + lab[0], ly = a.y + lab[1];
     el("line", { x1: a.x, y1: a.y, x2: lx, y2: ly + (lab[1] < 0 ? 8 * k : -30 * k), class: "lead" }, grp);
     const t = el("text", { x: lx, y: ly, class: "lbl", "text-anchor": lab[0] < 0 ? "end" : "start" }, grp);
@@ -240,7 +240,7 @@
     const max = Math.max(...e.nights.map((n) => n.frames), 1);
     $("d-nights").innerHTML = e.nights.map((n) => `<li><span>${fmtDay(n.date)}</span><span class="bar${e.filter === "LP" ? " lp" : ""}"><i style="width:${(n.frames / max * 100).toFixed(1)}%"></i></span><span class="n">${n.frames}</span></li>`).join("");
     const s = e.solve;
-    $("d-solve").innerHTML = `<dt>Bildmitte RA</dt><dd>${s.ra}</dd><dt>Bildmitte Dec</dt><dd>${s.dec}</dd><dt>Bildfeld</dt><dd>${String(s.fov[0]).replace(".", ",")}° × ${String(s.fov[1]).replace(".", ",")}°</dd><dt>Pixelmaßstab</dt><dd>${String(s.pixscale).replace(".", ",")}″/px</dd><dt>Norden</dt><dd>${s.north_txt}</dd>`;
+    $("d-solve").innerHTML = !s ? `<dt>Status</dt><dd>nicht gelöst</dd>` : `<dt>Bildmitte RA</dt><dd>${s.ra}</dd><dt>Bildmitte Dec</dt><dd>${s.dec}</dd><dt>Bildfeld</dt><dd>${String(s.fov[0]).replace(".", ",")}° × ${String(s.fov[1]).replace(".", ",")}°</dd><dt>Pixelmaßstab</dt><dd>${String(s.pixscale).replace(".", ",")}″/px</dd><dt>Norden</dt><dd>${s.north_txt}</dd>`;
     const vs = $("d-versions"); vs.innerHTML = "";
     g.entries.forEach((x) => {
       const li = document.createElement("li"); if (x.id === e.id) li.className = "cur";
@@ -258,11 +258,13 @@
     frame.style.aspectRatio = `${w} / ${h}`;
     svgD.setAttribute("viewBox", `0 0 ${w} ${h}`);
     ovg.innerHTML = ""; hideCard(); setPin(false);
-    drawGrid(ovg, e);
+    if (e.wcs) drawGrid(ovg, e);
+    $("t-grid").hidden = !e.wcs;
     svgD.classList.add("hide-grid"); $("t-grid").setAttribute("aria-pressed", "false");
     e.annotations.forEach((a) => drawMarker(ovg, a, w, true));
     e.offscreen.forEach((o) => drawOff(ovg, o, w, h));
     $("t-star").hidden = !e.annotations.some((a) => a.category === "star");
+    if (!s) return;
     // Kompass + Massstab
     const k = w / 1920, c = el("g", { class: "compass" }, ovg), ox = w - 120 * k, oy = 110 * k, L = 70 * k, N = s.north, E = s.east;
     el("line", { x1: ox, y1: oy, x2: ox + N[0] * L, y2: oy + N[1] * L }, c);

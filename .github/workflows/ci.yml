@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Abhängigkeiten
+        run: |
+          python -m pip install --upgrade pip
+          pip install pillow shellcheck-py
+
+      - name: shellcheck
+        run: shellcheck -S warning siril/siril-auto.sh scripts/*.sh
+
+      - name: JavaScript-Syntax
+        run: node --check gallery/site/app.js
+
+      - name: Tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Galerie aus Beispieldaten bauen
+        run: python gallery/build/gallery_build.py --stacks gallery/sample-data/stacks --out _site
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: galerie-beispiel
+          path: _site
+          retention-days: 7

@@ -29,9 +29,6 @@ Installation, Konfiguration und Test von siril-auto stehen in [`siril/README.md`
 └── .state/        welche Nächte verarbeitet sind
 ```
 
-## Geplante Erweiterungen
+## Funktionsumfang
 
-- Gruppierung nach **Ziel + Filter** (IRCUT und LP nicht mischen), Alias-Liste für Objektnamen
-- **Master-Stack** über alle Nächte eines Ziels, aus den Nacht-Stacks gewichtet nach Frame-Anzahl. Optional `--master-full`, das alle Subs neu stackt.
-- Plate-Solving und Objektliste (`platesolve`, `conesearch`) → JSON für die Galerie
-- `plot-constellations` → beschriftetes JPG für Immich
+Gruppierung nach Ziel und Filter, Alias-Liste, Master-Stack über alle Nächte, Plate-Solving und `meta.json` für die Galerie. Details stehen in [`siril/README.md`](../siril/README.md).

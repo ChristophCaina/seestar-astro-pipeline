@@ -1,53 +1,68 @@
 # siril-auto – Seestar-Frames automatisch stacken
 
-Läuft im Siril-LXC 132 (`siril`). Holt die Einzelframes vom Seestar, stackt sie pro **Ziel und Nacht** mit Siril und legt die Ergebnisse auf dem NAS ab. Die JPGs landen im Export-Ordner für Immich.
+Läuft im Siril-LXC. Ablauf:
+1. Die Einzelframes vom Seestar abholen.
+2. Pro **Ziel, Filter und Nacht** stacken.
+3. Für jedes Ziel mit mehreren Nächten einen **Master** bilden.
+4. Jeden Stack **plate-solven**.
+5. Ergebnisse auf dem NAS ablegen, ein JPG mit Aufnahmedatum für Immich schreiben und eine `meta.json` für die Galerie.
 
 ```
-Seestar (SMB) ──rclone──> /data/astro/raw/seestar/   (1:1-Archiv, nie löschen)
-                                  │  *_sub/*.fit, gruppiert nach Ziel + Nacht
-                                  ▼
-                         /data/astro/work/<ziel>_<nacht>/   (temporär)
-                                  │  siril-cli + seestar_stack.ssf
-                                  ▼
-   /data/astro/stacks/<ziel>/<ziel>_<nacht>_siril.fit|.tif|.log
-   /data/astro/export/<ziel>/<ziel>_<nacht>_siril.jpg   → Immich External Library
+Seestar (SMB) ──rclone──> /data/astro/raw/seestar/            1:1-Archiv, nie löschen
+                                 │  *_sub/*.fit → Ziel (Alias-Liste) + Filter + Nacht
+                                 ▼
+         Nacht-Stacks  <ziel>_<nacht>_<filter>_siril   (seestar_stack.ssf)
+                                 │  ≥ 2 Nächte
+                                 ▼
+         Master        <ziel>_master_<filter>_siril    (seestar_master.ssf, gewichtet nach Frames)
+                                 │  jeder Stack: seestar_solve.ssf (platesolve) + write_meta.py
+                                 ▼
+   /data/astro/stacks/<ziel>/  *.fit  *.tif  *.log  *.meta.json
+   /data/astro/export/<ziel>/  *.jpg  (Aufnahmedatum per exiftool) → Immich
+   /data/astro/web/            Galerie (optional, gallery_build.py)
 ```
 
-Eine Nacht reicht von 12 Uhr bis 12 Uhr. Frames nach Mitternacht gehören also zur Nacht davor. Kommen später Frames für dieselbe Nacht dazu, z. B. weil die Session fortgesetzt wurde, wird die Nacht neu gestackt und das Ergebnis überschrieben.
+## Regeln
 
-## Dateien
+- **Nacht** = 12 bis 12 Uhr. Frames nach Mitternacht zählen zur Nacht davor.
+- **Filter und Belichtung** kommen aus dem Dateinamen (`Light_M 31_10.0s_IRCUT_20261018-213045.fit`). IRCUT und LP werden nie gemischt.
+- **Alias-Liste** (`/etc/siril-auto.aliases`): Bekommt dasselbe Objekt in der App mal unterschiedliche Namen, z. B. „Andromeda Galaxy“ und „M 31“, landet es mit Alias trotzdem in einer Gruppe.
+- **Neu gestackt** wird eine Nacht, sobald neue Frames dazukommen. Danach wird auch der Master neu berechnet.
+- **Fehlschläge** werden nicht bei jedem Lauf wiederholt. Ein neuer Versuch startet erst, wenn neue Frames dazukommen oder du `--force` aufrufst.
+- **Plate-Solving fehlgeschlagen?** Der Stack bleibt trotzdem erhalten. In der Galerie erscheint er dann ohne Annotationen.
 
-| Datei | Ziel im LXC |
-|---|---|
-| `seestar_stack.ssf` | `/opt/siril-auto/seestar_stack.ssf` |
-| `siril-auto.sh` | `/opt/siril-auto/siril-auto.sh` |
-| `siril-auto.env.example` | `/etc/siril-auto.env` |
-| `systemd/siril-auto.service`, `systemd/siril-auto.timer` | `/etc/systemd/system/` |
-
-## Installation (im LXC 132 als root)
+## Installation (im Siril-LXC als root)
 
 ```bash
-apt install -y siril rclone libimage-exiftool-perl mosquitto-clients smbclient
+apt install -y siril rclone libimage-exiftool-perl mosquitto-clients smbclient python3-pil git
 siril-cli --version          # mindestens 1.2.0
 
+git clone https://github.com/ChristophCaina/seestar-astro-pipeline /opt/seestar-astro-pipeline
+cd /opt/seestar-astro-pipeline/siril
+
+# Deep-Sky-Katalog OpenNGC (CC-BY-SA 4.0) für die Objektbeschriftung
+mkdir -p data
+curl -fsSL -o data/NGC.csv      https://raw.githubusercontent.com/mattiaverga/OpenNGC/master/database_files/NGC.csv
+curl -fsSL -o data/addendum.csv https://raw.githubusercontent.com/mattiaverga/OpenNGC/master/database_files/addendum.csv
+
 useradd -r -m -s /usr/sbin/nologin siril
-mkdir -p /opt/siril-auto
-cp seestar_stack.ssf siril-auto.sh /opt/siril-auto/
-chmod +x /opt/siril-auto/siril-auto.sh
 cp siril-auto.env.example /etc/siril-auto.env
+cp siril-auto.aliases.example /etc/siril-auto.aliases
 chown root:siril /etc/siril-auto.env && chmod 640 /etc/siril-auto.env
 ```
 
-**NAS-Volume** (auf dem Proxmox-Host, Pfad anpassen, siehe `pct config 100 | grep ^mp`):
+Ein Update holst du dir mit `git -C /opt/seestar-astro-pipeline pull`. Deine Config in `/etc` bleibt dabei unangetastet.
+
+**NAS-Volume** (auf dem Proxmox-Host, Pfad anpassen):
 
 ```bash
-pct set 132 -mp0 /<host-pfad>/astro,mp=/data/astro
-pct reboot 132
+pct set <CTID> -mp0 /<host-pfad>/astro,mp=/data/astro
+pct reboot <CTID>
 ```
 
 Der User `siril` braucht Schreibrechte auf `/data/astro`. Im unprivilegierten LXC entspricht das auf dem Host der UID `100000 + <uid von siril>` (`id siril` im Container).
 
-**Seestar-Freigabe einrichten**, sobald das Seestar im WLAN ist:
+**Seestar-Freigabe**, sobald das Seestar im WLAN ist:
 
 ```bash
 smbclient -L //<seestar-ip> -N                      # Share-Namen anzeigen
@@ -55,41 +70,45 @@ su -s /bin/bash siril -c 'rclone config create seestar smb host=<seestar-ip> use
 su -s /bin/bash siril -c 'rclone lsd "seestar:<share-name>"'   # Test
 ```
 
-Trag danach in `/etc/siril-auto.env` `SEESTAR_IP` und `RCLONE_SRC_PATH` ein, also Share-Name und Pfad bis zum Ordner, der die `<Ziel>_sub`-Ordner enthält. Falls der Gastzugang nicht klappt, kannst du `user=`/`pass=` in der rclone-Config anpassen. Das Passwort setzt du mit `rclone obscure`.
+Danach `SEESTAR_IP` und `RCLONE_SRC_PATH` in `/etc/siril-auto.env` eintragen.
 
 ## Test
 
 ```bash
-sudo -u siril /opt/siril-auto/siril-auto.sh --dry-run       # zeigt nur, was gestackt würde
-sudo -u siril /opt/siril-auto/siril-auto.sh --no-fetch      # nur vorhandenes Archiv verarbeiten
-sudo -u siril /opt/siril-auto/siril-auto.sh --force         # alles neu stacken
+sudo -u siril /opt/seestar-astro-pipeline/siril/siril-auto.sh --dry-run    # zeigt nur, was gestackt würde
+sudo -u siril /opt/seestar-astro-pipeline/siril/siril-auto.sh --no-fetch   # nur vorhandenes Archiv
+sudo -u siril /opt/seestar-astro-pipeline/siril/siril-auto.sh --force      # alles neu
+sudo -u siril /opt/seestar-astro-pipeline/siril/siril-auto.sh --master-full   # Master aus allen Subs
 ```
 
-Beim ersten echten Datensatz solltest du `result_preview.jpg` prüfen. Ist das Bild gespiegelt, aktivierst du in `seestar_stack.ssf` die Zeile `mirrorx -bottomup`.
+**Am ersten echten Datensatz prüfen:**
+
+| Was | Wo | Falls falsch |
+|---|---|---|
+| Bild gespiegelt? | `export/…jpg` | in `seestar_stack.ssf` `mirrorx -bottomup` aktivieren |
+| Overlay vertikal gespiegelt? | Galerie | `NO_FLIP_Y=1` in `/etc/siril-auto.env` |
+| Plate-Solving klappt? | `stacks/…log` | `SOLVE_ARGS` anpassen (z. B. `-focal=250 -pixelsize=2.9`) |
+| Master-Stack-Optionen | `stacks/…_master_…log` | `MASTER_STACK_METHOD`. Die Gewichtung wählt das Script automatisch nach Siril-Version (`-weight_from_nbstack` für 1.2, `-weight=nbstack` ab 1.4). |
+| Share-Name, Ordner `<Ziel>_sub/`, Dateinamen | `raw/seestar/` | `RCLONE_SRC_PATH`; die Erkennung steht in `frame_info()` |
 
 ## Automatisch laufen lassen
 
 ```bash
 cp systemd/siril-auto.service systemd/siril-auto.timer /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable --now siril-auto.timer
+systemctl daemon-reload && systemctl enable --now siril-auto.timer
 journalctl -u siril-auto -f
 ```
 
-Der Timer läuft alle 30 Minuten. Ist das Seestar nicht erreichbar, wird nur das vorhandene Archiv verarbeitet. Das ist z. B. praktisch, wenn du Frames von unterwegs manuell nach `raw/seestar/` kopiert hast.
-
 ## Home Assistant (MQTT)
 
-Mit `MQTT_ENABLED=1` legt das Script per Discovery automatisch das Gerät **„Siril Auto-Stacking“** an:
+Mit `MQTT_ENABLED=1` legt das Script per Discovery das Gerät **„Siril Auto-Stacking“** an. Es hat zwei Sensoren:
+- **Status**: `idle`, `fetching`, `processing` oder `error`
+- **Letztes Ergebnis**: Ziel und Nacht. Als Attribute kommen Filter, `stack` (`night` oder `master`), Frames und die Pfade zu JPG und FIT dazu.
 
-- **Status**: `idle` / `fetching` / `processing` / `error`, mit den Attributen Ziel, Nacht, Frames und Meldung
-- **Letztes Ergebnis**: „Ziel (Nacht)“, mit den Attributen Frames, Pfad zum JPG/FIT und Zeitstempel
+## Entwicklung
 
-Topics: `seestar/siril/status`, `seestar/siril/last`, beide retained.
+Alle Tests laufen ohne Siril und ohne Teleskop. `tests/bin/siril-cli` ersetzt Siril dabei.
 
-## Hinweise
-
-- **Speicherplatz**: Pro Nacht entstehen im `work/`-Ordner temporär etwa das 2- bis 3-Fache der Lights. Nach Erfolg wird er gelöscht, bei einem Fehler bleibt er zur Analyse liegen (`KEEP_WORK_ON_ERROR`).
-- **Fehlgeschlagene Nächte** werden nicht bei jedem Lauf erneut versucht. Erst wenn neue Frames dazukommen oder du `--force` aufrufst.
-- **Immich**: Bind-Mount nur von `/data/astro/export` (read-only) in LXC 113 und dort als External Library anlegen. Das Aufnahmedatum steht per exiftool im JPG, damit das Bild in Immich in der richtigen Nacht einsortiert wird.
-- **Annahmen, die du am echten Gerät prüfen solltest**: der Share-Name und die Ordnerstruktur (`<Ziel>_sub/`) sowie das Dateinamensschema `…_YYYYMMDD-HHMMSS.fit`. Ohne passenden Zeitstempel im Namen nimmt das Script die Änderungszeit der Datei.
+```bash
+python3 -m unittest discover -s tests -v
+```

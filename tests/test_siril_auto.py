@@ -1,0 +1,151 @@
+"""Ende-zu-Ende-Test fuer siril-auto.sh mit Ersatz-Siril (tests/bin/siril-cli)."""
+import json
+import os
+import shutil
+import subprocess
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+SCRIPT = ROOT / "siril" / "siril-auto.sh"
+FAKE = ROOT / "tests" / "bin" / "siril-cli"
+FIXTURE = ROOT / "tests" / "fixtures" / "ngc_subset.csv"
+
+
+def frames(folder: Path, target: str, filt: str, date: str, hhmm: str, n: int, start: int = 0):
+    folder.mkdir(parents=True, exist_ok=True)
+    for i in range(start, start + n):
+        (folder / f"Light_{target}_10.0s_{filt}_{date}-{hhmm}{i:02d}.fit").write_bytes(b"x")
+
+
+class SirilAutoTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.astro = self.tmp / "astro"
+        mirror = self.astro / "raw" / "seestar"
+        # M 31 IRCUT: 18.10. (25, ueber Mitternacht), 19.10. (22); LP am 19.10. (21)
+        frames(mirror / "M 31_sub", "M 31", "IRCUT", "20261018", "2130", 15)
+        frames(mirror / "M 31_sub", "M 31", "IRCUT", "20261019", "0115", 10)
+        frames(mirror / "M 31_sub", "M 31", "IRCUT", "20261019", "2200", 22)
+        frames(mirror / "M 31_sub", "M 31", "LP", "20261019", "2300", 21)
+        # anderer Ordnername per Alias -> gleiche Gruppe, dritte Nacht
+        frames(mirror / "Andromeda Galaxy_sub", "Andromeda Galaxy", "IRCUT", "20261021", "2045", 20)
+        # zu wenige Frames
+        frames(mirror / "M 42_sub", "M 42", "IRCUT", "20261021", "2350", 5)
+        aliases = self.tmp / "aliases"
+        aliases.write_text("# Test\nAndromeda Galaxy = M 31\n")
+        self.calls = self.tmp / "calls.log"
+        env = self.tmp / "env"
+        env.write_text(f"""
+RCLONE_REMOTE=seestar
+RCLONE_SRC_PATH=x
+SEESTAR_IP=
+ASTRO_ROOT={self.astro}
+MIRROR_DIR={mirror}
+WORK_DIR={self.astro}/work
+STACK_DIR={self.astro}/stacks
+EXPORT_DIR={self.astro}/export
+STATE_DIR={self.astro}/.state
+ALIAS_FILE={aliases}
+CATALOG={FIXTURE}
+MIN_FRAMES=20
+MQTT_ENABLED=0
+LOCK_FILE={self.tmp}/lock
+GALLERY_BUILD={ROOT}/gallery/build/gallery_build.py
+GALLERY_OUT={self.astro}/web
+""")
+        self.env = {**os.environ, "SIRIL_AUTO_CONFIG": str(env), "SIRIL_BIN": str(FAKE), "FAKE_SIRIL_LOG": str(self.calls)}
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def run_auto(self, *args, **extra_env):
+        return subprocess.run(["bash", str(SCRIPT), "--no-fetch", *args], env={**self.env, **extra_env},
+                              capture_output=True, text=True)
+
+    def calls_of(self, kind):
+        if not self.calls.exists():
+            return []
+        return [c for c in map(json.loads, self.calls.read_text().splitlines()) if c["kind"] == kind]
+
+    def test_full_flow(self):
+        r = self.run_auto()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        st = self.astro / "stacks" / "M_31"
+        for night in ("2026-10-18_IRCUT", "2026-10-19_IRCUT", "2026-10-21_IRCUT", "2026-10-19_LP", "master_IRCUT"):
+            self.assertTrue((st / f"M_31_{night}_siril.fit").exists(), night)
+            self.assertTrue((st / f"M_31_{night}_siril.meta.json").exists(), night)
+            self.assertTrue((self.astro / "export" / "M_31" / f"M_31_{night}_siril.jpg").exists(), night)
+        self.assertFalse((st / "M_31_master_LP_siril.fit").exists())       # nur eine LP-Nacht
+        self.assertFalse((self.astro / "stacks" / "M_42").exists())          # zu wenige Frames
+        self.assertIn("SKIP M 42", r.stdout)
+
+        # Mitternacht: Frames von 01:15 gehoeren zur Nacht 18.10.
+        self.assertEqual((self.astro / ".state" / "M_31_IRCUT_2026-10-18.done").read_text().strip(), "25")
+        # Master: 3 Naechte, Gewichtung fuer Siril 1.2
+        master_calls = self.calls_of("master")
+        self.assertEqual(len(master_calls), 1)
+        self.assertEqual(master_calls[0]["lights"], 3)
+        self.assertIn("-weight_from_nbstack", master_calls[0]["script"])
+        self.assertIn("rej n", master_calls[0]["script"])
+        m = json.loads((st / "M_31_master_IRCUT_siril.meta.json").read_text())
+        self.assertEqual(m["stack"], "master")
+        self.assertEqual([n["date"] for n in m["nights"]], ["2026-10-18", "2026-10-19", "2026-10-21"])
+        self.assertEqual(sum(n["frames"] for n in m["nights"]), 67)
+        self.assertIsNotNone(m["wcs"])
+        self.assertEqual(m["objects"][0]["name"], "M 31")
+        # Solve-Script mit -noflip
+        self.assertIn("platesolve -noflip", self.calls_of("solve")[0]["script"])
+        # Galerie gebaut
+        cat = json.loads((self.astro / "web" / "catalog.json").read_text())
+        self.assertEqual(len(cat["entries"]), 5)
+
+        # zweiter Lauf: nichts zu tun
+        n_calls = len(self.calls.read_text().splitlines())
+        r2 = self.run_auto()
+        self.assertEqual(r2.returncode, 0, r2.stdout)
+        self.assertIn("0 verarbeitet", r2.stdout)
+        self.assertEqual(len(self.calls.read_text().splitlines()), n_calls)
+
+        # neue Frames fuer den 19.10. -> Nacht + Master neu
+        frames(self.astro / "raw" / "seestar" / "M 31_sub", "M 31", "IRCUT", "20261019", "2230", 3)
+        r3 = self.run_auto()
+        self.assertIn("STACK M 31 IRCUT 2026-10-19: 25 Frames", r3.stdout)
+        self.assertIn("MASTER M 31 IRCUT (nights): 3 Nächte, 70 Frames", r3.stdout)
+
+        # --master-full: Master aus allen Einzelframes mit dem Nacht-Script
+        r4 = self.run_auto("--master-full")
+        self.assertIn("(full)", r4.stdout)
+        full = [c for c in self.calls_of("stack") if c["work"] == "M_31_master_IRCUT_siril"]
+        self.assertEqual(full[-1]["lights"], 70)
+
+    def test_failure_is_not_retried(self):
+        r = self.run_auto(FAKE_SIRIL_FAIL="stack")
+        self.assertEqual(r.returncode, 1)
+        self.assertTrue((self.astro / ".state" / "M_31_IRCUT_2026-10-18.failed").exists())
+        n = len(self.calls_of("stack"))
+        r2 = self.run_auto(FAKE_SIRIL_FAIL="stack")
+        self.assertEqual(len(self.calls_of("stack")), n)          # nicht erneut versucht
+        self.assertEqual(r2.returncode, 0)
+
+    def test_solve_failure_keeps_stack(self):
+        r = self.run_auto(FAKE_SIRIL_FAIL="solve")
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn("Plate-Solving fehlgeschlagen", r.stdout)
+        m = json.loads((self.astro / "stacks" / "M_31" / "M_31_2026-10-18_IRCUT_siril.meta.json").read_text())
+        self.assertIsNone(m["wcs"])
+        self.assertEqual(m["objects"], [])
+
+    def test_dry_run_and_siril14(self):
+        r = self.run_auto("--dry-run")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("STACK M 31 IRCUT 2026-10-18: 25 Frames", r.stdout)
+        self.assertFalse(self.calls.exists())                      # Siril nie aufgerufen
+        self.assertFalse(any((self.astro / "stacks").iterdir()))
+        r = self.run_auto(FAKE_SIRIL_VERSION="1.4.0")
+        self.assertIn("-weight=nbstack", self.calls_of("master")[0]["script"])
+
+
+if __name__ == "__main__":
+    unittest.main()

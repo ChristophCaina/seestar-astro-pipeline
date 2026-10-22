@@ -1,0 +1,35 @@
+############################################################
+# Seestar S50 – Master-Stack aus mehreren Nacht-Stacks
+#
+# Erwartet im Arbeitsverzeichnis "light/" mit den linearen
+# Nacht-Stacks (result_linear.fit der einzelnen Naechte, 32 Bit, RGB).
+# Gewichtung nach Anzahl gestackter Frames (FITS-Keyword STACKCNT).
+#
+# Platzhalter (ersetzt siril-auto.sh vor dem Aufruf):
+#   @STACK_METHOD@  z. B. "rej n"            (keine Rejection bei wenigen Bildern)
+#   @WEIGHT@        "-weight=nbstack" (Siril >= 1.4) bzw. "-weight_from_nbstack" (1.2)
+############################################################
+
+requires 1.2.0
+set32bits
+setext fit
+
+cd light
+convert stack -out=../process
+cd ../process
+
+# Naechte haben unterschiedliche Bildausschnitte/Drehung (Alt/Az)
+register stack -2pass
+seqapplyreg stack -framing=min
+
+stack r_stack @STACK_METHOD@ -norm=addscale -output_norm -rgb_equal @WEIGHT@ -out=../result_linear
+
+cd ..
+load result_linear
+subsky 1
+save result_linear
+rmgreen
+autostretch
+savetif result_preview
+savejpg result_preview 95
+close

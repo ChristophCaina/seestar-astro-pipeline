@@ -8,7 +8,7 @@ Type=oneshot
 User=siril
 Group=siril
 EnvironmentFile=/etc/siril-auto.env
-ExecStart=/opt/siril-auto/siril-auto.sh
+ExecStart=/opt/seestar-astro-pipeline/siril/siril-auto.sh
 Nice=10
 IOSchedulingClass=idle
 # Siril darf alle Kerne nutzen, aber den Container nicht blockieren
