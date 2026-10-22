@@ -15,13 +15,13 @@
 
 ## Astro-Galerie
 
-Prototyp: [`gallery/prototype.html`](../gallery/prototype.html). Er ist eigenständig, die Bilder sind simuliert, die Objektdaten real.
+Umsetzung in [`gallery/`](../gallery): statisches Frontend, Builder und Beispieldaten. Das Datenformat steht in [`gallery/SCHEMA.md`](../gallery/SCHEMA.md), das Hosting in [06](06-galerie-hosting.md).
 
 - Übersicht: Kennzahlen, Beobachtungskalender (Filter, Mondphasen), Kacheln mit Filter und Sortierung
 - Detailseite: Bild mit SVG-Overlay, das beim Mouseover die Annotationen zeigt, dazu Infokarten, RA/Dec-Gitter, Kompass und Maßstab. Am Rand ein Hinweis auf Objekte außerhalb des Bildfelds.
 - Rotlicht-Modus für die Nachtsicht
 
-Später liefert siril-auto pro Stack eine JSON-Datei mit Nächten, Frames, Plate-Solving und den Objekten aus `conesearch`. Die Galerie wird daraus statisch gebaut und per nginx ausgeliefert.
+Sobald siril-auto pro Stack eine `meta.json` schreibt (Plate-Solving + `conesearch`), baut es die Galerie automatisch neu.
 
 ## Ältere Bilder nachträglich
 

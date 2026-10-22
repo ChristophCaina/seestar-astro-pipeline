@@ -200,5 +200,11 @@ while IFS=$'\t' read -r target night; do
 done < "$INDEX.groups"
 
 log "Fertig: $processed verarbeitet, $failed Fehler"
+
+# Galerie neu bauen, wenn sich etwas geaendert hat (optional)
+if (( processed > 0 )) && [[ -n "${GALLERY_BUILD:-}" && $DRY_RUN -eq 0 ]]; then
+  log "Baue Galerie neu"
+  python3 "$GALLERY_BUILD" --stacks "$STACK_DIR" --out "${GALLERY_OUT:-$ASTRO_ROOT/web}" || log "WARN: Galerie-Build fehlgeschlagen"
+fi
 if (( failed == 0 )); then status idle "" "" 0 "$processed verarbeitet"; fi
 exit $(( failed > 0 ? 1 : 0 ))

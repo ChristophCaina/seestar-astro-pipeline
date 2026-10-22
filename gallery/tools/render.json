@@ -1,0 +1,96 @@
+{
+  "M_31": {
+    "file": "sample-data/stacks/M_31/M_31_master_IRCUT_siril.jpg",
+    "pos": {
+      "M 31": [
+        8.0,
+        0.0
+      ],
+      "M 32": [
+        -13.02,
+        -12.08
+      ],
+      "NGC 206": [
+        -32.47,
+        5.08
+      ],
+      "M 110": [
+        15.8,
+        35.66
+      ]
+    }
+  },
+  "M_42": {
+    "file": "sample-data/stacks/M_42/M_42_master_IRCUT_siril.jpg",
+    "pos": {
+      "M 42": [
+        -0.2,
+        0.08
+      ],
+      "M 43": [
+        -3.61,
+        -7.33
+      ],
+      "θ¹ Ori (Trapez)": [
+        0.0,
+        -0.0
+      ],
+      "NGC 1977": [
+        0.12,
+        -34.38
+      ]
+    }
+  },
+  "M_13": {
+    "file": "sample-data/stacks/M_13/M_13_master_IRCUT_siril.jpg",
+    "pos": {
+      "M 13": [
+        6.0,
+        6.0
+      ],
+      "NGC 6207": [
+        -10.55,
+        -16.4
+      ]
+    }
+  },
+  "M_27": {
+    "file": "sample-data/stacks/M_27/M_27_master_IRCUT_siril.jpg",
+    "pos": {
+      "M 27": [
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "M_51": {
+    "file": "sample-data/stacks/M_51/M_51_2026-09-14_IRCUT_siril.jpg",
+    "pos": {
+      "M 51": [
+        0.0,
+        -0.0
+      ],
+      "NGC 5195": [
+        -1.17,
+        -4.25
+      ]
+    }
+  },
+  "NGC_7000": {
+    "file": "sample-data/stacks/NGC_7000/NGC_7000_master_LP_siril.jpg",
+    "pos": {
+      "NGC 7000": [
+        -6.59,
+        -9.74
+      ],
+      "Cygnus-Wall": [
+        -0.0,
+        -0.0
+      ],
+      "IC 5070": [
+        84.72,
+        -1.02
+      ]
+    }
+  }
+}

@@ -1,0 +1,142 @@
+<!doctype html>
+<!-- Zeichnet die simulierten Beispielbilder fuer gallery/sample-data.
+     Wird von render_samples.mjs in einem Headless-Browser geladen. -->
+<meta charset="utf-8">
+<canvas id="c" width="1920" height="1080"></canvas>
+<script>
+const W = 1920, H = 1080, S = 60 / 2.39;
+function mkRng(seed){ let s = seed; const r = () => (s = (s*16807) % 2147483647) / 2147483647;
+  const gs = () => { let u=0,v=0; while(!u) u=r(); while(!v) v=r(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); };
+  return { r, gs }; }
+function blob(g, x, y, rx, ry, rot, stops){
+  g.save(); g.translate(x,y); g.rotate(rot||0); g.scale(1, ry/rx);
+  const gr = g.createRadialGradient(0,0,0,0,0,rx); stops.forEach(([o,c]) => gr.addColorStop(o,c));
+  g.fillStyle = gr; g.beginPath(); g.arc(0,0,rx,0,Math.PI*2); g.fill(); g.restore();
+}
+function starfield(g, R, n, opt={}){
+  const list = [];
+  for (let i=0;i<n;i++){
+    let x, y;
+    if (opt.cluster){ x = W/2 + opt.cluster[0]*S + R.gs()*opt.cluster[2]*S; y = H/2 + opt.cluster[1]*S + R.gs()*opt.cluster[2]*S; }
+    else { x = R.r()*W; y = R.r()*H; }
+    list.push({ x, y, m: (opt.m0||7.5) + Math.pow(R.r(), opt.pow||0.3) * 7.5 });
+  }
+  list.sort((a,b)=>b.m-a.m);
+  for (const s of list){
+    const r = Math.max(0.9, (15 - s.m) * 0.6), a = Math.min(.95, (15.5 - s.m)/8);
+    const h = R.r(), col = h<.25 ? "255,210,170" : h<.6 ? "240,244,255" : "200,220,255";
+    const gr = g.createRadialGradient(s.x,s.y,0,s.x,s.y,r*2.6);
+    gr.addColorStop(0,`rgba(${col},${a})`); gr.addColorStop(.35,`rgba(${col},${a*.5})`); gr.addColorStop(1,`rgba(${col},0)`);
+    g.fillStyle = gr; g.beginPath(); g.arc(s.x,s.y,r*2.6,0,Math.PI*2); g.fill();
+  }
+}
+
+const DRAW = {
+  M_31(g, R, P){
+    const [x,y] = P("M 31"), t = -7*Math.PI/180;
+    g.globalCompositeOperation = "lighter";
+    blob(g,x,y,2300,700,t,[[0,"rgba(120,110,120,.35)"],[.5,"rgba(70,70,95,.18)"],[1,"rgba(0,0,0,0)"]]);
+    blob(g,x,y,1300,360,t,[[0,"rgba(200,180,160,.55)"],[.6,"rgba(110,110,140,.22)"],[1,"rgba(0,0,0,0)"]]);
+    blob(g,x,y,520,150,t,[[0,"rgba(255,236,205,.85)"],[.7,"rgba(200,170,140,.25)"],[1,"rgba(0,0,0,0)"]]);
+    blob(g,x,y,110,52,t,[[0,"rgba(255,250,240,1)"],[1,"rgba(255,230,200,0)"]]);
+    g.globalCompositeOperation = "source-over";
+    g.save(); g.translate(x,y); g.rotate(t); g.filter = "blur(10px)";
+    [[0,-95,820,120,.38],[30,-165,1100,190,.25],[-20,-240,1400,260,.16]].forEach(([dx,dy,rx,ry,a])=>{
+      g.strokeStyle = `rgba(8,6,6,${a})`; g.lineWidth = 26; g.beginPath(); g.ellipse(dx,dy*.25,rx,ry,0,Math.PI*1.05,Math.PI*1.95); g.stroke(); });
+    g.restore(); g.filter = "none";
+    g.globalCompositeOperation = "lighter";
+    blob(g,...P("NGC 206"),70,40,t,[[0,"rgba(150,180,255,.55)"],[1,"rgba(0,0,0,0)"]]);
+    blob(g,...P("M 32"),80,64,0,[[0,"rgba(255,245,230,.95)"],[.35,"rgba(230,210,190,.35)"],[1,"rgba(0,0,0,0)"]]);
+    return { n:1700 };
+  },
+  M_42(g, R, P){
+    g.globalCompositeOperation = "lighter";
+    const [tx,ty] = P("θ¹ Ori (Trapez)"), cx = tx, cy = ty + 50;
+    blob(g,cx,cy,900,700,0,[[0,"rgba(170,60,90,.45)"],[.6,"rgba(90,30,60,.2)"],[1,"rgba(0,0,0,0)"]]);
+    for (let i=0;i<70;i++){
+      const a = R.r()*Math.PI*2, d = Math.pow(R.r(),.7)*620;
+      const x = cx + Math.cos(a)*d*1.25, y = cy + Math.sin(a)*d*.95 + 60, r = 60 + R.r()*190;
+      blob(g,x,y,r,r*(.5+R.r()*.5),a,[[0,`rgba(255,${90+R.r()*60|0},${110+R.r()*40|0},${.10+R.r()*.14})`],[1,"rgba(0,0,0,0)"]]);
+    }
+    blob(g,cx,cy-40,360,260,.3,[[0,"rgba(255,180,170,.55)"],[1,"rgba(0,0,0,0)"]]);
+    blob(g,tx,ty,170,130,0,[[0,"rgba(220,255,250,.95)"],[.5,"rgba(140,220,220,.45)"],[1,"rgba(0,0,0,0)"]]);
+    g.globalCompositeOperation = "source-over";
+    const [mx,my] = P("M 43");
+    g.filter = "blur(18px)"; g.fillStyle = "rgba(6,4,8,.55)";
+    g.beginPath(); g.ellipse((tx+mx)/2,(ty+my)/2+20,150,46,-.25,0,Math.PI*2); g.fill(); g.filter = "none";
+    g.globalCompositeOperation = "lighter";
+    blob(g,mx,my,95,80,0,[[0,"rgba(255,150,160,.6)"],[1,"rgba(0,0,0,0)"]]);
+    [[-6,-4],[8,2],[-2,10],[5,-8]].forEach(([dx,dy])=> blob(g,tx+dx*4,ty+dy*4,16,16,0,[[0,"rgba(255,255,255,1)"],[1,"rgba(255,255,255,0)"]]));
+    return { n:1300 };
+  },
+  M_13(g, R, P, pos){
+    g.globalCompositeOperation = "lighter";
+    blob(g,...P("M 13"),320,320,0,[[0,"rgba(255,235,200,.75)"],[.4,"rgba(200,190,170,.25)"],[1,"rgba(0,0,0,0)"]]);
+    starfield(g, R, 2600, { cluster:[...pos["M 13"],3.2], m0:9.5, pow:.6 });
+    blob(g,...P("NGC 6207"),36,16,.26,[[0,"rgba(220,220,255,.6)"],[1,"rgba(0,0,0,0)"]]);
+    return { n:1100 };
+  },
+  M_27(g, R, P){
+    g.globalCompositeOperation = "lighter";
+    const [x,y] = P("M 27"), t = 30*Math.PI/180;
+    blob(g,x,y,150,120,t,[[0,"rgba(200,70,90,.35)"],[1,"rgba(0,0,0,0)"]]);
+    blob(g,x,y,120,70,t,[[0,"rgba(90,200,190,.55)"],[1,"rgba(0,0,0,0)"]]);
+    [-1,1].forEach(s => { const dx = Math.cos(t+Math.PI/2)*55*s, dy = Math.sin(t+Math.PI/2)*55*s;
+      blob(g,x+dx,y+dy,70,48,t,[[0,"rgba(150,240,215,.75)"],[.7,"rgba(210,90,110,.25)"],[1,"rgba(0,0,0,0)"]]); });
+    return { n:3600, pow:.4 };
+  },
+  M_51(g, R, P){
+    g.globalCompositeOperation = "lighter";
+    const [x,y] = P("M 51");
+    blob(g,x,y,170,140,0,[[0,"rgba(160,170,210,.35)"],[1,"rgba(0,0,0,0)"]]);
+    for (const arm of [0, Math.PI]){
+      for (let th=0.3; th<5.2; th+=0.06){
+        const r = 18*Math.exp(0.33*th), a = th + arm;
+        const px = x + Math.cos(a)*r*1.05, py = y + Math.sin(a)*r*.82;
+        blob(g,px,py,14+R.r()*8,10,a,[[0,`rgba(170,200,255,${.30+R.r()*.25})`],[1,"rgba(0,0,0,0)"]]);
+        if (R.r()<.2) blob(g,px+R.gs()*4,py+R.gs()*4,5,5,0,[[0,"rgba(255,140,170,.8)"],[1,"rgba(0,0,0,0)"]]);
+      }
+    }
+    blob(g,x,y,34,30,0,[[0,"rgba(255,240,210,1)"],[1,"rgba(0,0,0,0)"]]);
+    const [cx,cy] = P("NGC 5195");
+    blob(g,cx,cy,52,42,.4,[[0,"rgba(255,225,185,.9)"],[1,"rgba(0,0,0,0)"]]);
+    blob(g,(x+cx)/2,(y+cy)/2-10,40,90,-.2,[[0,"rgba(170,180,230,.18)"],[1,"rgba(0,0,0,0)"]]);
+    return { n:1300 };
+  },
+  NGC_7000(g, R, P){
+    g.globalCompositeOperation = "lighter";
+    for (let i=0;i<90;i++){
+      const x = R.r()*W*1.1 - 100, y = R.r()*H;
+      if (x + (H-y)*0.9 > W*1.05) continue;
+      const r = 120 + R.r()*320;
+      blob(g,x,y,r,r*(.6+R.r()*.4),R.r()*3,[[0,`rgba(220,${50+R.r()*40|0},${70+R.r()*30|0},${.08+R.r()*.12})`],[1,"rgba(0,0,0,0)"]]);
+    }
+    const [wx,wy] = P("Cygnus-Wall");
+    for (let i=0;i<140;i++){ const u = R.r();
+      const x = wx - 650 + u*1300 + R.gs()*40, y = wy + 410 - u*820 + Math.sin(u*9)*40 + R.gs()*30, r = 40 + R.r()*110;
+      blob(g,x,y,r,r*(.35+R.r()*.4),-0.68+R.gs()*.3,[[0,`rgba(255,${120+R.r()*40|0},140,${.06+R.r()*.10})`],[1,"rgba(0,0,0,0)"]]); }
+    g.globalCompositeOperation = "source-over";
+    for (let i=0;i<40;i++){ const u = R.r();
+      blob(g,wx - 560 + u*1300,wy + 470 - u*820,180,120,-0.68,[[0,"rgba(4,4,8,.18)"],[1,"rgba(0,0,0,0)"]]); }
+    g.globalCompositeOperation = "lighter";
+    return { n:4200, pow:.4 };
+  }
+};
+
+window.renderSample = (slug, pos, seed) => {
+  const cv = document.getElementById("c"), g = cv.getContext("2d"), R = mkRng(seed);
+  const P = (name) => [W/2 + pos[name][0]*S, H/2 + pos[name][1]*S];
+  g.setTransform(1,0,0,1,0,0); g.globalCompositeOperation = "source-over"; g.filter = "none";
+  g.fillStyle = "#05070c"; g.fillRect(0,0,W,H);
+  const bg = g.createLinearGradient(0,0,W,H); bg.addColorStop(0,"rgba(30,26,40,.55)"); bg.addColorStop(1,"rgba(10,18,30,.35)");
+  g.fillStyle = bg; g.fillRect(0,0,W,H);
+  const res = DRAW[slug](g, R, P, pos) || {};
+  g.globalCompositeOperation = "lighter";
+  starfield(g, R, res.n||1500, { pow:res.pow||.3 });
+  g.globalCompositeOperation = "source-over";
+  const img = g.getImageData(0,0,W,H), d = img.data;
+  for (let i=0;i<d.length;i+=4){ const n = R.gs()*3; d[i]+=n; d[i+1]+=n; d[i+2]+=n*1.1; }
+  g.putImageData(img,0,0);
+  return cv.toDataURL("image/jpeg", 0.85);
+};
+</script>

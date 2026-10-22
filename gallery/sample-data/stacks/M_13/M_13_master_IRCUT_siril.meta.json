@@ -1,0 +1,96 @@
+{
+  "schema": 1,
+  "sample": true,
+  "id": "m_13_master_ircut_siril",
+  "target": {
+    "name": "M 13",
+    "common": "Herkuleshaufen",
+    "kind": "cluster",
+    "sort": 1013
+  },
+  "stack": "master",
+  "filter": "IRCUT",
+  "exposure_s": 10,
+  "gain": 80,
+  "nights": [
+    {
+      "date": "2026-09-26",
+      "frames": 143
+    },
+    {
+      "date": "2026-10-02",
+      "frames": 120
+    }
+  ],
+  "image": "M_13_master_IRCUT_siril.jpg",
+  "width": 1920,
+  "height": 1080,
+  "wcs": {
+    "crval": [
+      250.4216667,
+      36.4597222
+    ],
+    "crpix": [
+      1110.6276150627614,
+      690.6276150627615
+    ],
+    "cd": [
+      [
+        -0.0006638888888888889,
+        -0.0
+      ],
+      [
+        -0.0,
+        -0.0006638888888888889
+      ]
+    ]
+  },
+  "objects": [
+    {
+      "name": "M 13",
+      "alt": "NGC 6205",
+      "type": "Kugelsternhaufen",
+      "ra": 250.421667,
+      "dec": 36.459722,
+      "major": 20,
+      "minor": 20,
+      "pa": 0,
+      "mag": 5.8,
+      "dist": "22.200 Lj",
+      "category": "dso",
+      "main": true,
+      "label": [
+        220,
+        -230
+      ]
+    },
+    {
+      "name": "NGC 6207",
+      "alt": "",
+      "type": "Spiralgalaxie (Sc)",
+      "ra": 250.76625,
+      "dec": 36.8325,
+      "major": 3.0,
+      "minor": 1.1,
+      "pa": 15,
+      "mag": 11.6,
+      "dist": "≈ 30 Mio. Lj",
+      "category": "dso",
+      "label": [
+        -30,
+        -60
+      ]
+    }
+  ],
+  "caption": "Mit im Bild: die kleine Spiralgalaxie NGC 6207 nordöstlich des Haufens.",
+  "versions": [
+    {
+      "label": "Seestar-App-Stack",
+      "where": "Handy → Immich"
+    },
+    {
+      "label": "Beschriftet · plot-constellations",
+      "where": "Immich"
+    }
+  ]
+}

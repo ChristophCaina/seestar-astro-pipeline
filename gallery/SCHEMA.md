@@ -1,0 +1,47 @@
+# meta.json – Format pro Stack
+
+Neben jedem fertigen Stack-JPG liegt eine `<name>.meta.json`. Der Builder (`build/gallery_build.py`) sammelt sie rekursiv ein. Die Beispiele in [`sample-data/`](sample-data) zeigen echte Dateien.
+
+```jsonc
+{
+  "schema": 1,
+  "id": "m_31_master_ircut_siril",          // eindeutig, wird Dateiname im Web-Ordner
+  "sample": false,                          // true = simulierte Beispieldaten
+  "target": { "name": "M 31", "common": "Andromeda-Galaxie", "kind": "galaxy", "sort": 1031 },
+  "stack": "master",                        // "master" (mehrere Nächte) oder "night"
+  "filter": "IRCUT",                        // IRCUT | LP
+  "exposure_s": 10, "gain": 80,
+  "nights": [ { "date": "2026-10-18", "frames": 212 } ],
+  "image": "M_31_master_IRCUT_siril.jpg",   // relativ zur meta.json
+  "width": 1920, "height": 1080,            // Pixelmaße des JPG
+  "wcs": {
+    "crval": [10.6845833, 41.2691667],      // RA/Dec (Grad) am Referenzpixel
+    "crpix": [1160.8, 540.0],               // Referenzpixel, JPG-Konvention (oben links, 0-basiert)
+    "cd": [[-1.6e-4, 5.7e-4], [-5.7e-4, -3.4e-4]]   // Grad/Pixel, (xi Ost, eta Nord) = CD · (dx, dy)
+  },
+  "objects": [
+    {
+      "name": "M 31", "alt": "NGC 224", "type": "Spiralgalaxie (Sb)",
+      "ra": 10.684583, "dec": 41.269167,    // Grad
+      "major": 190, "minor": 60, "pa": 38,  // Bogenminuten, Positionswinkel (Nord über Ost)
+      "mag": 3.4, "dist": "2,5 Mio. Lj",
+      "category": "dso",                    // "dso" oder "star"
+      "main": true,                         // Hauptobjekt (Kachel-Hover)
+      "marker": [84, 22],                   // optional: angezeigte Ellipse statt major/minor
+      "label": [60, -120]                   // optional: Beschriftungsversatz in Pixeln
+    }
+  ],
+  "caption": "Freitext unter dem Bild",
+  "versions": [ { "label": "Seestar-App-Stack", "where": "Handy → Immich" } ]
+}
+```
+
+## Woher die Werte kommen (siril-auto, geplant)
+
+| Feld | Quelle |
+|---|---|
+| `wcs` | FITS-Header nach `platesolve` (`CRVAL1/2`, `CRPIX1/2`, `CD1_1…CD2_2`). Umrechnung auf JPG-Konvention: `x = CRPIX1 − 1`, `y = NAXIS2 − CRPIX2`, zweite CD-Zeile/-Spalte für die y-Achse spiegeln, wenn das FITS bottom-up gespeichert ist |
+| `objects` | `conesearch -out=objekte.csv` (Siril-Kataloge: Messier, NGC, IC, Sh2, Sterne) plus eine kleine Textdatenbank für Typ, Name und Entfernung |
+| `nights`, `exposure_s`, `filter` | aus der Gruppierung in siril-auto bzw. den FITS-Headern der Subs |
+
+Liegt ein Objekt außerhalb des Bildes, zeigt die Galerie es automatisch als Randhinweis („M 110 · 14′ außerhalb“).
