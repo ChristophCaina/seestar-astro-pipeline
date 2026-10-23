@@ -6,6 +6,7 @@
 - [x] Galerie-Prototyp
 - [x] Galerie: Frontend, Builder, meta.json-Format, Beispieldaten, nginx-vhost
 - [ ] Seestar: feste IP, Station-Modus, Firmware prüfen, ggf. Interop-PEM
+- [x] Siril-LXC: Installer `scripts/install-siril-lxc.sh`
 - [ ] Siril-LXC: NAS-Volume, erster echter Durchlauf (Share-Name, Dateinamen, Orientierung prüfen)
 - [x] siril-auto: Ziel + Filter, Alias-Liste, Master-Stack, `--master-full`
 - [x] siril-auto: Plate-Solving + `meta.json` (OpenNGC), Tests + CI (ungetestet mit echtem Siril)

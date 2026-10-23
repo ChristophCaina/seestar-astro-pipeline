@@ -34,6 +34,8 @@ Seestar (SMB) ──rclone──> /data/astro/raw/seestar/            1:1-Archiv
 
 ## Installation (im Siril-LXC als root)
 
+Am schnellsten mit dem Installer, siehe [docs/03](../docs/03-siril-lxc.md): `bash install-siril-lxc.sh host <CTID> --astro <host-pfad>`. Von Hand:
+
 ```bash
 apt install -y siril rclone libimage-exiftool-perl mosquitto-clients smbclient python3-pil fonts-dejavu-core git
 siril-cli --version          # mindestens 1.2.0

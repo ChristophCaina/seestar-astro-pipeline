@@ -21,7 +21,7 @@ flowchart LR
 | Ordner | Inhalt |
 |---|---|
 | [`docs/`](docs) | Einrichtung Schritt für Schritt: seestar_alp-LXC, HA-Add-on, Siril-LXC, Remote-Zugriff, Immich & Galerie, Roadmap |
-| [`scripts/`](scripts) | Install-Scripte: seestar_alp auf amd64-LXC, Tailscale-LXC als Subnet-Router |
+| [`scripts/`](scripts) | Install-Scripte: seestar_alp auf amd64-LXC, Siril-LXC, Tailscale-LXC als Subnet-Router |
 | [`siril/`](siril) | `siril-auto`: Abholung, Gruppierung nach Ziel/Filter/Nacht, Master-Stack, Plate-Solving, `meta.json`, systemd-Timer, MQTT-Status |
 | [`tests/`](tests) | Tests ohne Siril und Teleskop (`python3 -m unittest discover -s tests`), laufen per GitHub Actions |
 | [`homeassistant/`](homeassistant) | Dashboard-Karte, Beispiel-Automationen, Package **Astro-Audit** (KI-Empfehlung → Helfer → Automationen), Dashboard **Sternwarte** |
