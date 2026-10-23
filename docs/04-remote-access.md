@@ -28,6 +28,43 @@ Offen ist noch, ob das HA-Add-on auch mit einem gerouteten Subnetz klappt. Laut 
 
 ## Bilder unterwegs → NAS
 
-- Unterwegs steuerst du über die Seestar-App, die Frames speichert das Gerät lokal.
-- **Zu Hause:** Das Seestar ist wieder im Heim-WLAN, siril-auto holt die Frames ab und stackt sie.
-- **Von unterwegs:** Ein Gerät vor Ort kopiert von der Seestar-Freigabe und lädt per VPN auf den NAS. Das Datenvolumen ist dabei der Engpass, Einzelframes sind mehrere GB pro Nacht.
+Unterwegs steuerst du über die Seestar-App, die Frames speichert das Gerät lokal. Wieder zu Hause im Heim-WLAN holt siril-auto sie automatisch ab. Wer nicht warten will, hat zwei Wege:
+
+### A) Von zu Hause abholen: `travel-sync.sh` (empfohlen)
+
+Der Siril-LXC holt die Frames über Tailscale direkt vom Seestar am Reiserouter. Vor Ort brauchst du nichts außer GL.iNet und Seestar. Voraussetzung ist Szenario B oben, inklusive statischer Route zum Reiserouter-Netz (am besten in der Fritzbox, dann gilt sie auch für den Siril-LXC).
+
+Per Tailscale-SSH oder Proxmox-Konsole im Siril-LXC:
+
+```bash
+cd /opt/seestar-astro-pipeline/siril
+./travel-sync.sh --ip 192.168.8.XX --size                       # erst schauen: Dateien, GB, Dauer
+./travel-sync.sh --ip 192.168.8.XX --since 1d --bwlimit 2M --stack --background
+journalctl -u seestar-travel-sync -f                            # Fortschritt
+```
+
+| Option | Wirkung |
+|---|---|
+| `--since 12h` / `2d` / `off` | nur Dateien jünger als … (Default `2d`) |
+| `--target "M 31"` | nur ein Ziel (Ordnername wie in der App) |
+| `--all` | auch die Seestar-eigenen Stacks/JPGs, nicht nur `*_sub` |
+| `--bwlimit 2M` | max. 2 MB/s, schont Handy-Tarif und Hotel-WLAN |
+| `--stack` | danach siril-auto starten, die Ergebnisse kommen wie gewohnt per Push |
+| `--background` | läuft als systemd-Unit weiter, auch wenn die SSH-Verbindung abreißt |
+
+- Abgebrochene Übertragungen setzen beim nächsten Aufruf fort, schon Kopiertes wird übersprungen.
+- Während des Kopierens hält das Script die Sperre von siril-auto, der Timer stackt also keine halbe Nacht.
+- Die IP des Seestar zeigt die GL.iNet-Oberfläche unter *Clients*. Am besten dort eine feste Zuweisung anlegen.
+- **Volumen:** Ein Einzelframe des S50 hat rund 4 MB, eine Nacht mit 3 h × 10 s also gut 4 GB. Für mobile Daten lohnt `--target` oder später zu Hause holen.
+
+### B) Vor Ort hochladen (Laptop)
+
+Hängt der Laptop im WLAN des Reiserouters und ist Tailscale aktiv, kopiert rclone direkt von der Seestar-Freigabe auf die NAS-Freigabe zu Hause. Beispiel mit Samba-Freigabe `astro` (IP und Zugang anpassen):
+
+```bash
+rclone copy ":smb,host=192.168.8.XX,user=guest:EMMC Images/MyWorks" \
+  ":smb,host=192.168.1.XX,user=<samba-user>,pass=$(rclone obscure '<passwort>'):astro/raw/seestar" \
+  --include "*_sub/**" --max-age 2d --bwlimit 2M --progress
+```
+
+Danach zu Hause einmal `siril-auto.sh --no-fetch` laufen lassen, oder auf den Timer warten.
