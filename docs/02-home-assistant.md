@@ -57,11 +57,13 @@ Vorher `http://astro.lan` (Galerie-Adresse) und `notify.mobile_app_handy` ersetz
 | Helfer | Inhalt |
 |---|---|
 | `input_boolean.astro_nacht_lohnt` | an bei Stufe ideal, gut oder bedingt |
-| `input_select.astro_stufe` / `astro_modus` | ideal … abbruch / deepsky, planetar, keiner |
+| `input_select.astro_stufe` / `astro_modus` | ideal … abbruch / deepsky, weitfeld, planetar, keiner |
 | `input_text.astro_empfehlung` | Kurztext, z. B. „🌌 Ideal – Deepsky“ |
 | `input_datetime.astro_fenster_start` / `_ende` | astronomische Dunkelheit; für Deep-Sky erst ab Monduntergang, wenn der Mond stört |
 | `input_boolean.astro_automatik` | Hauptschalter für die Automationen |
 | `sensor.astro_taupunktabstand` | Temperatur minus Taupunkt. Die Quelle wählt der Sensor selbst: Sensor am Teleskop (später), dann Ecowitt im Garten, zuletzt das Wettermodell. Welche gerade aktiv ist, zeigt das Attribut `quelle`. |
+
+**Modus weitfeld (Milchstraße):** Das Script rechnet für die astronomische Dunkelheit aus, wie hoch Milchstraßenzentrum, Schwan, Kassiopeia–Perseus und Fuhrmann–Orion maximal stehen (Standort aus `zone.home`), und gibt das der KI mit. Sie wählt `weitfeld`, wenn der Mond nicht stört, die Transparenz hoch und eine Region mindestens 35° hoch ist, und nennt Region und Uhrzeit im Bericht. Das Beobachtungsfenster beginnt dann wie bei Deep-Sky erst nach Monduntergang. Keine zusätzlichen Entities – nur eine weitere Option in `input_select.astro_modus`. Ausrüstung und Ablauf: [09](09-weitwinkel.md).
 
 Automationen:
 - **Audit am Abend:** 30 min nach Sonnenuntergang

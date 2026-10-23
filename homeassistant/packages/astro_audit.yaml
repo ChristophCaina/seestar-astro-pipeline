@@ -39,7 +39,7 @@ input_select:
   astro_modus:
     name: Astro – Modus
     icon: mdi:star-four-points
-    options: [deepsky, planetar, keiner]
+    options: [deepsky, weitfeld, planetar, keiner]
 
 input_text:
   astro_empfehlung:
@@ -177,6 +177,30 @@ script:
                 {% endif %}
               {% endif %}
             {% endfor %} {{ ns.hour }}
+      # Milchstrasse: hoechste Hoehe je Region im Dunkelfenster (fuer den Modus "weitfeld")
+      - variables:
+          milchstrasse: >-
+            {% set lat = state_attr('zone.home', 'latitude') | float(48.7) %}
+            {% set lon = state_attr('zone.home', 'longitude') | float(8.9) %}
+            {% set ds = as_datetime(astro_dark_start, none) %}
+            {% set de = as_datetime(astro_dark_end, none) %}
+            {% if ds is none or de is none or de <= ds %}keine astronomische Dunkelheit{% else %}
+            {% set regions = [['Zentrum (Schütze)', 266.42, -29.0], ['Schwan', 305.0, 40.0],
+                              ['Kassiopeia–Perseus', 30.0, 58.0], ['Fuhrmann–Orion', 90.0, 25.0]] %}
+            {% set ns = namespace(out=[]) %}
+            {% for r in regions %}
+              {% set best = namespace(alt=-90, t=0) %}
+              {% set t0 = as_timestamp(ds) %}
+              {% for i in range((((as_timestamp(de) - t0) / 1800) | int) + 1) %}
+                {% set t = t0 + i * 1800 %}
+                {% set gmst = (280.46061837 + 360.98564736629 * (t / 86400 + 2440587.5 - 2451545.0)) % 360 %}
+                {% set ha = ((gmst + lon - r[1]) % 360) * pi / 180 %}
+                {% set alt = asin(sin(lat * pi / 180) * sin(r[2] * pi / 180)
+                                  + cos(lat * pi / 180) * cos(r[2] * pi / 180) * cos(ha)) * 180 / pi %}
+                {% if alt > best.alt %}{% set best.alt = alt %}{% set best.t = t %}{% endif %}
+              {% endfor %}
+              {% set ns.out = ns.out + [r[0] ~ ' max ' ~ (best.alt | round(0) | int) ~ '° (' ~ (best.t | timestamp_custom('%H:%M')) ~ ')'] %}
+            {% endfor %}{{ ns.out | join(', ') }}{% endif %}
       - action: ai_task.generate_data
         response_variable: astro_report
         data:
@@ -200,6 +224,14 @@ script:
             verbessern, ist aber KEIN Ausschlusskriterium allein. Weise darauf hin,
             erkläre den Einfluss, aber lass sie nicht allein über die Empfehlung
             entscheiden.
+
+            MODUS WEITFELD (Milchstraße/Sternbilder mit DSLR und Objektiv): sinnvoll,
+            wenn der Mond nicht stört (Mond stört: Nein oder Mond unter dem Horizont),
+            Transparenz >= 60 %, Wolken < 20 % und eine Milchstraßen-Region (siehe
+            MESSDATEN) mindestens 35° hoch steht. Seeing ist für Weitwinkel unwichtig.
+            Ist Deep-Sky ebenfalls gut, wähle den Modus mit dem größeren Vorteil und
+            nenne den anderen als Alternative. Im Bericht bei weitfeld die beste Region
+            und Uhrzeit nennen.
 
             EMPFEHLUNGS-STUFEN:
               🌌 IDEAL        → Deepsky >= 70, Seeing <= 3, Wind < 10, Wolken < 20%
@@ -254,6 +286,7 @@ script:
             Phase: {{ moon_phase }} | Höhe: {{ moon_altitude }}° - Mond Untergang:
             {{ moon_next_setting }} - Dunkelheit: {{ darkness_quality }} -
             Astro-Dunkelheit: {{ astro_dark_start }} bis {{ astro_dark_end }} -
+            Milchstraße: {{ milchstrasse }} -
             Temperatur: {{ current_temp }} °C | Taupunkt: {{ dewpoint }} °C -
             Luftfeuchte: {{ rel_humidity }} % - Taugefahr: {{ dew_warning }} - Nebel
             (Boden): {{ fog_prob_ground }} % | Gebiet: {{ fog_prob }} % -
@@ -275,13 +308,15 @@ script:
                     - abbruch
             modus:
               description: >-
-                Wofür sich die Nacht eignet: deepsky (Nebel, Galaxien),
-                planetar (Mond, Planeten, Doppelsterne) oder keiner.
+                Wofür sich die Nacht eignet: deepsky (Nebel, Galaxien), weitfeld
+                (Milchstraße, Sternbilder mit Objektiv), planetar (Mond, Planeten,
+                Doppelsterne) oder keiner.
               required: true
               selector:
                 select:
                   options:
                     - deepsky
+                    - weitfeld
                     - planetar
                     - keiner
             empfehlung_kurz:
@@ -310,7 +345,7 @@ script:
             {% set de = as_datetime(astro_dark_end, none) %}
             {% set ms = as_datetime(moon_next_setting, none) %}
             {% if ds is none %}{{ none }}
-            {% elif modus == 'deepsky' and not moon_ok and ms is not none and de is not none and ds < ms < de %}{{ ms.isoformat() }}
+            {% elif modus in ['deepsky', 'weitfeld'] and not moon_ok and ms is not none and de is not none and ds < ms < de %}{{ ms.isoformat() }}
             {% else %}{{ ds.isoformat() }}{% endif %}
           fenster_ende: "{{ (as_datetime(astro_dark_end, none) or now()).isoformat() }}"
       - action: "input_boolean.turn_{{ 'on' if lohnt else 'off' }}"
