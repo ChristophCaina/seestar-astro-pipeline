@@ -211,7 +211,7 @@ GALLERY_OUT={self.astro}/web
         cfg = Path(self.env["SIRIL_AUTO_CONFIG"])
         cfg.write_text(cfg.read_text() + 'DEVICES="s50 eos6d"\nDEV_eos6d_TYPE=dslr\nDEV_eos6d_LABEL="Canon EOS 6D"\n')
         path = f"{ROOT / 'tests' / 'bin'}:{os.environ['PATH']}"
-        r = self.run_auto(PATH=path, FAKE_WCS_SCALE="20", FAKE_WCS_CENTER="305,38")
+        r = self.run_auto(PATH=path, FAKE_WCS_SCALE="40", FAKE_WCS_CENTER="305,38")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         st = self.astro / "stacks" / "Milchstrasse"
         night = [c for c in self.calls_of("stack") if c["work"] == "Milchstrasse_2026-08-15_WIDE_eos6d_siril"][0]
