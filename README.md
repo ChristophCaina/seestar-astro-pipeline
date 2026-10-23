@@ -24,7 +24,7 @@ flowchart LR
 | [`scripts/`](scripts) | Hilfsscripte, z. B. die seestar_alp-Installation auf amd64-LXC |
 | [`siril/`](siril) | `siril-auto`: Abholung, Gruppierung nach Ziel/Filter/Nacht, Master-Stack, Plate-Solving, `meta.json`, systemd-Timer, MQTT-Status |
 | [`tests/`](tests) | Tests ohne Siril und Teleskop (`python3 -m unittest discover -s tests`), laufen per GitHub Actions |
-| [`homeassistant/`](homeassistant) | Dashboard-Karte, Beispiel-Automationen, Package **Astro-Audit** (KI-Empfehlung → Helfer → Automationen) |
+| [`homeassistant/`](homeassistant) | Dashboard-Karte, Beispiel-Automationen, Package **Astro-Audit** (KI-Empfehlung → Helfer → Automationen), Dashboard **Sternwarte** |
 | [`gallery/`](gallery) | Astro-Galerie: statisches Frontend, Builder (`meta.json` → Website), Beispieldaten, nginx-vhost |
 
 ## Komponenten

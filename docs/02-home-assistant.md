@@ -59,6 +59,17 @@ Automationen:
 
 Vor dem Einsatz musst du `seestar_s50` (Entity-Präfix) und `notify.mobile_app_handy` per Suchen und Ersetzen anpassen. Packages aktivierst du in der `configuration.yaml` mit `homeassistant: packages: !include_dir_named packages`.
 
+## Dashboard „Sternwarte“
+
+[`homeassistant/dashboards/sternwarte.yaml`](../homeassistant/dashboards/sternwarte.yaml) ist ein Sections-Dashboard mit vier Bereichen:
+
+- **Heute Nacht:** Empfehlung und Beobachtungsfenster aus dem Astro-Audit, Stufe, „lohnt sich“, Automatik-Schalter, Audit per Knopfdruck
+- **Seestar:** seestar-lovelace-card, wenn das Teleskop verbunden ist, sonst ein Hinweis. Dazu Steuerungsfreigabe, Tauheizung, Akku, Speicher.
+- **Bedingungen:** Taupunktabstand samt Quelle, Ecowitt (Temperatur, Feuchte, Regenrate), AstroWeather (Deep-Sky, Seeing, Transparenz, Wolken), Stundenvorhersage
+- **Nachverarbeitung:** Siril-Status, letzter Stack, Link zur Astro-Galerie
+
+Einfügen über den Raw-Konfigurationseditor eines neuen Dashboards. Vorher `seestar_s50` und die Galerie-Adresse anpassen.
+
 ## Ideen für Automationen
 
 | Idee | Auslöser / Bedingung | Braucht Interop-Key |

@@ -1,0 +1,162 @@
+# Lovelace-Dashboard „Sternwarte“
+#
+# Einrichten: Einstellungen → Dashboards → Dashboard hinzufügen → „Neues Dashboard von Grund auf“,
+# dann ⋮ → Bearbeiten → ⋮ → Raw-Konfigurationseditor → diesen Inhalt einfügen.
+#
+# Voraussetzungen: Package astro_audit.yaml, HA-Add-on ha-seestar, seestar-lovelace-card (HACS),
+# siril-auto mit MQTT_ENABLED=1.
+# Anpassen (Suchen/Ersetzen):
+#   seestar_s50                 → Entity-Präfix deines Seestar
+#   http://astro.lan            → Adresse der Astro-Galerie
+#   sensor.gw2000a_*            → Ecowitt-Entities
+title: Sternwarte
+views:
+  - title: Sternwarte
+    path: sternwarte
+    icon: mdi:telescope
+    type: sections
+    max_columns: 3
+    sections:
+      # ------------------------------------------------------------ Heute Nacht
+      - type: grid
+        cards:
+          - type: heading
+            heading: Heute Nacht
+            icon: mdi:weather-night
+          - type: markdown
+            content: >-
+              ## {{ states('input_text.astro_empfehlung') }}
+
+              {% set s = states('input_datetime.astro_fenster_start') %}
+              {% set e = states('input_datetime.astro_fenster_ende') %}
+              {% if s not in ['unknown', 'unavailable'] %}
+              Beobachtungsfenster **{{ as_timestamp(s) | timestamp_custom('%H:%M') }}–{{ as_timestamp(e) | timestamp_custom('%H:%M') }} Uhr**
+              · Modus: {{ states('input_select.astro_modus') }}
+              {% endif %}
+          - type: tile
+            entity: input_select.astro_stufe
+            name: Stufe
+            icon: mdi:star-four-points
+          - type: tile
+            entity: input_boolean.astro_nacht_lohnt
+            name: Lohnt sich
+          - type: tile
+            entity: input_boolean.astro_automatik
+            name: Automatik
+            features_position: inline
+            features:
+              - type: toggle
+          - type: tile
+            entity: script.astro_audit
+            name: Audit jetzt
+            icon: mdi:robot
+            tap_action:
+              action: perform-action
+              perform_action: script.astro_audit
+              confirmation:
+                text: KI-Audit jetzt ausführen?
+
+      # ------------------------------------------------------------ Teleskop
+      - type: grid
+        cards:
+          - type: heading
+            heading: Seestar
+            icon: mdi:telescope
+          - type: custom:seestar-card
+            device: seestar_s50
+            visibility:
+              - condition: state
+                entity: binary_sensor.seestar_s50_connected
+                state: "on"
+          - type: markdown
+            content: Das Seestar ist nicht verbunden. Station-Modus und WLAN prüfen.
+            visibility:
+              - condition: state
+                entity: binary_sensor.seestar_s50_connected
+                state_not: "on"
+          - type: tile
+            entity: switch.seestar_s50_controls_enabled
+            name: Steuerung freigegeben
+            features_position: inline
+            features:
+              - type: toggle
+          - type: tile
+            entity: switch.seestar_s50_dew_heater
+            name: Tauheizung
+            features_position: inline
+            features:
+              - type: toggle
+          - type: tile
+            entity: sensor.seestar_s50_battery
+            name: Akku
+          - type: tile
+            entity: sensor.seestar_s50_storage_used
+            name: Speicher
+
+      # ------------------------------------------------------------ Bedingungen
+      - type: grid
+        cards:
+          - type: heading
+            heading: Bedingungen
+            icon: mdi:weather-partly-cloudy
+          - type: tile
+            entity: sensor.astro_taupunktabstand
+            name: Taupunktabstand
+            state_content:
+              - state
+              - quelle
+          - type: tile
+            entity: sensor.gw2000a_outdoor_temperature
+            name: Temperatur (Garten)
+          - type: tile
+            entity: sensor.gw2000a_humidity
+            name: Luftfeuchte
+          - type: tile
+            entity: sensor.gw2000a_rain_rate
+            name: Regenrate
+          - type: tile
+            entity: sensor.astroweather_backyard_deepsky_forecast_today
+            name: Deep-Sky heute
+          - type: tile
+            entity: sensor.astroweather_backyard_seeing
+            name: Seeing
+          - type: tile
+            entity: sensor.astroweather_backyard_transparency
+            name: Transparenz
+          - type: tile
+            entity: sensor.astroweather_backyard_cloud_cover
+            name: Wolken
+          - type: weather-forecast
+            entity: weather.renningen_2
+            forecast_type: hourly
+            show_current: false
+
+      # ------------------------------------------------------------ Nachverarbeitung
+      - type: grid
+        cards:
+          - type: heading
+            heading: Nachverarbeitung
+            icon: mdi:image-filter-hdr
+          - type: tile
+            entity: sensor.siril_auto_stacking_status
+            name: Siril
+            state_content:
+              - state
+              - target
+          - type: markdown
+            content: >-
+              {% set e = 'sensor.siril_auto_stacking_letztes_ergebnis' %}
+              {% if states(e) not in ['unknown', 'unavailable'] %}
+              **Zuletzt gestackt:** {{ state_attr(e, 'target') }}
+              ({{ 'Master' if state_attr(e, 'stack') == 'master' else 'Nacht ' ~ state_attr(e, 'night') }},
+              {{ state_attr(e, 'filter') }}) · {{ state_attr(e, 'frames') }} Frames ·
+              {{ as_timestamp(state_attr(e, 'timestamp')) | timestamp_custom('%d.%m. %H:%M') }}
+              {% else %}
+              Noch kein Stack.
+              {% endif %}
+          - type: button
+            name: Astro-Galerie öffnen
+            icon: mdi:image-multiple
+            tap_action:
+              action: url
+              url_path: http://astro.lan
