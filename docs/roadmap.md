@@ -12,8 +12,8 @@
 - [x] Beschriftetes JPG für Immich (`annotate.py`)
 - [x] Immich: Stack-Zuordnung App ↔ Siril, Album (`immich_sync.py`, ungetestet mit echtem Immich)
 - [ ] Immich: External Library einrichten, API-Schlüssel
+- [x] Nachhol-Job-Script für ältere App-Stacks (`backfill.py`; offen: astrometry.net-Indexdateien, Orientierung)
 - [ ] Galerie im nginx-LXC einrichten (erst mit Beispieldaten), dann echte Stacks
-- [x] Nachhol-Job für ältere App-Stacks (`backfill.py`)
-- [ ] Nachhol-Job: astrometry.net-Indexdateien, Orientierung prüfen
+- [ ] Nachhol-Job für ältere Bilder
 - [ ] Remote-Zugriff (Tailscale-LXC, GL.iNet unterwegs)
 - [ ] Später: IoT-VLAN, Dachsternwarte (Velux/KLF-200, Regen- und Wolkensensor)
