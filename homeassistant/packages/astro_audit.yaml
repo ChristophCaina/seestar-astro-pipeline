@@ -8,9 +8,10 @@
 # Enthaelt:
 #   * Helfer: Empfehlung (an/aus), Stufe, Modus, Kurztext, Beobachtungsfenster
 #   * Script astro_audit: KI-Bewertung (ai_task) -> Helfer + Benachrichtigung
-#   * Automationen: Audit am Abend, Session-Start NUR nach Bestaetigung am Handy,
+#   * Script astro_session_starten: Start je Geraet, NUR per Knopf im Dashboard
+#   * Automationen: Audit am Abend,
 #     Steuerung sperren, Tauheizung (automatisch), Schutz bei Regen/Wind/Tau
-#     (automatisch parken, abschaltbar) – sonst wird nichts ohne Rueckfrage gestartet
+#     (automatisch parken, abschaltbar) – gestartet wird nie automatisch (Zeit/Bedingung)
 #
 # VOR DEM EINSATZ ANPASSEN:
 #   Abschnitt KONFIGURATION (script astro_benachrichtigen, oben unter script:):
@@ -24,9 +25,6 @@ input_boolean:
   astro_nacht_lohnt:
     name: Astro – Nacht lohnt sich
     icon: mdi:telescope
-  astro_automatik:
-    name: Astro – Automatik aktiv
-    icon: mdi:robot
   astro_schutz_parken:
     name: Astro – Bei Regen/Wind/Tau parken
     icon: mdi:shield-sun
@@ -108,7 +106,7 @@ script:
   # Script – auch fuer die Meldungen aus astro_stacks.yaml.
   #   id         kurz, OHNE Unterstrich (steht in den Push-Aktionen)
   #   prefix     Entity-Praefix des Geraets in ha-seestar (switch.<prefix>_dew_heater …)
-  #   weitwinkel true = Milchstrassen-Modus moeglich (S30 Pro)
+  #   weitwinkel true = Milchstrassen-Modus moeglich (S30 Pro), nur zur Info
   # Geraete, die (noch) nicht existieren oder nicht verbunden sind, werden uebersprungen.
   # ===========================================================================
   astro_benachrichtigen:
@@ -502,8 +500,8 @@ script:
           title: '🔭 ASTRO-AUDIT: {{ astro_report.data.empfehlung_kurz }}'
           message: '{{ astro_report.data.begruendung_detailliert }}'
 
-  # Startet eine Session auf EINEM Teleskop. Aufruf nur von Hand: Push-Aktion oder
-  # Dashboard-Knopf. Gibt die Steuerung frei und ruft dann den eigenen Ablauf auf.
+  # Startet eine Session auf EINEM Teleskop. Aufruf nur von Hand (Knopf je Geraet im
+  # Dashboard) – keine Automation ruft es auf. Gibt die Steuerung frei, dann der eigene Ablauf.
   astro_session_starten:
     alias: Astro – Session starten
     icon: mdi:play-circle
@@ -557,120 +555,6 @@ automation:
         offset: "00:30:00"
     actions:
       - action: script.astro_audit
-
-  # Zum Fensterbeginn NUR fragen – je Modus eine Push an alle Handys:
-  #   Deep-Sky-Fenster  -> alle verbundenen Teleskope
-  #   Milchstrassen-Fenster -> verbundene Teleskope mit weitwinkel: true
-  # Wer zuerst tippt, startet das Geraet; die Push zeigt danach nur noch die uebrigen.
-  # Ohne Antwort innerhalb von 60 min bleibt alles gesperrt.
-  - id: astro_steuerung_freigeben
-    alias: Astro – Session bestätigen
-    mode: parallel
-    max: 2
-    triggers:
-      - trigger: time
-        at: input_datetime.astro_fenster_start
-        id: deepsky
-      - trigger: time
-        at: input_datetime.astro_mw_start
-        id: weitfeld
-    conditions:
-      - condition: state
-        entity_id: input_boolean.astro_automatik
-        state: "on"
-      - condition: template
-        value_template: >-
-          {{ states('input_select.astro_stufe' if trigger.id == 'deepsky'
-                    else 'input_select.astro_stufe_milchstrasse') in ['ideal', 'gut', 'bedingt'] }}
-    variables:
-      modus: "{{ trigger.id }}"
-      teleskope: *astro_teleskope
-      kandidaten: >-
-        {% set ns = namespace(l=[]) %}
-        {% for t in teleskope %}
-          {% if is_state('binary_sensor.' ~ t.prefix ~ '_connected', 'on')
-                and (modus == 'deepsky' or t.weitwinkel | default(false)) %}
-            {% set ns.l = ns.l + [t] %}
-          {% endif %}
-        {% endfor %}{{ ns.l[:2] }}
-      tag: "astro_{{ modus }}_{{ now().strftime('%Y%m%d') }}"
-      frist: "{{ as_timestamp(now()) + 3600 }}"
-      modus_name: "{{ 'Milchstraße' if modus == 'weitfeld' else 'Deep-Sky' }}"
-      stufe: >-
-        {{ states('input_select.astro_stufe_milchstrasse' if modus == 'weitfeld' else 'input_select.astro_stufe') }}
-      ende: >-
-        {{ as_timestamp(states('input_datetime.astro_mw_ende' if modus == 'weitfeld'
-                               else 'input_datetime.astro_fenster_ende')) | timestamp_custom('%H:%M') }}
-    actions:
-      - condition: template
-        value_template: "{{ kandidaten | count > 0 }}"
-      - repeat:
-          count: "{{ kandidaten | count + 1 }}"
-          sequence:
-            # noch nicht gestartete Geraete (gestartet = Steuerung freigegeben)
-            - variables:
-                rest: >-
-                  {% set ns = namespace(l=[]) %}
-                  {% for t in kandidaten %}
-                    {% if not is_state('switch.' ~ t.prefix ~ '_controls_enabled', 'on') %}{% set ns.l = ns.l + [t] %}{% endif %}
-                  {% endfor %}{{ ns.l }}
-                aktionen: >-
-                  {% set ns = namespace(a=[]) %}
-                  {% for t in rest %}
-                    {% set ns.a = ns.a + [{'action': tag ~ '_start_' ~ t.id, 'title': t.name ~ ' starten'}] %}
-                  {% endfor %}{{ ns.a + [{'action': tag ~ '_nein', 'title': 'Heute nicht'}] }}
-            - if: "{{ rest | count == 0 }}"
-              then:
-                - stop: Alle Geräte gestartet
-            - action: script.astro_benachrichtigen
-              data:
-                title: "🔭 {{ modus_name }}: Fenster offen"
-                message: >-
-                  {{ modus_name }} heute: {{ stufe }}, bis {{ ende }} Uhr.
-                  {{ 'Session starten?' if repeat.index == 1 else 'Noch frei: ' ~ (rest | map(attribute='name') | join(', ')) ~ '.' }}
-                data:
-                  tag: "{{ tag }}"
-                  actions: "{{ aktionen }}"
-            - wait_for_trigger:
-                - trigger: event
-                  event_type: mobile_app_notification_action
-                  event_data:
-                    action: "{{ tag }}_start_{{ rest[0].id }}"
-                - trigger: event
-                  event_type: mobile_app_notification_action
-                  event_data:
-                    action: "{{ tag }}_start_{{ rest[1].id if rest | count > 1 else 'keins' }}"
-                - trigger: event
-                  event_type: mobile_app_notification_action
-                  event_data:
-                    action: "{{ tag }}_nein"
-              timeout:
-                seconds: "{{ [frist - as_timestamp(now()), 1] | max | int }}"
-              continue_on_timeout: true
-            - variables:
-                antwort: "{{ (wait.trigger.event.data.action | default('')).split('_')[-1] if wait.trigger else 'timeout' }}"
-            - if: "{{ antwort in ['nein', 'timeout'] }}"
-              then:
-                - action: script.astro_benachrichtigen
-                  data:
-                    title: "🔭 {{ modus_name }}: keine Session"
-                    message: >-
-                      {{ 'Nicht bestätigt' if antwort == 'timeout' else 'Abgelehnt' }} –
-                      {{ rest | map(attribute='name') | join(', ') }} bleibt gesperrt.
-                    data:
-                      tag: "{{ tag }}"
-                - stop: Keine (weitere) Session
-            - action: script.astro_session_starten
-              data:
-                teleskop: "{{ antwort }}"
-                modus: "{{ modus }}"
-            - action: script.astro_benachrichtigen
-              data:
-                title: "🔭 {{ (kandidaten | selectattr('id', 'eq', antwort) | map(attribute='name') | first) | default(antwort) }} gestartet"
-                message: >-
-                  {{ modus_name }} bis {{ ende }} Uhr. Bei Regen, Wind oder Tau wird automatisch geparkt.
-                data:
-                  tag: "{{ tag }}_{{ antwort }}"
 
   # ... und am Ende (oder spaetestens vor der Daemmerung) alle wieder sperren
   - id: astro_steuerung_sperren
@@ -727,7 +611,7 @@ automation:
           entity_id: "{{ heizungen }}"
 
   # Schutz in der Nacht: bei Regen, Sturmboeen oder Tau trotz Heizung AUTOMATISCH parken –
-  # alle verbundenen Teleskope. Einzige Aktion ohne Rueckfrage (Schalter: input_boolean.astro_schutz_parken).
+  # alle verbundenen Teleskope. Einzige automatische Aktion neben der Tauheizung (Schalter: input_boolean.astro_schutz_parken).
   - id: astro_regenwarnung
     alias: Astro – Schutz (Regen, Wind, Tau)
     mode: single

@@ -13,7 +13,7 @@
 #   sensor.gw2000a_*            → Ecowitt-Entities
 #   http://astro-pi.lan:8080    → Web-App des Astro-Pi (Abschnitt blendet sich aus, solange der Pi fehlt)
 #
-# Bedienung: Starten nur per Knopf mit Rückfrage – automatisch passiert nur das Schutz-Parken in der Nacht.
+# Bedienung: Starten nur per Knopf je Gerät – automatisch passiert nur das Schutz-Parken in der Nacht.
 title: Sternwarte
 views:
   - title: Sternwarte
@@ -54,12 +54,6 @@ views:
             entity: input_select.astro_stufe_milchstrasse
             name: Milchstraße
             icon: mdi:star-shooting
-          - type: tile
-            entity: input_boolean.astro_automatik
-            name: Automatik
-            features_position: inline
-            features:
-              - type: toggle
           - type: tile
             entity: input_boolean.astro_schutz_parken
             name: Schutz-Parken
