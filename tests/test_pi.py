@@ -170,6 +170,10 @@ class TestControlOffline(unittest.TestCase):
         self.assertEqual(str(p), "/x/M 31_sub/Light_M 31_120.0s_DSLR_20261018-230509.fits")
         # gleicher Ausdruck wie frame_info() in siril/siril-auto.sh
         self.assertRegex(p.name, r"_([0-9]+(\.[0-9]+)?)s_([A-Za-z0-9]+)_(20[0-9]{6})-([0-9]{6})")
+        d = ctl.frame_path("", 60, ".fits", datetime(2026, 10, 19, 3, 0, 0), frame_type="Dark")
+        self.assertEqual(str(d), "/x/_calib/Dark_60.0s_DSLR_20261019-030000.fits")
+        b = ctl.frame_path("", 0.00025, ".fits", datetime(2026, 10, 19, 3, 0, 0), frame_type="Bias")
+        self.assertEqual(b.name, "Bias_0.00025s_DSLR_20261019-030000.fits")
 
     def test_altitude_and_separation(self):
         ctl = Controller(IndiClient(), Settings(lat=48.7, lon=8.9))
@@ -293,6 +297,21 @@ class TestWithSimulators(unittest.IsolatedAsyncioTestCase):
         self.assertIn("astro_pi/preview", topics)
         state = [json.loads(m["payload"]) for m in msgs if m["topic"] == "astro_pi/state"][-1]
         self.assertEqual(state["mount"]["target"], "M 31")
+
+    async def test_dark_series(self):
+        code, j = await self.post("/api/camera/series", {"exposure": 0.1, "count": 2, "delay": 0, "type": "Dark"})
+        self.assertEqual(code, 200, j)
+        ctl = self.app[self.CTL]
+        for _ in range(600):
+            if not ctl.series.running:
+                break
+            await asyncio.sleep(0.1)
+        darks = sorted((self.tmp / "captures" / "_calib").glob("Dark_*.fits"))
+        self.assertEqual(len(darks), 2, ctl.series)
+        await asyncio.sleep(0.3)
+        self.assertEqual(ctl.indi.get(ctl.camera, "CCD_FRAME_TYPE").on(), ["FRAME_LIGHT"])   # zurueckgesetzt
+        code, j = await self.post("/api/camera/series", {"exposure": 1, "type": "Sonstwas"})
+        self.assertEqual(code, 409)
 
     async def test_park_track_errors(self):
         code, _ = await self.post("/api/mount/park", {"park": True})

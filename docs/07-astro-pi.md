@@ -40,6 +40,8 @@ sudo reboot
 | `--hotspot` | eigenes WLAN „Astro-Pi“, falls kein bekanntes WLAN da ist (Passwort in `/root/astro-pi-hotspot-passwort.txt`) |
 | `--no-desktop` | ohne KStars/noVNC, nur Web-App |
 
+**Celestron NexStar GT als Zweitmontierung:** Treiber `indi_celestron_gps`, Verbindung über das serielle Kabel der Handbox (RS-232 → USB-Adapter). Bei sehr alten GT-Handboxen kann der Treiber nur einen Teil der Funktionen nutzen (GoTo und Sync gehen meist, Parken/Nachführmodi je nach Firmware) – am Gerät testen. Die GT ist azimutal: Belichtungen kurz halten (≈ 15–30 s), die Feldrotation gleicht die 2-Pass-Registrierung in siril-auto wie beim Seestar aus.
+
 Montierung wechseln: `/etc/default/astro-pi-indi` anpassen (`INDI_DRIVERS="indi_celestron_gps indi_canon_ccd"`), dann `sudo systemctl restart indiserver`. Updates: `sudo bash install-astro-pi.sh update`.
 
 > Ungetestet auf echter Hardware. Getestet ist der Dienst gegen die INDI-Simulatoren (CI). Am Pi zuerst mit `--mount simulator --camera simulator` ausprobieren, dann die echten Treiber eintragen.
@@ -74,13 +76,17 @@ Die App speichert `/data/captures/<Ziel>_sub/Light_<Ziel>_<Belichtung>s_DSLR_<Da
 
 ```bash
 DEVICES="s50 eos6d"
+DEV_eos6d_TYPE=dslr                     # Kalibrierung mit Bias/Darks/Flats (siril/README)
 DEV_eos6d_LABEL="Canon EOS 6D"
 DEV_eos6d_IP="192.168.8.XX"              # Pi im GL.iNet-Netz bzw. zu Hause
-DEV_eos6d_REMOTE="astropi"              # rclone config create astropi sftp host=<ip> user=astro
+DEV_eos6d_PORT=22                       # SFTP
+DEV_eos6d_REMOTE="astropi"              # rclone config create astropi sftp host=<ip> user=astro key_file=~/.ssh/id_ed25519
 DEV_eos6d_SRC="/data/captures"
 ```
 
-Unterwegs: `travel-sync.sh --device eos6d --ip <pi-ip>`. Das DSLR-Profil (Darks/Flats, Debayer) folgt in einem eigenen Schritt.
+Unterwegs: `travel-sync.sh --device eos6d --ip <pi-ip>`.
+
+**Kalibrierbilder:** In der App unter *Kamera → Bildtyp* **Dark**, **Flat** oder **Bias** wählen. Die Bilder landen in `/data/captures/_calib/`, siril-auto baut daraus Masters und kalibriert die Lights damit. Darks mit gleicher Belichtung und ISO wie die Lights (Objektivdeckel drauf), Flats direkt nach der Session ohne Fokus zu verstellen, Bias mit kürzester Belichtung.
 
 ## Home Assistant
 

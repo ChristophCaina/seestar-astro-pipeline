@@ -34,6 +34,7 @@ class SeriesState:
     started: float = 0
     error: str = ""
     last_file: str = ""
+    frame_type: str = "Light"                 # Light | Dark | Flat | Bias
 
 
 @dataclass
@@ -258,20 +259,32 @@ class Controller:
             finally:
                 self._exposure_waiter = None
 
-    def frame_path(self, target: str, seconds: float, ext: str, when: datetime | None = None) -> Path:
-        """Gleiche Namenskonvention wie das Seestar -> siril-auto erkennt Ziel, Belichtung, Nacht."""
+    def frame_path(self, target: str, seconds: float, ext: str, when: datetime | None = None,
+                   frame_type: str = "Light") -> Path:
+        """Gleiche Namenskonvention wie das Seestar -> siril-auto erkennt Ziel, Belichtung, Nacht.
+        Kalibrierbilder (Dark/Flat/Bias) landen in _calib/ und werden dort zu Masters gestackt."""
         when = when or datetime.now()
+        exp = f"{seconds:.6f}".rstrip("0") if seconds < 1 else f"{seconds:.1f}"   # 0.00025 / 0.5 / 60.0
+        stamp = f"{exp}s_{self.s.filter_name}_{when:%Y%m%d-%H%M%S}{ext}"
+        if frame_type != "Light":
+            return self.s.capture_dir / "_calib" / f"{frame_type}_{stamp}"
         t = slug(target or self.target_name or "Unbekannt")
-        exp = f"{seconds:.1f}".rstrip("0").rstrip(".") if seconds < 1 else f"{seconds:.1f}"
-        name = f"Light_{t}_{exp}s_{self.s.filter_name}_{when:%Y%m%d-%H%M%S}{ext}"
-        return self.s.capture_dir / f"{t}_sub" / name
+        return self.s.capture_dir / f"{t}_sub" / f"Light_{t}_{stamp}"
 
-    async def capture(self, seconds: float, target: str = "", save: bool = True) -> dict:
+    async def set_frame_type(self, frame_type: str):
+        c = self._need(self.camera, "Kamera")
+        if frame_type not in ("Light", "Dark", "Flat", "Bias"):
+            raise ValueError("Bildtyp: Light, Dark, Flat oder Bias")
+        if self.indi.get(c, "CCD_FRAME_TYPE"):
+            await self.indi.set_switch(c, "CCD_FRAME_TYPE", f"FRAME_{frame_type.upper()}")
+
+    async def capture(self, seconds: float, target: str = "", save: bool = True, frame_type: str = "Light") -> dict:
         b = await self.expose(seconds)
         ext = b.fmt if b.fmt.startswith(".") else f".{b.fmt or 'fits'}"
         path = None
         if save:
-            path = self.frame_path(target, seconds, ".fits" if ext.lower() in (".fits", ".fit") else ext)
+            path = self.frame_path(target, seconds, ".fits" if ext.lower() in (".fits", ".fit") else ext,
+                                   frame_type=frame_type)
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(b.data)
         if ext.lower() in (".fits", ".fit"):
@@ -284,13 +297,16 @@ class Controller:
                 "hfr": (self.preview or {}).get("hfr")}
 
     # ------------------------------------------------------------ Serien
-    async def start_series(self, exposure: float, count: int, delay: float = 2.0, target: str = "", iso: str = ""):
+    async def start_series(self, exposure: float, count: int, delay: float = 2.0, target: str = "", iso: str = "",
+                           frame_type: str = "Light"):
         if self.series.running:
             raise RuntimeError("Es läuft bereits eine Serie")
         self._need(self.camera, "Kamera")
         if iso:
             await self.set_iso(iso)
-        self.series = SeriesState(True, target or self.target_name, exposure, count, 0, delay, time.time())
+        await self.set_frame_type(frame_type)
+        self.series = SeriesState(True, target or self.target_name, exposure, count, 0, delay, time.time(),
+                                  frame_type=frame_type)
         self._series_task = asyncio.create_task(self._run_series())
         self.publish("state")
 
@@ -298,7 +314,7 @@ class Controller:
         s = self.series
         try:
             while s.running and (s.count <= 0 or s.done < s.count):
-                r = await self.capture(s.exposure, s.target)
+                r = await self.capture(s.exposure, s.target, frame_type=s.frame_type)
                 s.done += 1
                 s.last_file = r["file"]
                 self.publish("state")
@@ -311,6 +327,11 @@ class Controller:
             s.error = str(e)
         finally:
             s.running = False
+            if s.frame_type != "Light":
+                try:
+                    await self.set_frame_type("Light")
+                except Exception:
+                    pass
             self.publish("state")
 
     async def stop_series(self):

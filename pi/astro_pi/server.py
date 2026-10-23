@@ -149,7 +149,7 @@ def make_app(cfg: dict, indi: IndiClient | None = None) -> web.Application:
             await ctl.stop_series()
         else:
             await ctl.start_series(float(b["exposure"]), int(b.get("count", 0)), float(b.get("delay", 2)),
-                                   b.get("target", ""), str(b.get("iso", "")))
+                                   b.get("target", ""), str(b.get("iso", "")), b.get("type", "Light"))
         return json_ok()
 
     async def live(request):

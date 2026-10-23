@@ -57,7 +57,7 @@
     if (!pr.hidden) {
       const pct = se.count > 0 ? (100 * se.done) / se.count : 0;
       pr.firstElementChild.style.width = `${pct}%`;
-      pr.lastElementChild.textContent = `${se.target || "–"}: ${se.done}${se.count > 0 ? ` / ${se.count}` : ""} × ${se.exposure}s${se.running ? (c.exposing ? " · belichtet …" : " · läuft") : se.error ? ` · Fehler: ${se.error}` : " · fertig"}`;
+      pr.lastElementChild.textContent = `${se.frame_type !== "Light" ? se.frame_type : se.target || "–"}: ${se.done}${se.count > 0 ? ` / ${se.count}` : ""} × ${se.exposure}s${se.running ? (c.exposing ? " · belichtet …" : " · läuft") : se.error ? ` · Fehler: ${se.error}` : " · fertig"}`;
     }
     $("s-start").disabled = se.running; $("s-stop").disabled = !se.running;
     if (s.preview && s.preview.time && s.preview.time !== render.pt) {
@@ -146,10 +146,16 @@
   $("unpark").onclick = act(() => api("/api/mount/park", { park: false }));
 
   // ---------------- Kamera ----------------
+  const HINT = { Dark: "Objektivdeckel drauf? Gleiche Belichtung und ISO wie die Lights.",
+    Flat: "Gleichmäßig helle Fläche (Flatfield-Folie/T-Shirt), Fokus nicht verstellen.",
+    Bias: "Deckel drauf, kürzeste Belichtung (z. B. 1/4000 s = 0.00025)." };
+  $("s-type").onchange = () => { const t = $("s-type").value; $("s-target").disabled = t !== "Light"; if (HINT[t]) toast(HINT[t]); };
   $("s-start").onclick = act(async () => {
-    const b = { exposure: +$("s-exp").value, count: +$("s-count").value, delay: +$("s-delay").value,
+    const type = $("s-type").value;
+    const b = { exposure: +$("s-exp").value, count: +$("s-count").value, delay: +$("s-delay").value, type,
       target: $("s-target").value.trim() || st?.mount.target || "", iso: $("s-iso").value };
-    if (!b.target && !confirm("Kein Ziel gesetzt – Aufnahmen landen unter „Unbekannt“. Trotzdem starten?")) return;
+    if (type !== "Light" && !confirm(`${type}-Serie: ${HINT[type]} Starten?`)) return;
+    if (type === "Light" && !b.target && !confirm("Kein Ziel gesetzt – Aufnahmen landen unter „Unbekannt“. Trotzdem starten?")) return;
     await api("/api/camera/series", b); toast("Serie gestartet");
   });
   $("s-stop").onclick = act(() => api("/api/camera/series", { stop: true }), "Serie gestoppt");
