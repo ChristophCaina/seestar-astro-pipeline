@@ -9,6 +9,9 @@
 #   seestar_s50                 → Entity-Präfix deines Seestar
 #   http://astro.lan            → Adresse der Astro-Galerie
 #   sensor.gw2000a_*            → Ecowitt-Entities
+#   http://astro-pi.lan:8080    → Web-App des Astro-Pi (Abschnitt blendet sich aus, solange der Pi fehlt)
+#
+# Bedienung: Starten nur per Knopf mit Rückfrage – automatisch passiert nur das Schutz-Parken in der Nacht.
 title: Sternwarte
 views:
   - title: Sternwarte
@@ -33,6 +36,10 @@ views:
               Beobachtungsfenster **{{ as_timestamp(s) | timestamp_custom('%H:%M') }}–{{ as_timestamp(e) | timestamp_custom('%H:%M') }} Uhr**
               · Modus: {{ states('input_select.astro_modus') }}
               {% endif %}
+              {% if is_state('input_select.astro_modus', 'weitfeld') %}
+
+              🌌 **Milchstraßen-Nacht** – Weitwinkel mit EOS 6D oder S30 Pro lohnt sich.
+              {% endif %}
           - type: tile
             entity: input_select.astro_stufe
             name: Stufe
@@ -52,6 +59,15 @@ views:
             features_position: inline
             features:
               - type: toggle
+          - type: tile
+            entity: script.astro_session_starten
+            name: Session starten
+            icon: mdi:play-circle
+            tap_action:
+              action: perform-action
+              perform_action: script.astro_session_starten
+              confirmation:
+                text: Session jetzt starten?
           - type: tile
             entity: script.astro_audit
             name: Audit jetzt
@@ -98,6 +114,7 @@ views:
           - type: tile
             entity: sensor.seestar_s50_storage_used
             name: Speicher
+          # Zweites Seestar (z. B. S30 Pro): diesen Abschnitt kopieren und seestar_s50 durch dessen Präfix ersetzen.
 
       # ------------------------------------------------------------ Bedingungen
       - type: grid
@@ -157,6 +174,11 @@ views:
               ({{ 'Master' if state_attr(e, 'stack') == 'master' else 'Nacht ' ~ state_attr(e, 'night') }},
               {{ state_attr(e, 'filter') }}) · {{ state_attr(e, 'frames') }} Frames ·
               {{ as_timestamp(state_attr(e, 'timestamp')) | timestamp_custom('%d.%m. %H:%M') }}
+              {%- if state_attr(e, 'device_label') %} · {{ state_attr(e, 'device_label') }}{% endif %}
+              {% if state_attr(e, 'id') %}
+
+              <a href="http://astro.lan/#{{ state_attr(e, 'group') }}"><img src="http://astro.lan/img/{{ state_attr(e, 'id') }}_t.jpg" width="100%"></a>
+              {% endif %}
               {% else %}
               Noch kein Stack.
               {% endif %}
@@ -180,3 +202,42 @@ views:
             tap_action:
               action: url
               url_path: http://astro.lan
+
+      # ------------------------------------------------------------ Astro-Pi (nur Anzeige)
+      # Entities per MQTT-Discovery vom Astro-Pi (docs/07). Gesteuert wird nur in dessen Web-App.
+      - type: grid
+        visibility:
+          - condition: state
+            entity: sensor.astro_pi_montierung
+            state_not: unavailable
+        cards:
+          - type: heading
+            heading: Astro-Pi
+            icon: mdi:raspberry-pi
+          - type: tile
+            entity: sensor.astro_pi_montierung
+            name: Montierung
+          - type: tile
+            entity: sensor.astro_pi_ziel
+            name: Ziel
+          - type: tile
+            entity: sensor.astro_pi_serie
+            name: Serie
+          - type: tile
+            entity: sensor.astro_pi_hfr
+            name: HFR
+          - type: tile
+            entity: sensor.astro_pi_speicher_frei
+            name: Speicher frei
+          - type: picture-entity
+            entity: image.astro_pi_letzte_aufnahme
+            name: Letzte Aufnahme
+            show_state: false
+            grid_options:
+              columns: full
+          - type: button
+            name: Astro-Pi-App öffnen
+            icon: mdi:tablet
+            tap_action:
+              action: url
+              url_path: http://astro-pi.lan:8080
