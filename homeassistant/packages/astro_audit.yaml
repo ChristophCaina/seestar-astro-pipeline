@@ -8,14 +8,15 @@
 # Enthaelt:
 #   * Helfer: Empfehlung (an/aus), Stufe, Modus, Kurztext, Beobachtungsfenster
 #   * Script astro_audit: KI-Bewertung (ai_task) -> Helfer + Benachrichtigung
-#   * Automationen: Audit am Abend, Steuerung im Fenster freigeben/sperren,
-#     Tauheizung, Regenwarnung
+#   * Automationen: Audit am Abend, Session-Start NUR nach Bestaetigung am Handy,
+#     Steuerung sperren, Tauheizung (automatisch), Schutz bei Regen/Wind/Tau
+#     (automatisch parken, abschaltbar) – sonst wird nichts ohne Rueckfrage gestartet
 #
 # VOR DEM EINSATZ ANPASSEN (Suchen/Ersetzen):
 #   seestar_s50          -> Entity-Praefix deines Seestar (Geraeteseite in HA)
 #   notify.mobile_app_handy -> dein Benachrichtigungsdienst
 #   weather.renningen_2, sensor.astroweather_backyard_* -> wie in deinem Script
-#   sensor.gw2000a_outdoor_temperature / _rain_rate     -> Namen deiner Ecowitt-Entities pruefen
+#   sensor.gw2000a_outdoor_temperature / _rain_rate / _wind_gust -> Namen deiner Ecowitt-Entities pruefen
 #   sensor.sternwarte_*  -> spaeterer Sensor am Teleskop (darf fehlen)
 # =============================================================================
 
@@ -26,6 +27,9 @@ input_boolean:
   astro_automatik:
     name: Astro – Automatik aktiv
     icon: mdi:robot
+  astro_schutz_parken:
+    name: Astro – Bei Regen/Wind/Tau parken
+    icon: mdi:shield-sun
 
 input_select:
   astro_stufe:
@@ -345,6 +349,26 @@ script:
           title: '🔭 ASTRO-AUDIT: {{ astro_report.data.empfehlung_kurz }}'
           message: '{{ astro_report.data.begruendung_detailliert }}'
 
+  # Wird NUR nach "Session starten" am Handy aufgerufen. Inhalt an deinen Ablauf anpassen.
+  astro_session_starten:
+    alias: Astro – Session starten
+    icon: mdi:play-circle
+    mode: single
+    sequence:
+      # Beispiel A – Zielliste/Plan im seestar_alp-Scheduler starten (rest_command selbst anlegen,
+      #   Endpunkt laut seestar_alp-Doku pruefen):
+      # - action: rest_command.seestar_alp_schedule_start
+      # Beispiel B – Entities des HA-Add-ons (Namen auf der Geraeteseite pruefen):
+      # - action: select.select_option
+      #   target: {entity_id: select.seestar_s50_target}
+      #   data: {option: "M 31"}
+      # - action: button.press
+      #   target: {entity_id: button.seestar_s50_start_imaging}
+      - action: logbook.log
+        data:
+          name: Astro
+          message: Session bestätigt (script.astro_session_starten ist noch ein Platzhalter)
+
 automation:
   # Audit jeden Abend kurz nach Sonnenuntergang
   - id: astro_audit_abends
@@ -357,9 +381,10 @@ automation:
     actions:
       - action: script.astro_audit
 
-  # Steuerung des Seestar im Beobachtungsfenster freigeben
+  # Zum Fensterbeginn NUR fragen: freigegeben/gestartet wird erst nach Bestaetigung am Handy.
+  # Ohne Antwort innerhalb von 60 min bleibt alles gesperrt.
   - id: astro_steuerung_freigeben
-    alias: Astro – Steuerung freigeben
+    alias: Astro – Session bestätigen
     mode: single
     triggers:
       - trigger: time
@@ -374,16 +399,66 @@ automation:
       - condition: state
         entity_id: binary_sensor.seestar_s50_connected
         state: "on"
+    variables:
+      tag: "astro_{{ now().strftime('%Y%m%d') }}"
     actions:
-      - action: switch.turn_on
-        target:
-          entity_id: switch.seestar_s50_controls_enabled
       - action: notify.mobile_app_handy
         data:
           title: 🔭 Beobachtungsfenster offen
           message: >-
-            {{ states('input_text.astro_empfehlung') }} – Steuerung bis
-            {{ as_timestamp(states('input_datetime.astro_fenster_ende')) | timestamp_custom('%H:%M') }} freigegeben.
+            {{ states('input_text.astro_empfehlung') }} · bis
+            {{ as_timestamp(states('input_datetime.astro_fenster_ende')) | timestamp_custom('%H:%M') }}.
+            Session starten?
+          data:
+            tag: "{{ tag }}"
+            actions:
+              - action: "{{ tag }}_start"
+                title: Session starten
+              - action: "{{ tag }}_frei"
+                title: Nur freigeben
+              - action: "{{ tag }}_nein"
+                title: Heute nicht
+      - wait_for_trigger:
+          - trigger: event
+            event_type: mobile_app_notification_action
+            event_data:
+              action: "{{ tag }}_start"
+          - trigger: event
+            event_type: mobile_app_notification_action
+            event_data:
+              action: "{{ tag }}_frei"
+          - trigger: event
+            event_type: mobile_app_notification_action
+            event_data:
+              action: "{{ tag }}_nein"
+        timeout: "01:00:00"
+        continue_on_timeout: true
+      - variables:
+          antwort: "{{ (wait.trigger.event.data.action | default('')).split('_')[-1] if wait.trigger else 'timeout' }}"
+      - choose:
+          - conditions: "{{ antwort in ['start', 'frei'] }}"
+            sequence:
+              - action: switch.turn_on
+                target:
+                  entity_id: switch.seestar_s50_controls_enabled
+              - if: "{{ antwort == 'start' }}"
+                then:
+                  - action: script.astro_session_starten
+              - action: notify.mobile_app_handy
+                data:
+                  title: "🔭 {{ 'Session gestartet' if antwort == 'start' else 'Steuerung freigegeben' }}"
+                  message: >-
+                    Bis {{ as_timestamp(states('input_datetime.astro_fenster_ende')) | timestamp_custom('%H:%M') }}.
+                    Bei Regen, Wind oder Tau parkt das Seestar automatisch.
+                  data:
+                    tag: "{{ tag }}"
+        default:
+          - action: notify.mobile_app_handy
+            data:
+              title: 🔭 Keine Session heute
+              message: "{{ 'Nicht bestätigt' if antwort == 'timeout' else 'Abgelehnt' }} – Steuerung bleibt gesperrt."
+              data:
+                tag: "{{ tag }}"
 
   # ... und am Ende (oder spaetestens zur Daemmerung) wieder sperren
   - id: astro_steuerung_sperren
@@ -427,44 +502,69 @@ automation:
         target:
           entity_id: switch.seestar_s50_dew_heater
 
-  # Regenwarnung waehrend einer Session (Ecowitt zuerst, Wettermodell als Rueckfall)
+  # Schutz in der Nacht: bei Regen, Sturmboeen oder Tau trotz Heizung AUTOMATISCH parken.
+  # Das ist die einzige Aktion ohne Rueckfrage (Schalter: input_boolean.astro_schutz_parken).
   - id: astro_regenwarnung
-    alias: Astro – Regenwarnung
+    alias: Astro – Schutz (Regen, Wind, Tau)
     mode: single
     max_exceeded: silent
     triggers:
       - trigger: state
         entity_id: sensor.gw2000a_event_rain
-        id: ecowitt
+        id: regen
       - trigger: numeric_state
         entity_id: sensor.gw2000a_rain_rate
         above: 0
-        id: ecowitt
+        id: regen
       - trigger: state
         entity_id: weather.renningen_2
         to: [rainy, pouring, lightning, lightning-rainy, snowy, snowy-rainy, hail]
         id: wetter
+      - trigger: numeric_state
+        entity_id: sensor.gw2000a_wind_gust          # Ecowitt-Boeen in km/h
+        above: 35
+        for: "00:02:00"
+        id: wind
+      - trigger: numeric_state
+        entity_id: sensor.astro_taupunktabstand
+        below: 1
+        for: "00:15:00"                               # Heizung kommt nicht mehr hinterher
+        id: tau
     conditions:
       - condition: state
         entity_id: binary_sensor.seestar_s50_connected
         state: "on"
+      - condition: state
+        entity_id: sun.sun
+        state: below_horizon
       # Event-Regen nur bei Zunahme (Reset auf 0 ignorieren)
       - condition: template
         value_template: >-
-          {{ trigger.id != 'ecowitt' or trigger.platform != 'state'
+          {{ trigger.id != 'regen' or trigger.platform != 'state'
              or (trigger.to_state.state | float(0)) > (trigger.from_state.state | float(0)) }}
+    variables:
+      grund: >-
+        {{ {'regen': 'Ecowitt misst Regen', 'wetter': 'Wetter meldet ' ~ states('weather.renningen_2'),
+            'wind': 'Böen ' ~ states('sensor.gw2000a_wind_gust') ~ ' km/h',
+            'tau': 'Taupunktabstand ' ~ states('sensor.astro_taupunktabstand') ~ ' K'}[trigger.id] }}
+      parken: "{{ is_state('input_boolean.astro_schutz_parken', 'on') }}"
     actions:
+      - if: "{{ parken }}"
+        then:
+          - action: switch.turn_on
+            target:
+              entity_id:
+                - switch.seestar_s50_controls_enabled
+                - switch.seestar_s50_allow_power_actions
+          - action: button.press
+            target:
+              entity_id: button.seestar_s50_park
+            continue_on_error: true
       - action: notify.mobile_app_handy
         data:
-          title: 🌧️ Regen – Seestar draußen?
-          message: >-
-            {{ 'Ecowitt misst Regen' if trigger.id == 'ecowitt'
-               else 'Wetter meldet ' ~ states('weather.renningen_2') }}. Teleskop ggf. reinholen.
+          title: "{{ '🛑 Seestar geparkt' if parken else '⚠️ Seestar draußen?' }}"
+          message: "{{ grund }}. {{ 'Automatisch geparkt – Gerät reinholen.' if parken else 'Teleskop ggf. reinholen (automatisches Parken ist aus).' }}"
           data:
             priority: high
-      - delay: "00:10:00"     # nicht im Minutentakt erneut warnen
-      # Optional automatisch parken (braucht "Allow power actions" + Interop-Key):
-      # - action: switch.turn_on
-      #   target: {entity_id: switch.seestar_s50_allow_power_actions}
-      # - action: button.press
-      #   target: {entity_id: button.seestar_s50_park}
+            tag: astro_schutz
+      - delay: "00:10:00"     # nicht im Minutentakt erneut melden
