@@ -1,10 +1,19 @@
 #!/usr/bin/env python3
-"""Fake mosquitto_pub fuer Tests: haengt {"topic", "payload", "retain"} an $FAKE_MQTT_LOG an."""
+"""Fake mosquitto_pub fuer Tests: haengt {"topic", "payload", "retain"} an $FAKE_MQTT_LOG an.
+Mit -s wird die Nutzlast von stdin gelesen (Binaerdaten -> "<N bytes>")."""
 import json
 import os
 import sys
 
 a = sys.argv[1:]
-rec = {"topic": a[a.index("-t") + 1], "payload": a[a.index("-m") + 1], "retain": "-r" in a}
+if "-s" in a:
+    raw = sys.stdin.buffer.read()
+    try:
+        payload = raw.decode()
+    except UnicodeDecodeError:
+        payload = f"<{len(raw)} bytes>"
+else:
+    payload = a[a.index("-m") + 1]
+rec = {"topic": a[a.index("-t") + 1], "payload": payload, "retain": "-r" in a}
 with open(os.environ.get("FAKE_MQTT_LOG", os.devnull), "a", encoding="utf-8") as f:
     f.write(json.dumps(rec) + "\n")
