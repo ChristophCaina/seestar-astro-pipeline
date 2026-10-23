@@ -133,8 +133,8 @@
       const e = g.primary, b = document.createElement("button");
       b.className = "tile"; b.setAttribute("aria-label", `${g.target.name} ${g.target.common || ""} öffnen`);
       b.innerHTML = `<div class="thumb"><img loading="lazy" src="${esc(e.image.thumb)}" alt=""></div>
-        <div class="tile-t"><h3>${esc(g.target.name)} <em>${esc(g.target.common || "")}</em></h3><span class="badge${g.filter === "LP" ? " lp" : ""}">${esc(g.filter)}</span></div>
-        <div class="tile-m"><span><b>${fmtInt(g.seconds)}</b> Belichtung</span><span><b>${g.nights.length}</b> ${g.nights.length === 1 ? "Nacht" : "Nächte"}</span><span>zuletzt <b>${fmtDate(g.last)}</b></span></div>`;
+        <div class="tile-t"><h3>${esc(g.target.name)} <em>${esc(g.target.common || "")}</em></h3>${g.filter ? `<span class="badge${g.filter === "LP" ? " lp" : ""}">${esc(g.filter)}</span>` : ""}</div>
+        <div class="tile-m">${g.seconds ? `<span><b>${fmtInt(g.seconds)}</b> Belichtung</span>` : `<span>App-Stack</span>`}<span><b>${g.nights.length}</b> ${g.nights.length === 1 ? "Nacht" : "Nächte"}</span><span>zuletzt <b>${fmtDate(g.last)}</b></span></div>`;
       const svg = annotationSvg(e, true); svg.classList.add("dso"); b.querySelector(".thumb").appendChild(svg);
       b.onclick = () => openGroup(g.key);
       grid.appendChild(b);
@@ -235,8 +235,8 @@
     $("d-eyebrow").textContent = `${KIND1[g.kind]} · ${e.stack === "master" ? `Master aus ${nN} Nächten` : "Einzelnacht"} · Seestar S50`;
     $("d-title").innerHTML = `${esc(g.target.name)} <em>${esc(g.target.common || "")}</em>`;
     $("d-caption").textContent = e.caption || "";
-    $("d-integ").innerHTML = `${fmtInt(e.seconds)} <small>gesamt</small>`;
-    $("d-exp").innerHTML = `<dt>Frames</dt><dd>${de(e.frames)} × ${e.exposure_s} s</dd><dt>Nächte</dt><dd>${nN}</dd><dt>Filter</dt><dd>${esc(e.filter)}</dd>` + (e.gain != null ? `<dt>Gain</dt><dd>${e.gain}</dd>` : "");
+    $("d-integ").innerHTML = e.seconds ? `${fmtInt(e.seconds)} <small>gesamt</small>` : `– <small>Belichtung unbekannt</small>`;
+    $("d-exp").innerHTML = `<dt>Frames</dt><dd>${e.frames ? `${de(e.frames)} × ${e.exposure_s} s` : "–"}</dd><dt>Nächte</dt><dd>${nN}</dd><dt>Filter</dt><dd>${esc(e.filter)}</dd>` + (e.gain != null ? `<dt>Gain</dt><dd>${e.gain}</dd>` : "");
     const max = Math.max(...e.nights.map((n) => n.frames), 1);
     $("d-nights").innerHTML = e.nights.map((n) => `<li><span>${fmtDay(n.date)}</span><span class="bar${e.filter === "LP" ? " lp" : ""}"><i style="width:${(n.frames / max * 100).toFixed(1)}%"></i></span><span class="n">${n.frames}</span></li>`).join("");
     const s = e.solve;
@@ -244,7 +244,7 @@
     const vs = $("d-versions"); vs.innerHTML = "";
     g.entries.forEach((x) => {
       const li = document.createElement("li"); if (x.id === e.id) li.className = "cur";
-      const label = x.stack === "master" ? "Master · Siril" : `Einzelnacht · Siril`;
+      const label = x.source === "app" ? "Seestar-App-Stack" : x.stack === "master" ? "Master · Siril" : "Einzelnacht · Siril";
       const info = x.stack === "master" ? `${x.nights.length} Nächte` : fmtDate(x.last);
       li.innerHTML = x.id === e.id ? `<span>${label}</span><span>${info}</span>` : `<button type="button">${label}</button><span>${info}</span>`;
       li.querySelector("button")?.addEventListener("click", () => openGroup(key, x.id));

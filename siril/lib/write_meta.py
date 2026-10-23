@@ -34,6 +34,62 @@ def sort_key(name: str) -> int:
     return 99999
 
 
+def parse_nights(spec: str) -> list[dict]:
+    out = []
+    for part in filter(None, spec.split(",")):
+        d, f = part.split(":")
+        out.append({"date": d, "frames": int(f)})
+    return out
+
+
+def field_objects(wcs: dict | None, width: int, height: int, catalog: Catalog, main_obj: dict | None) -> list[dict]:
+    """Katalogobjekte im (und knapp ausserhalb des) Bildfeld(s) im meta.json-Format."""
+    if not wcs:
+        return []
+    found = catalog.in_field(wcs, width, height, world_to_pixel, scale_arcsec=pixscale_arcsec(wcs))
+    if main_obj and main_obj not in found:
+        found.insert(0, main_obj)
+    objects = [{
+        "name": o["name"], "alt": o["alt"] or o["common"], "type": o["type"],
+        "ra": round(o["ra"], 6), "dec": round(o["dec"], 6),
+        "major": o["major"], "minor": o["minor"], "pa": o["pa"],
+        "mag": o["mag"], "dist": o.get("dist"), "category": "dso",
+        "main": o is main_obj,
+    } for o in found[:MAX_OBJECTS]]
+    if objects and not any(o["main"] for o in objects):
+        objects[0]["main"] = True
+    objects.sort(key=lambda o: not o["main"])          # Hauptobjekt nach vorne
+    return objects
+
+
+def build_meta(*, wcs, width, height, target, catalog, jpg: Path, out: Path, stack="night", filter_="",
+               exposure=None, gain=None, nights=(), caption="", source="siril") -> dict:
+    main_obj = catalog.find(target)
+    name_disp = main_obj["name"] if main_obj else target
+    common = (main_obj or {}).get("common") or ""
+    if main_obj and common == target:
+        common = ""
+    return {
+        "schema": 1, "sample": False, "source": source,
+        "id": jpg.stem.lower(),
+        "target": {"name": name_disp, "common": common, "kind": (main_obj or {}).get("kind", "other"),
+                   "sort": sort_key(name_disp)},
+        "stack": stack, "filter": filter_,
+        "exposure_s": exposure, "gain": gain,
+        "nights": list(nights),
+        "image": os.path.relpath(jpg.resolve(), out.resolve().parent), "width": width, "height": height,
+        "wcs": wcs, "objects": field_objects(wcs, width, height, catalog, main_obj), "caption": caption,
+        "versions": [],
+    }
+
+
+def write_json(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    tmp.replace(path)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--fits", required=True)
@@ -54,55 +110,13 @@ def main() -> int:
     w, h = int(hdr.get("NAXIS1", 0)), int(hdr.get("NAXIS2", 0))
     wcs = wcs_from_header(hdr, flip_y=not a.no_flip_y)
     cat = Catalog([Path(p) for p in a.catalog], Path(a.extra))
-    main_obj = cat.find(a.target)
-
-    objects = []
-    if wcs:
-        scale = pixscale_arcsec(wcs)
-        found = cat.in_field(wcs, w, h, world_to_pixel, scale_arcsec=scale)
-        if main_obj and main_obj not in found:
-            found.insert(0, main_obj)
-        for o in found[:MAX_OBJECTS]:
-            objects.append({
-                "name": o["name"], "alt": o["alt"] or o["common"], "type": o["type"],
-                "ra": round(o["ra"], 6), "dec": round(o["dec"], 6),
-                "major": o["major"], "minor": o["minor"], "pa": o["pa"],
-                "mag": o["mag"], "dist": o.get("dist"), "category": "dso",
-                "main": o is main_obj,
-            })
-        if objects and not any(o["main"] for o in objects):
-            objects[0]["main"] = True
-        if main_obj:      # Hauptobjekt nach vorne
-            objects.sort(key=lambda o: not o["main"])
-
-    nights = []
-    for part in a.nights.split(","):
-        d, f = part.split(":")
-        nights.append({"date": d, "frames": int(f)})
-
-    name_disp = main_obj["name"] if main_obj else a.target
-    common = (main_obj or {}).get("common") or ""
-    if main_obj and common == a.target:
-        common = ""
-    jpg_rel = os.path.relpath(Path(a.jpg).resolve(), Path(a.out).resolve().parent)
-    meta = {
-        "schema": 1, "sample": False,
-        "id": Path(a.jpg).stem.lower(),
-        "target": {"name": name_disp, "common": common, "kind": (main_obj or {}).get("kind", "other"),
-                   "sort": sort_key(name_disp)},
-        "stack": a.stack, "filter": a.filter,
-        "exposure_s": a.exposure if a.exposure is not None else hdr.get("EXPTIME"),
-        "gain": hdr.get("GAIN"),
-        "nights": nights,
-        "image": jpg_rel, "width": w, "height": h,
-        "wcs": wcs, "objects": objects, "caption": a.caption,
-        "versions": [],
-    }
-    Path(a.out).parent.mkdir(parents=True, exist_ok=True)
-    tmp = Path(a.out).with_suffix(".tmp")
-    tmp.write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    tmp.replace(a.out)
-    print(f"{a.out}: {len(objects)} Objekte, WCS {'ja' if wcs else 'nein'}, Ziel {display(name_disp)}")
+    meta = build_meta(
+        wcs=wcs, width=w, height=h, target=a.target, catalog=cat, jpg=Path(a.jpg), out=Path(a.out),
+        stack=a.stack, filter_=a.filter,
+        exposure=a.exposure if a.exposure is not None else hdr.get("EXPTIME"), gain=hdr.get("GAIN"),
+        nights=parse_nights(a.nights), caption=a.caption)
+    write_json(Path(a.out), meta)
+    print(f"{a.out}: {len(meta['objects'])} Objekte, WCS {'ja' if wcs else 'nein'}, Ziel {display(meta['target']['name'])}")
     return 0
 
 
