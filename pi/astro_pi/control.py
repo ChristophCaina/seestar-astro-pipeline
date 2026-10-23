@@ -251,13 +251,39 @@ class Controller:
     async def expose(self, seconds: float, timeout_extra: float = 60) -> Blob:
         c = self._need(self.camera, "Kamera")
         async with self._capture_lock:
+            # Treiber noch mit dem letzten Bild beschaeftigt? Kurz warten, sonst ignoriert er den Befehl.
+            p = self.indi.get(c, "CCD_EXPOSURE")
+            if p and p.state == "Busy":
+                try:
+                    await self.indi.wait_for(lambda q: q.device == c and q.name == "CCD_EXPOSURE" and q.state != "Busy", 10)
+                except asyncio.TimeoutError:
+                    pass
             fut = asyncio.get_running_loop().create_future()
             self._exposure_waiter = fut
-            await self.indi.set_number(c, "CCD_EXPOSURE", {"CCD_EXPOSURE_VALUE": seconds})
             try:
+                for attempt in range(2):
+                    await self.indi.set_number(c, "CCD_EXPOSURE", {"CCD_EXPOSURE_VALUE": seconds})
+                    try:
+                        # Bild schon da (sehr kurze Belichtung) oder Treiber meldet "Busy" -> laeuft
+                        await asyncio.wait_for(asyncio.shield(self._started(c, fut)), 5)
+                        break
+                    except asyncio.TimeoutError:
+                        log.warning("Belichtung nicht gestartet – neuer Versuch (%d)", attempt + 1)
                 return await asyncio.wait_for(fut, seconds + timeout_extra)
             finally:
                 self._exposure_waiter = None
+
+    async def _started(self, cam: str, fut: asyncio.Future):
+        if fut.done():
+            return
+        busy = asyncio.ensure_future(self.indi.wait_for(
+            lambda q: q.device == cam and q.name == "CCD_EXPOSURE" and q.state == "Busy", 6))
+        done, pending = await asyncio.wait({busy, fut}, return_when=asyncio.FIRST_COMPLETED)
+        for t in pending:
+            if t is busy:
+                t.cancel()
+        if busy in done and busy.exception():
+            raise asyncio.TimeoutError()
 
     def frame_path(self, target: str, seconds: float, ext: str, when: datetime | None = None,
                    frame_type: str = "Light") -> Path:
@@ -285,6 +311,10 @@ class Controller:
         if save:
             path = self.frame_path(target, seconds, ".fits" if ext.lower() in (".fits", ".fit") else ext,
                                    frame_type=frame_type)
+            base, n = path, 1
+            while path.exists():                     # mehrere Bilder in derselben Sekunde (Bias, kurze Serien)
+                n += 1
+                path = base.with_name(f"{base.stem}_{n}{base.suffix}")
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(b.data)
         if ext.lower() in (".fits", ".fit"):
