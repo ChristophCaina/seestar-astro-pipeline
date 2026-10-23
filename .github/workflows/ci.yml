@@ -21,7 +21,7 @@ jobs:
           pip install pillow shellcheck-py
 
       - name: shellcheck
-        run: shellcheck -S warning siril/siril-auto.sh scripts/*.sh
+        run: shellcheck -S warning siril/*.sh scripts/*.sh
 
       - name: JavaScript-Syntax
         run: node --check gallery/site/app.js

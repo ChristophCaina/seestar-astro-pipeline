@@ -102,6 +102,10 @@ systemctl daemon-reload && systemctl enable --now siril-auto.timer
 journalctl -u siril-auto -f
 ```
 
+## Unterwegs
+
+`travel-sync.sh` holt Frames von unterwegs über Tailscale vom Seestar am Reiserouter (nur Einzelframes, Zeitraum und Ziel wählbar, Bandbreitenlimit, im Hintergrund). Details in [docs/04](../docs/04-remote-access.md#bilder-unterwegs--nas).
+
 ## Home Assistant (MQTT)
 
 Mit `MQTT_ENABLED=1` legt das Script per Discovery das Gerät **„Siril Auto-Stacking“** an. Es hat zwei Sensoren:
