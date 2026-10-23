@@ -9,7 +9,7 @@ Neben jedem fertigen Stack-JPG liegt eine `<name>.meta.json`. Der Builder (`buil
   "sample": false,                          // true = simulierte Beispieldaten
   "source": "siril",                        // "siril" oder "app" (nachgeholter App-Stack)
   "device": { "id": "s50", "label": "Seestar S50" },   // Aufnahmegerät, fehlt = Seestar S50
-  "wide": false,                            // true ab 4° Bildbreite: dann zusätzlich "constellations"
+  "wide": false,                            // true ab 10° Bildbreite: dann zusätzlich "constellations"
   // "constellations": [ { "id": "Cyg", "name": "Schwan", "label": [ra, dec] | null,
   //                       "lines": [ [ [ra, dec], … ], … ] } ]   (Grad, als Großkreise verdichtet)
   "target": { "name": "M 31", "common": "Andromeda-Galaxie", "kind": "galaxy", "sort": 1031 },
