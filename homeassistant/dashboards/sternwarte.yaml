@@ -20,26 +20,27 @@ views:
     type: sections
     max_columns: 3
     sections:
-      # ------------------------------------------------------------ Heute Nacht
+      # ------------------------------------------------------------ Heute Nacht + Bedingungen
       - type: grid
         cards:
           - type: heading
             heading: Heute Nacht
             icon: mdi:weather-night
+            heading_style: subtitle
           - type: markdown
             content: >-
               ## {{ states('input_text.astro_empfehlung') }}
 
-              {% set s = states('input_datetime.astro_fenster_start') %}
-              {% set e = states('input_datetime.astro_fenster_ende') %}
-              {% if s not in ['unknown', 'unavailable'] %}
-              Beobachtungsfenster **{{ as_timestamp(s) | timestamp_custom('%H:%M') }}–{{ as_timestamp(e) | timestamp_custom('%H:%M') }} Uhr**
-              · Modus: {{ states('input_select.astro_modus') }}
-              {% endif %}
-              {% if is_state('input_select.astro_modus', 'weitfeld') %}
+              {% set s = states('input_datetime.astro_fenster_start') %} {% set
+              e = states('input_datetime.astro_fenster_ende') %} {% if s not in
+              ['unknown', 'unavailable'] %} Beobachtungsfenster **{{
+              as_timestamp(s) | timestamp_custom('%H:%M') }}–{{ as_timestamp(e)
+              | timestamp_custom('%H:%M') }} Uhr** · Modus: {{
+              states('input_select.astro_modus') }} {% endif %}
 
-              🌌 **Milchstraßen-Nacht** – Weitwinkel mit EOS 6D oder S30 Pro lohnt sich.
-              {% endif %}
+              {% if is_state('input_select.astro_modus', 'weitfeld') %}🌌
+              **Milchstraßen-Nacht** – Weitwinkel mit EOS 6D oder S30 Pro lohnt
+              sich.{% endif %}
           - type: tile
             entity: input_select.astro_stufe
             name: Stufe
@@ -77,51 +78,10 @@ views:
               perform_action: script.astro_audit
               confirmation:
                 text: KI-Audit jetzt ausführen?
-
-      # ------------------------------------------------------------ Teleskop
-      - type: grid
-        cards:
-          - type: heading
-            heading: Seestar
-            icon: mdi:telescope
-          - type: custom:seestar-card
-            device: seestar_s50
-            visibility:
-              - condition: state
-                entity: binary_sensor.seestar_s50_connected
-                state: "on"
-          - type: markdown
-            content: Das Seestar ist nicht verbunden. Station-Modus und WLAN prüfen.
-            visibility:
-              - condition: state
-                entity: binary_sensor.seestar_s50_connected
-                state_not: "on"
-          - type: tile
-            entity: switch.seestar_s50_controls_enabled
-            name: Steuerung freigegeben
-            features_position: inline
-            features:
-              - type: toggle
-          - type: tile
-            entity: switch.seestar_s50_dew_heater
-            name: Tauheizung
-            features_position: inline
-            features:
-              - type: toggle
-          - type: tile
-            entity: sensor.seestar_s50_battery
-            name: Akku
-          - type: tile
-            entity: sensor.seestar_s50_storage_used
-            name: Speicher
-          # Zweites Seestar (z. B. S30 Pro): diesen Abschnitt kopieren und seestar_s50 durch dessen Präfix ersetzen.
-
-      # ------------------------------------------------------------ Bedingungen
-      - type: grid
-        cards:
           - type: heading
             heading: Bedingungen
             icon: mdi:weather-partly-cloudy
+            heading_style: subtitle
           - type: tile
             entity: sensor.astro_taupunktabstand
             name: Taupunktabstand
@@ -154,6 +114,53 @@ views:
             forecast_type: hourly
             show_current: false
 
+      # ------------------------------------------------------------ Seestar
+      # Zweites Seestar (z. B. S30 Pro): diesen Abschnitt kopieren und seestar_s50 durch dessen Präfix ersetzen.
+      - type: grid
+        cards:
+          - type: heading
+            heading: Seestar
+            icon: mdi:telescope
+            heading_style: subtitle
+          - type: custom:seestar-card
+            device: seestar_s50
+            visibility:
+              - condition: state
+                entity: binary_sensor.seestar_s50_connected
+                state: 'on'
+            grid_options:
+              columns: full
+          - type: markdown
+            content: >-
+              <ha-alert alert-type="warning">Das Seestar ist nicht verbunden.
+              Station-Modus und WLAN prüfen.</ha-alert>
+            visibility:
+              - condition: state
+                entity: binary_sensor.seestar_s50_connected
+                state_not: 'on'
+            text_only: true
+            grid_options:
+              columns: full
+          - type: tile
+            entity: switch.seestar_s50_controls_enabled
+            name: Steuerung freigegeben
+            features_position: inline
+            features:
+              - type: toggle
+          - type: tile
+            entity: switch.seestar_s50_dew_heater
+            name: Tauheizung
+            features_position: inline
+            features:
+              - type: toggle
+          - type: tile
+            entity: sensor.seestar_s50_battery
+            name: Akku
+          - type: tile
+            entity: sensor.seestar_s50_storage_used
+            name: Speicher
+        column_span: 2
+
       # ------------------------------------------------------------ Nachverarbeitung
       - type: grid
         cards:
@@ -168,20 +175,20 @@ views:
               - target
           - type: markdown
             content: >-
-              {% set e = 'sensor.siril_auto_stacking_letztes_ergebnis' %}
-              {% if states(e) not in ['unknown', 'unavailable'] %}
-              **Zuletzt gestackt:** {{ state_attr(e, 'target') }}
-              ({{ 'Master' if state_attr(e, 'stack') == 'master' else 'Nacht ' ~ state_attr(e, 'night') }},
-              {{ state_attr(e, 'filter') }}) · {{ state_attr(e, 'frames') }} Frames ·
-              {{ as_timestamp(state_attr(e, 'timestamp')) | timestamp_custom('%d.%m. %H:%M') }}
-              {%- if state_attr(e, 'device_label') %} · {{ state_attr(e, 'device_label') }}{% endif %}
-              {% if state_attr(e, 'id') %}
+              {% set e = 'sensor.siril_auto_stacking_letztes_ergebnis' %} {% if
+              states(e) not in ['unknown', 'unavailable'] %} **Zuletzt
+              gestackt:** {{ state_attr(e, 'target') }} ({{ 'Master' if
+              state_attr(e, 'stack') == 'master' else 'Nacht ' ~ state_attr(e,
+              'night') }}, {{ state_attr(e, 'filter') }}) · {{ state_attr(e,
+              'frames') }} Frames · {{ as_timestamp(state_attr(e, 'timestamp'))
+              | timestamp_custom('%d.%m. %H:%M') }}{% if state_attr(e,
+              'device_label') %} · {{ state_attr(e, 'device_label') }}{% endif
+              %}
 
-              <a href="http://astro.lan/#{{ state_attr(e, 'group') }}"><img src="http://astro.lan/img/{{ state_attr(e, 'id') }}_t.jpg" width="100%"></a>
-              {% endif %}
-              {% else %}
-              Noch kein Stack.
-              {% endif %}
+              {% if state_attr(e, 'id') %}<a href="http://astro.lan/#{{
+              state_attr(e, 'group') }}"><img src="http://astro.lan/img/{{
+              state_attr(e, 'id') }}_t.jpg" width="100%"></a>{% endif %} {% else
+              %} Noch kein Stack. {% endif %}
           # aus Package astro_stacks.yaml (darf fehlen)
           - type: markdown
             visibility:
@@ -189,10 +196,11 @@ views:
                 entity: sensor.astro_stacks_dieser_nacht
                 above: 0
             content: >-
-              **Diese Nacht:**
-              {% for s in state_attr('sensor.astro_stacks_dieser_nacht', 'stacks') or [] %}
-              [{{ s.target }} {{ s.filter }} · {{ 'Master' if s.stack == 'master' else s.frames ~ ' Frames' }}](http://astro.lan/#{{ s.group }}){{ ',' if not loop.last }}
-              {%- endfor %}
+              **Diese Nacht:** {% for s in
+              state_attr('sensor.astro_stacks_dieser_nacht', 'stacks') or [] %}
+              [{{ s.target }} {{ s.filter }} · {{ 'Master' if s.stack ==
+              'master' else s.frames ~ ' Frames' }}](http://astro.lan/#{{
+              s.group }}){{ ',' if not loop.last }} {%- endfor %}
           - type: tile
             entity: input_boolean.astro_push_pro_stack
             name: Push je Stack
@@ -214,6 +222,7 @@ views:
           - type: heading
             heading: Astro-Pi
             icon: mdi:raspberry-pi
+            heading_style: subtitle
           - type: tile
             entity: sensor.astro_pi_montierung
             name: Montierung

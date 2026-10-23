@@ -76,7 +76,7 @@ Vor dem Einsatz musst du `seestar_s50` (Entity-Präfix) und `notify.mobile_app_h
 
 ## Dashboard „Sternwarte“
 
-[`homeassistant/dashboards/sternwarte.yaml`](../homeassistant/dashboards/sternwarte.yaml) ist ein Sections-Dashboard mit fünf Bereichen:
+[`homeassistant/dashboards/sternwarte.yaml`](../homeassistant/dashboards/sternwarte.yaml) ist ein Sections-Dashboard mit vier Bereichen (Heute Nacht und Bedingungen teilen sich eine Spalte, Seestar ist doppelt breit):
 
 - **Heute Nacht:** Empfehlung und Beobachtungsfenster aus dem Astro-Audit, Hinweis bei einer Milchstraßen-Nacht (Modus `weitfeld`), Stufe, „lohnt sich“, Schalter für Automatik und Schutz-Parken, **Session starten** und Audit – beide nur per Knopf mit Rückfrage
 - **Seestar:** seestar-lovelace-card, wenn das Teleskop verbunden ist, sonst ein Hinweis. Dazu Steuerungsfreigabe, Tauheizung, Akku, Speicher. Für ein zweites Seestar (S30 Pro) den Abschnitt kopieren.
