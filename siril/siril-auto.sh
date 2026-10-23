@@ -32,6 +32,7 @@ LIB_DIR="${LIB_DIR:-$HERE/lib}"
 SIRIL_SCRIPT="${SIRIL_SCRIPT:-$HERE/seestar_stack.ssf}"
 SIRIL_MASTER_SCRIPT="${SIRIL_MASTER_SCRIPT:-$HERE/seestar_master.ssf}"
 SIRIL_SOLVE_SCRIPT="${SIRIL_SOLVE_SCRIPT:-$HERE/seestar_solve.ssf}"
+SIRIL_CALIB_SCRIPT="${SIRIL_CALIB_SCRIPT:-$HERE/dslr_calib.ssf}"
 CATALOG="${CATALOG:-$HERE/data/NGC.csv}"
 ALIAS_FILE="${ALIAS_FILE:-/etc/siril-auto.aliases}"
 MIN_FRAMES="${MIN_FRAMES:-20}"
@@ -95,9 +96,9 @@ mqtt_discovery() {
 # ---------------------------------------------------------------- Helfer
 slugify() { printf '%s' "$1" | tr ' /' '__' | tr -cd 'A-Za-z0-9_.+-'; }
 
-device_reachable() {   # device_reachable <ip>
+device_reachable() {   # device_reachable <ip> [port]
   [[ -n "${1:-}" ]] || return 1
-  timeout 3 bash -c ">/dev/tcp/${1}/445" 2>/dev/null
+  timeout 3 bash -c ">/dev/tcp/${1}/${2:-445}" 2>/dev/null
 }
 
 declare -A ALIAS=()
@@ -133,7 +134,13 @@ devcfg() {
       MIRROR) def="${ASTRO_ROOT}/raw/$1" ;;
     esac
   fi
-  [[ "$2" == "SCRIPT" ]] && def="$SIRIL_SCRIPT"
+  local t="DEV_${1}_TYPE"
+  case "$2" in
+    TYPE)   def="seestar" ;;
+    PORT)   def="445" ;;
+    SCRIPT) if [[ "${!t:-seestar}" == "dslr" ]]; then def="$HERE/dslr_stack.ssf"; else def="$SIRIL_SCRIPT"; fi ;;
+    CALIB)  def="${ASTRO_ROOT}/calib/$1" ;;
+  esac
   printf '%s' "${!v:-$def}"
 }
 
@@ -169,7 +176,73 @@ weight_option() {
 
 render_script() {   # render_script <vorlage> <ziel>
   sed -e "s|@STACK_METHOD@|${MASTER_STACK_METHOD}|g" -e "s|@WEIGHT@|${WEIGHT_OPT:-}|g" \
-      -e "s|@SOLVE_ARGS@|${SOLVE_ARGS}|g" "$1" > "$2"
+      -e "s|@SOLVE_ARGS@|${SOLVE_ARGS}|g" -e "s|@CALIBRATE@|${CALIBRATE:-calibrate light -cfa -debayer}|g" \
+      -e "s|@PRE@|${CAL_PRE:-}|g" -e "s|@SEQ@|${CAL_SEQ:-frame}|g" -e "s|@NORM@|${CAL_NORM:--nonorm}|g" "$1" > "$2"
+}
+
+# ---------------------------------------------------------------- DSLR-Kalibrierung
+# Rohframes: <archiv>/_calib/{Bias,Dark,Flat}_<belichtung>s_..._<datum>-<zeit>.fits (Astro-Pi-App)
+# Masters:   <CALIB>/bias.fit, dark_<belichtung>s.fit, flat.fit (Flats der neuesten Nacht)
+build_master() {   # build_master <name> <pre> <seq> <norm> <dateien…>
+  local name="$1" pre="$2" seq="$3" norm="$4"; shift 4
+  local cnt=$# sf="$STATE_DIR/calib_${CUR_DEVICE}_${name}.done" work="$WORK_DIR/calib_${CUR_DEVICE}_${name}"
+  [[ $FORCE -eq 0 && -f "$sf" && "$(cat "$sf")" == "$cnt" && -f "$CAL_DIR/$name.fit" ]] && return 0
+  log "MASTER-KALIB ${DEVTAG}$name: $cnt Frames"
+  (( DRY_RUN )) && return 0
+  rm -rf "$work"; mkdir -p "$work/raw" "$CAL_DIR"
+  for f in "$@"; do ln "$f" "$work/raw/" 2>/dev/null || cp "$f" "$work/raw/"; done
+  [[ -f "$CAL_DIR/bias.fit" ]] && cp "$CAL_DIR/bias.fit" "$work/bias.fit"
+  CAL_PRE="$pre" CAL_SEQ="$seq" CAL_NORM="$norm" render_script "$SIRIL_CALIB_SCRIPT" "$work/run.ssf"
+  if "$SIRIL_BIN" -d "$work" -s "$work/run.ssf" > "$work/siril.log" 2>&1 && [[ -f "$work/master.fit" ]]; then
+    cp "$work/master.fit" "$CAL_DIR/$name.fit"; cp "$work/siril.log" "$CAL_DIR/$name.log"
+    echo "$cnt" > "$sf"; rm -rf "$work"
+  else
+    log "FEHLER Master $name – siehe $work/siril.log"
+  fi
+}
+
+build_calibration() {
+  local raw="$MIRROR_DIR/_calib" f b e list
+  [[ -d "$raw" ]] || return 0
+  local -a bias=() flats=(); local -A darks=() flatnight=()
+  while IFS= read -r -d '' f; do
+    b="$(basename "$f")"
+    case "${b%%_*}" in
+      Bias) bias+=("$f") ;;
+      Dark) [[ "$b" =~ _([0-9]+(\.[0-9]+)?)s_ ]] && { e="${BASH_REMATCH[1]}"; e="${e%.0}"; darks[$e]+="$f"$'\n'; } ;;
+      Flat) flats+=("$f"); flatnight["$(frame_info "$f" | cut -f3)"]+="$f"$'\n' ;;
+    esac
+  done < <(find "$raw" -type f \( -iname '*.fit' -o -iname '*.fits' \) -print0 | sort -z)
+  (( ${#bias[@]} >= 3 )) && build_master bias "" frame -nonorm "${bias[@]}"
+  for e in "${!darks[@]}"; do
+    mapfile -t list < <(printf '%s' "${darks[$e]}")
+    (( ${#list[@]} >= 3 )) && build_master "dark_${e}s" "" frame -nonorm "${list[@]}"
+  done
+  if (( ${#flats[@]} >= 3 )); then
+    local newest; newest="$(printf '%s\n' "${!flatnight[@]}" | sort | tail -1)"
+    mapfile -t list < <(printf '%s' "${flatnight[$newest]}")
+    if [[ -f "$CAL_DIR/bias.fit" ]]; then
+      build_master flat "calibrate frame -bias=../bias.fit -cfa" pp_frame -norm=mul "${list[@]}"
+    else
+      build_master flat "" frame -norm=mul "${list[@]}"
+    fi
+  fi
+}
+
+# Kalibrier-Befehl fuer eine DSLR-Nacht (Masters ins Arbeitsverzeichnis kopieren)
+dslr_calibrate() {   # dslr_calibrate <work> <belichtung> -> setzt CALIBRATE
+  local work="$1" exp="$2" calargs=""
+  if [[ -f "$CAL_DIR/dark_${exp}s.fit" ]]; then
+    cp "$CAL_DIR/dark_${exp}s.fit" "$work/dark.fit"; calargs+=" -dark=../dark.fit -cc=dark"
+  elif [[ -f "$CAL_DIR/bias.fit" ]]; then
+    cp "$CAL_DIR/bias.fit" "$work/bias.fit"; calargs+=" -bias=../bias.fit"
+  fi
+  if [[ -f "$CAL_DIR/flat.fit" ]]; then
+    cp "$CAL_DIR/flat.fit" "$work/flat.fit"; calargs+=" -flat=../flat.fit"
+  fi
+  CALIBRATE="calibrate light${calargs} -cfa -equalize_cfa -debayer"
+  [[ -n "$calargs" ]] && log "      Kalibrierung:${calargs//..\//}"
+  return 0
 }
 
 # ---------------------------------------------------------------- Stack-Lauf
@@ -187,6 +260,8 @@ run_stack() {
     if [[ "$kind" == "master" ]]; then cp "$f" "$work/light/stack_$(printf '%03d' $i).fit"
     else ln "$f" "$work/light/" 2>/dev/null || cp "$f" "$work/light/"; fi
   done
+  CALIBRATE=""
+  [[ "$CUR_TYPE" == "dslr" && "$tmpl" == "$CUR_SCRIPT" ]] && dslr_calibrate "$work" "$exp"
   render_script "$tmpl" "$work/run.ssf"
 
   if ! "$SIRIL_BIN" -d "$work" -s "$work/run.ssf" > "$work/siril.log" 2>&1 \
@@ -273,7 +348,7 @@ if [[ $NO_FETCH -eq 0 ]]; then
   for dev in "${DEVICE_LIST[@]}"; do
     ip="$(devcfg "$dev" IP)"; remote="$(devcfg "$dev" REMOTE)"; src="$(devcfg "$dev" SRC)"; mirror="$(devcfg "$dev" MIRROR)"
     [[ -n "$remote" ]] || { log "[$dev] keine Quelle (DEV_${dev}_REMOTE) – nur vorhandenes Archiv"; continue; }
-    if device_reachable "$ip"; then
+    if device_reachable "$ip" "$(devcfg "$dev" PORT)"; then
       log "[$dev] erreichbar – hole neue Dateien"
       status fetching
       if [[ $DRY_RUN -eq 0 ]]; then
@@ -291,11 +366,13 @@ fi
 # 2)–4) je Geraet: indexieren, Naechte stacken, Master bilden ------------
 process_device() {   # process_device <id>
   CUR_DEVICE="$1"; CUR_LABEL="$(devcfg "$1" LABEL)"; CUR_SCRIPT="$(devcfg "$1" SCRIPT)"
+  CUR_TYPE="$(devcfg "$1" TYPE)"; CAL_DIR="$(devcfg "$1" CALIB)"
   MIRROR_DIR="$(devcfg "$1" MIRROR)"
   if [[ "$1" == "$PRIMARY_DEVICE" ]]; then DEV_SUFFIX=""; else DEV_SUFFIX="_$1"; fi
   DEVTAG=""; (( ${#DEVICE_LIST[@]} > 1 )) && DEVTAG="[$1] "
   [[ -d "$MIRROR_DIR" ]] || { log "[$1] kein Archiv unter $MIRROR_DIR"; return 0; }
   local INDEX
+  [[ "$CUR_TYPE" == "dslr" ]] && build_calibration
   # 2) Index: Ziel <TAB> Filter <TAB> Belichtung <TAB> Nacht <TAB> Zeit <TAB> Pfad ----
   INDEX="$(mktemp)"; INDEXES+=("$INDEX")
   while IFS= read -r -d '' f; do

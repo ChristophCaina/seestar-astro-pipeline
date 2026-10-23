@@ -1,0 +1,18 @@
+############################################################
+# Master-Kalibrierbild aus Einzelframes (Bias, Dark oder Flat)
+#
+# Erwartet "raw/" mit den Frames; Ergebnis: master.fit
+# siril-auto ersetzt @PRE@ (Flat: Bias abziehen), @SEQ@ und @NORM@.
+############################################################
+
+requires 1.2.0
+
+set32bits
+setext fit
+
+cd raw
+convert frame -out=../process
+cd ../process
+@PRE@
+stack @SEQ@ rej 3 3 @NORM@ -out=../master
+close

@@ -119,6 +119,20 @@ DEV_s30_REMOTE="seestar30"        # rclone config create seestar30 smb host=<ip>
 - `meta.json`, beschriftete Version und MQTT-Meldung enthalten das Gerät (`device`, `device_label`).
 - Optional je Gerät: `DEV_<id>_SRC` (Pfad auf der Freigabe), `DEV_<id>_MIRROR`, `DEV_<id>_SCRIPT` (eigenes Siril-Script).
 
+## DSLR (Canon EOS 6D)
+
+Mit `DEV_<id>_TYPE=dslr` stackt siril-auto ein Gerät mit `dslr_stack.ssf` und **kalibriert** vorher:
+
+| Rohframes (Astro-Pi-App, Bildtyp wählen) | Master in `calib/<id>/` | Verwendung |
+|---|---|---|
+| `_calib/Bias_*.fits` (≥ 3) | `bias.fit` | für Flats; für Lights nur, wenn kein passendes Dark da ist |
+| `_calib/Dark_<belichtung>s_*.fits` (≥ 3 je Belichtung) | `dark_<belichtung>s.fit` | Lights mit gleicher Belichtung (`-cc=dark`, enthält Bias) |
+| `_calib/Flat_*.fits` (≥ 3) | `flat.fit` (Flats der **neuesten** Nacht, mit Bias kalibriert) | alle Lights |
+
+- Masters werden neu gebaut, sobald sich die Zahl der Rohframes ändert (oder mit `--force`).
+- Ohne Masters wird nur debayert – das Ergebnis ist trotzdem brauchbar, Darks lohnen sich bei langen Belichtungen und warmen Nächten.
+- Darks am besten in derselben Nacht bei ähnlicher Temperatur aufnehmen (Objektivdeckel drauf), Flats ohne Fokus- oder Kameraverstellung direkt nach der Session.
+
 ## Unterwegs
 
 `travel-sync.sh` holt Frames von unterwegs über Tailscale vom Seestar am Reiserouter (nur Einzelframes, Zeitraum und Ziel wählbar, Bandbreitenlimit, im Hintergrund). Details in [docs/04](../docs/04-remote-access.md#bilder-unterwegs--nas). Bei mehreren Geräten wählt `--device <id>` Freigabe und Archiv.
