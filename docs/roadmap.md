@@ -27,5 +27,5 @@
 - [ ] Celestron NexStar GT: Weg A/B klären (Fotos), ggf. AUX-Adapter oder ESP32-WLAN-Brücke ([08](08-celestron-nexstar.md))
 - [x] Weitwinkel: siril-auto-Profil (`wide_stack.ssf`, Vordergrund-Stack, astrometry.net), Sternbilder + helle Sterne in Galerie und Beschriftung ([09](09-weitwinkel.md))
 - [x] Weitwinkel: App-Modus (Objektive, NPF-Belichtungsrechner, Vorlagen, Sternbild-Ziele)
-- [ ] Weitwinkel: Audit-Modus „Weitwinkel“ mit Milchstraßen-Fenster
+- [x] Weitwinkel: Audit-Modus `weitfeld` mit Milchstraßen-Höhen im Dunkelfenster
 - [ ] Später: IoT-VLAN, Dachsternwarte (Velux/KLF-200, Regen- und Wolkensensor)

@@ -29,6 +29,10 @@ In der App unter **Kamera → Modus: Weitwinkel** ([07](07-astro-pi.md)):
 
 Beispiel 6D (6,54 µm Pixel), 24 mm f/2.8, ohne Nachführung: ≈ 12 s (NPF einfach), 73° × 49° Bildfeld, 56″/px.
 
+## Planung (Home Assistant)
+
+Das Astro-Audit kennt den Modus **weitfeld**: Es berechnet, wie hoch Milchstraßenzentrum, Schwan, Kassiopeia–Perseus und Fuhrmann–Orion im Dunkelfenster maximal stehen, und empfiehlt Weitwinkel bei mondfreier, klarer Nacht mit einer Region ≥ 35° ([02](02-home-assistant.md)). Gestartet wird wie immer nur nach Bestätigung. Hinweis für 48,7° Nord: Das Milchstraßenzentrum steht höchstens etwa 12° hoch (Juni–August, tief im Süden) – lohnender sind Schwan (Sommer/Herbst, fast im Zenit) und Kassiopeia–Perseus (Herbst/Winter).
+
 ## Stacken (siril-auto)
 
 Bilder, deren Dateiname das Filter-Kürzel `WIDE` trägt (`WIDE_FILTERS`), stackt siril-auto mit [`siril/wide_stack.ssf`](../siril/wide_stack.ssf):
