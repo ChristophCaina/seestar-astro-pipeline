@@ -95,7 +95,7 @@ automation:
             🔭 {{ p.target }} {{ 'Master' if p.stack == 'master' else 'gestackt' }}
           message: >-
             {% if p.stack == 'master' %}Master über alle Nächte{% else %}Nacht {{ p.night }}{% endif %}
-            · {{ p.frames }} Frames · {{ p.filter }}
+            · {{ p.frames }} Frames · {{ p.filter }}{{ ' · ' ~ p.device_label if p.device_label | default('') else '' }}
           data:
             image: "{{ bild }}"
             url: "{{ link }}"            # iOS

@@ -12,6 +12,10 @@
 #      beschriftete Version (*_beschriftet.jpg)
 #   6. Status per MQTT, Galerie neu bauen, Immich-Stacks/Album (jeweils optional)
 #
+# Mehrere Geraete (DEVICES="s50 s30"): je Geraet eigene Quelle, eigenes Rohdaten-Archiv,
+# eigene Stacks. Naechte und Master werden nie zwischen Geraeten gemischt. Das erste
+# Geraet ist das Hauptgeraet (Dateinamen ohne Zusatz), weitere bekommen _<id> angehaengt.
+#
 # Aufruf:  siril-auto.sh [--no-fetch] [--force] [--dry-run] [--master-full]
 #   --master-full  Master diesmal aus ALLEN Einzelframes statt aus den Nacht-Stacks
 #
@@ -91,9 +95,9 @@ mqtt_discovery() {
 # ---------------------------------------------------------------- Helfer
 slugify() { printf '%s' "$1" | tr ' /' '__' | tr -cd 'A-Za-z0-9_.+-'; }
 
-seestar_reachable() {
-  [[ -n "${SEESTAR_IP:-}" ]] || return 1
-  timeout 3 bash -c ">/dev/tcp/${SEESTAR_IP}/445" 2>/dev/null
+device_reachable() {   # device_reachable <ip>
+  [[ -n "${1:-}" ]] || return 1
+  timeout 3 bash -c ">/dev/tcp/${1}/445" 2>/dev/null
 }
 
 declare -A ALIAS=()
@@ -105,6 +109,33 @@ if [[ -f "$ALIAS_FILE" ]]; then
   done < "$ALIAS_FILE"
 fi
 canon_target() { local t="$1"; printf '%s' "${ALIAS[$t]:-$t}"; }
+
+# ---------------------------------------------------------------- Geraete
+read -ra DEVICE_LIST <<< "${DEVICES:-s50}"
+PRIMARY_DEVICE="${DEVICE_LIST[0]}"
+for d in "${DEVICE_LIST[@]}"; do
+  [[ "$d" =~ ^[a-z][a-z0-9]*$ ]] || { echo "Ungueltige Geraete-ID '$d' (nur a-z, 0-9, Buchstabe zuerst)" >&2; exit 2; }
+done
+# devcfg <id> <KEY> -> Wert von DEV_<id>_<KEY>; das Hauptgeraet faellt auf die alten Einzelvariablen zurueck
+devcfg() {
+  local v="DEV_${1}_${2}" def=""
+  if [[ "$1" == "$PRIMARY_DEVICE" ]]; then
+    case "$2" in
+      LABEL)  def="Seestar S50" ;;
+      IP)     def="${SEESTAR_IP:-}" ;;
+      REMOTE) def="${RCLONE_REMOTE:-}" ;;
+      SRC)    def="${RCLONE_SRC_PATH:-}" ;;
+      MIRROR) def="$MIRROR_DIR" ;;
+    esac
+  else
+    case "$2" in
+      LABEL)  def="$1" ;;
+      MIRROR) def="${ASTRO_ROOT}/raw/$1" ;;
+    esac
+  fi
+  [[ "$2" == "SCRIPT" ]] && def="$SIRIL_SCRIPT"
+  printf '%s' "${!v:-$def}"
+}
 
 # Liefert "<filter>\t<belichtung>\t<nacht YYYY-MM-DD>\t<zeit YYYY-MM-DD HH:MM:SS>".
 # Seestar-Dateinamen: Light_<Ziel>_10.0s_IRCUT_20261018-213045.fit
@@ -147,7 +178,7 @@ run_stack() {
   local kind="$1" target="$2" filter="$3" label="$4" exp="$5" spec="$6" ts="$7" frames="$8" tmpl="$9"; shift 9
   local slug work base jpg
   slug="$(slugify "$target")"
-  base="${slug}_${label}_${filter}_siril"
+  base="${slug}_${label}_${filter}${DEV_SUFFIX}_siril"
   work="$WORK_DIR/$base"
   rm -rf "$work"; mkdir -p "$work/light"
   local i=0
@@ -198,6 +229,7 @@ run_stack() {
     python3 "$LIB_DIR/write_meta.py" --fits "$STACK_DIR/$slug/$base.fit" --jpg "$jpg" \
       --out "$STACK_DIR/$slug/$base.meta.json" --target "$target" --filter "$filter" \
       --exposure "$exp" --stack "$kind" --nights "$spec" "${cat_args[@]}" \
+      --device-id "$CUR_DEVICE" --device-label "$CUR_LABEL" \
       || log "      WARN: meta.json konnte nicht geschrieben werden"
     if [[ "$ANNOTATE" == "1" && -f "$STACK_DIR/$slug/$base.meta.json" ]]; then
       if python3 "$LIB_DIR/annotate.py" --meta "$STACK_DIR/$slug/$base.meta.json" \
@@ -219,8 +251,8 @@ run_stack() {
   fi
   local group; group="$(printf '%s-%s' "$gname" "${filter:-na}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g')"
   # erst nach dem Galerie-Build senden (Abschnitt 5), damit das Vorschaubild schon existiert
-  PENDING_LAST+=("$(printf '{"target":"%s","night":"%s","filter":"%s","stack":"%s","frames":%s,"id":"%s","group":"%s","jpg":"%s","fit":"%s","timestamp":"%s"}' \
-    "$(json_escape "$target")" "$label" "$filter" "$kind" "$frames" "$gid" "$group" "$(json_escape "$jpg")" \
+  PENDING_LAST+=("$(printf '{"target":"%s","night":"%s","filter":"%s","stack":"%s","frames":%s,"id":"%s","group":"%s","device":"%s","device_label":"%s","jpg":"%s","fit":"%s","timestamp":"%s"}' \
+    "$(json_escape "$target")" "$label" "$filter" "$kind" "$frames" "$gid" "$group" "$CUR_DEVICE" "$(json_escape "$CUR_LABEL")" "$(json_escape "$jpg")" \
     "$(json_escape "$STACK_DIR/$slug/$base.fit")" "__TS__")")
   return 0
 }
@@ -233,102 +265,120 @@ fi
 [[ $DRY_RUN -eq 0 ]] && WEIGHT_OPT="$(weight_option)"
 
 PENDING_LAST=()   # Ergebnis-Meldungen, gesendet nach dem Galerie-Build
-mkdir -p "$MIRROR_DIR" "$WORK_DIR" "$STACK_DIR" "$EXPORT_DIR" "$STATE_DIR"
+mkdir -p "$WORK_DIR" "$STACK_DIR" "$EXPORT_DIR" "$STATE_DIR"
 mqtt_discovery
 
-# 1) Abholen ------------------------------------------------------------
+# 1) Abholen (je Geraet) -------------------------------------------------
 if [[ $NO_FETCH -eq 0 ]]; then
-  if seestar_reachable; then
-    log "Seestar erreichbar – hole neue Dateien"
-    status fetching
-    if [[ $DRY_RUN -eq 0 ]]; then
-      rclone copy "${RCLONE_REMOTE}:${RCLONE_SRC_PATH}" "$MIRROR_DIR" \
-        --transfers 4 --checkers 8 --log-level NOTICE \
-        || log "WARN: rclone meldete Fehler – verarbeite, was da ist"
+  for dev in "${DEVICE_LIST[@]}"; do
+    ip="$(devcfg "$dev" IP)"; remote="$(devcfg "$dev" REMOTE)"; src="$(devcfg "$dev" SRC)"; mirror="$(devcfg "$dev" MIRROR)"
+    [[ -n "$remote" ]] || { log "[$dev] keine Quelle (DEV_${dev}_REMOTE) – nur vorhandenes Archiv"; continue; }
+    if device_reachable "$ip"; then
+      log "[$dev] erreichbar – hole neue Dateien"
+      status fetching
+      if [[ $DRY_RUN -eq 0 ]]; then
+        mkdir -p "$mirror"
+        rclone copy "${remote}:${src}" "$mirror" \
+          --transfers 4 --checkers 8 --log-level NOTICE \
+          || log "[$dev] WARN: rclone meldete Fehler – verarbeite, was da ist"
+      fi
+    else
+      log "[$dev] nicht erreichbar – verarbeite nur vorhandenes Archiv"
     fi
-  else
-    log "Seestar nicht erreichbar – verarbeite nur vorhandenes Archiv"
-  fi
-fi
-
-# 2) Index: Ziel <TAB> Filter <TAB> Belichtung <TAB> Nacht <TAB> Zeit <TAB> Pfad ----
-INDEX="$(mktemp)"; trap 'rm -f "$INDEX" "$INDEX".*' EXIT
-while IFS= read -r -d '' f; do
-  dir="$(basename "$(dirname "$f")")"
-  target="$(canon_target "${dir%_sub}")"
-  printf '%s\t%s\t%s\n' "$target" "$(frame_info "$f")" "$f" >> "$INDEX"
-done < <(find "$MIRROR_DIR" -type f -path '*_sub/*' \( -iname '*.fit' -o -iname '*.fits' \) -print0)
-
-if [[ ! -s "$INDEX" ]]; then
-  log "Keine Einzelframes gefunden."; status idle; exit 0
-fi
-cut -f1,2,4 "$INDEX" | sort -u > "$INDEX.nights"      # Ziel, Filter, Nacht
-cut -f1,2 "$INDEX" | sort -u > "$INDEX.targets"       # Ziel, Filter
-
-# 3) Naechte ------------------------------------------------------------
-processed=0; failed=0
-while IFS=$'\t' read -r target filter night; do
-  slug="$(slugify "$target")"
-  key="${slug}_${filter}_${night}"
-  mapfile -t files < <(awk -F'\t' -v t="$target" -v fl="$filter" -v n="$night" '$1==t && $2==fl && $4==n {print $6}' "$INDEX" | sort)
-  count=${#files[@]}
-  first_ts="$(awk -F'\t' -v t="$target" -v fl="$filter" -v n="$night" '$1==t && $2==fl && $4==n {print $5}' "$INDEX" | sort | head -1)"
-  exp="$(awk -F'\t' -v t="$target" -v fl="$filter" -v n="$night" '$1==t && $2==fl && $4==n {print $3}' "$INDEX" | sort | uniq -c | sort -rn | awk 'NR==1{print $2}')"
-
-  if (( count < MIN_FRAMES )); then
-    log "SKIP $target $filter $night: nur $count Frames (< $MIN_FRAMES)"; continue
-  fi
-  state_file="$STATE_DIR/$key.done"; fail_file="$STATE_DIR/$key.failed"
-  [[ $FORCE -eq 0 && -f "$state_file" && "$(cat "$state_file")" == "$count" ]] && continue
-  [[ $FORCE -eq 0 && -f "$fail_file" && "$(cat "$fail_file")" == "$count" ]] && continue
-
-  log "STACK $target $filter $night: $count Frames à ${exp}s (Start $first_ts)"
-  if [[ $DRY_RUN -eq 1 ]]; then processed=$((processed+1)); continue; fi
-  status processing "$target" "$night" "$count"
-  if run_stack night "$target" "$filter" "$night" "$exp" "$night:$count" "$first_ts" "$count" "$SIRIL_SCRIPT" "${files[@]}"; then
-    echo "$count" > "$state_file"; rm -f "$fail_file"; processed=$((processed+1))
-  else
-    echo "$count" > "$fail_file"; failed=$((failed+1))
-    status error "$target" "$night" "$count" "Siril fehlgeschlagen"
-  fi
-done < "$INDEX.nights"
-
-# 4) Master je Ziel + Filter ----------------------------------------------
-while IFS=$'\t' read -r target filter; do
-  slug="$(slugify "$target")"
-  mkey="${slug}_${filter}_master"
-  spec=""; nights=(); fits=(); frames=0
-  for sf in "$STATE_DIR/${slug}_${filter}"_20*.done; do
-    [[ -f "$sf" ]] || continue
-    n="$(basename "$sf" .done)"; n="${n##*_}"; c="$(cat "$sf")"
-    fit="$STACK_DIR/$slug/${slug}_${n}_${filter}_siril.fit"
-    [[ -f "$fit" || $DRY_RUN -eq 1 ]] || continue
-    nights+=("$n"); fits+=("$fit"); frames=$((frames + c)); spec+="${spec:+,}$n:$c"
   done
-  (( ${#nights[@]} >= MASTER_MIN_NIGHTS )) || continue
-  mode="nights"; [[ $MASTER_FULL -eq 1 ]] && mode="full"
-  state_file="$STATE_DIR/$mkey.done"; fail_file="$STATE_DIR/$mkey.failed"
-  old="$(cat "$state_file" 2>/dev/null || true)"
-  # Neu rechnen, wenn sich die Naechte geaendert haben – oder --master-full / --force
-  if [[ $FORCE -eq 0 && $MASTER_FULL -eq 0 && "${old#*|}" == "$spec" ]]; then continue; fi
-  [[ $FORCE -eq 0 && $MASTER_FULL -eq 0 && "$(cat "$fail_file" 2>/dev/null || true)" == "$spec" ]] && continue
+fi
 
-  last_night="${nights[-1]}"
-  ts="$(awk -F'\t' -v t="$target" -v fl="$filter" -v n="$last_night" '$1==t && $2==fl && $4==n {print $5}' "$INDEX" | sort | head -1)"
-  exp="$(awk -F'\t' -v t="$target" -v fl="$filter" '$1==t && $2==fl {print $3}' "$INDEX" | sort | uniq -c | sort -rn | awk 'NR==1{print $2}')"
-  log "MASTER $target $filter ($mode): ${#nights[@]} Nächte, $frames Frames"
-  if [[ $DRY_RUN -eq 1 ]]; then processed=$((processed+1)); continue; fi
-  status processing "$target" "master" "$frames"
+# 2)–4) je Geraet: indexieren, Naechte stacken, Master bilden ------------
+process_device() {   # process_device <id>
+  CUR_DEVICE="$1"; CUR_LABEL="$(devcfg "$1" LABEL)"; CUR_SCRIPT="$(devcfg "$1" SCRIPT)"
+  MIRROR_DIR="$(devcfg "$1" MIRROR)"
+  if [[ "$1" == "$PRIMARY_DEVICE" ]]; then DEV_SUFFIX=""; else DEV_SUFFIX="_$1"; fi
+  DEVTAG=""; (( ${#DEVICE_LIST[@]} > 1 )) && DEVTAG="[$1] "
+  [[ -d "$MIRROR_DIR" ]] || { log "[$1] kein Archiv unter $MIRROR_DIR"; return 0; }
+  local INDEX
+  # 2) Index: Ziel <TAB> Filter <TAB> Belichtung <TAB> Nacht <TAB> Zeit <TAB> Pfad ----
+  INDEX="$(mktemp)"; INDEXES+=("$INDEX")
+  while IFS= read -r -d '' f; do
+    dir="$(basename "$(dirname "$f")")"
+    target="$(canon_target "${dir%_sub}")"
+    printf '%s\t%s\t%s\n' "$target" "$(frame_info "$f")" "$f" >> "$INDEX"
+  done < <(find "$MIRROR_DIR" -type f -path '*_sub/*' \( -iname '*.fit' -o -iname '*.fits' \) -print0)
 
-  if [[ "$mode" == "full" ]]; then
-    mapfile -t subs < <(for n in "${nights[@]}"; do awk -F'\t' -v t="$target" -v fl="$filter" -v n="$n" '$1==t && $2==fl && $4==n {print $6}' "$INDEX"; done | sort)
-    ok=0; run_stack master "$target" "$filter" master "$exp" "$spec" "${ts:-${last_night} 22:00:00}" "$frames" "$SIRIL_SCRIPT" "${subs[@]}" && ok=1
-  else
-    ok=0; run_stack master "$target" "$filter" master "$exp" "$spec" "${ts:-${last_night} 22:00:00}" "$frames" "$SIRIL_MASTER_SCRIPT" "${fits[@]}" && ok=1
+  if [[ ! -s "$INDEX" ]]; then
+    log "[$CUR_DEVICE] keine Einzelframes gefunden."; return 0
   fi
-  if (( ok )); then echo "$mode|$spec" > "$state_file"; rm -f "$fail_file"; processed=$((processed+1))
-  else echo "$spec" > "$fail_file"; failed=$((failed+1)); status error "$target" "master" "$frames" "Master fehlgeschlagen"; fi
-done < "$INDEX.targets"
+  cut -f1,2,4 "$INDEX" | sort -u > "$INDEX.nights"      # Ziel, Filter, Nacht
+  cut -f1,2 "$INDEX" | sort -u > "$INDEX.targets"       # Ziel, Filter
+
+  # 3) Naechte ------------------------------------------------------------
+  while IFS=$'\t' read -r target filter night; do
+    slug="$(slugify "$target")"
+    key="${slug}_${filter}${DEV_SUFFIX}_${night}"
+    mapfile -t files < <(awk -F'\t' -v t="$target" -v fl="$filter" -v n="$night" '$1==t && $2==fl && $4==n {print $6}' "$INDEX" | sort)
+    count=${#files[@]}
+    first_ts="$(awk -F'\t' -v t="$target" -v fl="$filter" -v n="$night" '$1==t && $2==fl && $4==n {print $5}' "$INDEX" | sort | head -1)"
+    exp="$(awk -F'\t' -v t="$target" -v fl="$filter" -v n="$night" '$1==t && $2==fl && $4==n {print $3}' "$INDEX" | sort | uniq -c | sort -rn | awk 'NR==1{print $2}')"
+
+    if (( count < MIN_FRAMES )); then
+      log "SKIP $target $filter $night: nur $count Frames (< $MIN_FRAMES)"; continue
+    fi
+    state_file="$STATE_DIR/$key.done"; fail_file="$STATE_DIR/$key.failed"
+    [[ $FORCE -eq 0 && -f "$state_file" && "$(cat "$state_file")" == "$count" ]] && continue
+    [[ $FORCE -eq 0 && -f "$fail_file" && "$(cat "$fail_file")" == "$count" ]] && continue
+
+    log "STACK ${DEVTAG}$target $filter $night: $count Frames à ${exp}s (Start $first_ts)"
+    if [[ $DRY_RUN -eq 1 ]]; then processed=$((processed+1)); continue; fi
+    status processing "$target" "$night" "$count"
+    if run_stack night "$target" "$filter" "$night" "$exp" "$night:$count" "$first_ts" "$count" "$CUR_SCRIPT" "${files[@]}"; then
+      echo "$count" > "$state_file"; rm -f "$fail_file"; processed=$((processed+1))
+    else
+      echo "$count" > "$fail_file"; failed=$((failed+1))
+      status error "$target" "$night" "$count" "Siril fehlgeschlagen"
+    fi
+  done < "$INDEX.nights"
+
+  # 4) Master je Ziel + Filter ----------------------------------------------
+  while IFS=$'\t' read -r target filter; do
+    slug="$(slugify "$target")"
+    mkey="${slug}_${filter}${DEV_SUFFIX}_master"
+    spec=""; nights=(); fits=(); frames=0
+    for sf in "$STATE_DIR/${slug}_${filter}${DEV_SUFFIX}"_20*.done; do
+      [[ -f "$sf" ]] || continue
+      n="$(basename "$sf" .done)"; n="${n##*_}"; c="$(cat "$sf")"
+      fit="$STACK_DIR/$slug/${slug}_${n}_${filter}${DEV_SUFFIX}_siril.fit"
+      [[ -f "$fit" || $DRY_RUN -eq 1 ]] || continue
+      nights+=("$n"); fits+=("$fit"); frames=$((frames + c)); spec+="${spec:+,}$n:$c"
+    done
+    (( ${#nights[@]} >= MASTER_MIN_NIGHTS )) || continue
+    mode="nights"; [[ $MASTER_FULL -eq 1 ]] && mode="full"
+    state_file="$STATE_DIR/$mkey.done"; fail_file="$STATE_DIR/$mkey.failed"
+    old="$(cat "$state_file" 2>/dev/null || true)"
+    # Neu rechnen, wenn sich die Naechte geaendert haben – oder --master-full / --force
+    if [[ $FORCE -eq 0 && $MASTER_FULL -eq 0 && "${old#*|}" == "$spec" ]]; then continue; fi
+    [[ $FORCE -eq 0 && $MASTER_FULL -eq 0 && "$(cat "$fail_file" 2>/dev/null || true)" == "$spec" ]] && continue
+
+    last_night="${nights[-1]}"
+    ts="$(awk -F'\t' -v t="$target" -v fl="$filter" -v n="$last_night" '$1==t && $2==fl && $4==n {print $5}' "$INDEX" | sort | head -1)"
+    exp="$(awk -F'\t' -v t="$target" -v fl="$filter" '$1==t && $2==fl {print $3}' "$INDEX" | sort | uniq -c | sort -rn | awk 'NR==1{print $2}')"
+    log "MASTER ${DEVTAG}$target $filter ($mode): ${#nights[@]} Nächte, $frames Frames"
+    if [[ $DRY_RUN -eq 1 ]]; then processed=$((processed+1)); continue; fi
+    status processing "$target" "master" "$frames"
+
+    if [[ "$mode" == "full" ]]; then
+      mapfile -t subs < <(for n in "${nights[@]}"; do awk -F'\t' -v t="$target" -v fl="$filter" -v n="$n" '$1==t && $2==fl && $4==n {print $6}' "$INDEX"; done | sort)
+      ok=0; run_stack master "$target" "$filter" master "$exp" "$spec" "${ts:-${last_night} 22:00:00}" "$frames" "$CUR_SCRIPT" "${subs[@]}" && ok=1
+    else
+      ok=0; run_stack master "$target" "$filter" master "$exp" "$spec" "${ts:-${last_night} 22:00:00}" "$frames" "$SIRIL_MASTER_SCRIPT" "${fits[@]}" && ok=1
+    fi
+    if (( ok )); then echo "$mode|$spec" > "$state_file"; rm -f "$fail_file"; processed=$((processed+1))
+    else echo "$spec" > "$fail_file"; failed=$((failed+1)); status error "$target" "master" "$frames" "Master fehlgeschlagen"; fi
+  done < "$INDEX.targets"
+}
+
+processed=0; failed=0; INDEXES=()
+cleanup_index() { local x; for x in "${INDEXES[@]}"; do rm -f "$x" "$x".*; done; }
+trap cleanup_index EXIT
+for dev in "${DEVICE_LIST[@]}"; do process_device "$dev"; done
 
 log "Fertig: $processed verarbeitet, $failed Fehler"
 

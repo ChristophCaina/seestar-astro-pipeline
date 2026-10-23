@@ -128,7 +128,8 @@ def annotate(meta_path: Path, out: Path) -> Path:
         parts.append(nights[0]["date"])
     if m.get("filter"):
         parts.append(m["filter"])
-    parts.append("Seestar S50 · Siril" if m.get("source", "siril") == "siril" else "Seestar S50 · App-Stack")
+    dev = (m.get("device") or {}).get("label") or "Seestar S50"
+    parts.append(f"{dev} · Siril" if m.get("source", "siril") == "siril" else f"{dev} · App-Stack")
     text(d, (w - 30 * k, h - 26 * k), "  ·  ".join(parts), f_small, fill=WHITE, anchor="rs")
 
     out.parent.mkdir(parents=True, exist_ok=True)

@@ -64,7 +64,9 @@
       m.get(key).entries.push(e);
     }
     for (const g of m.values()) {
-      g.entries.sort((a, b) => (a.stack === "master" ? -1 : b.stack === "master" ? 1 : b.last.localeCompare(a.last)));
+      // Titelbild: Master mit der laengsten Belichtung (mehrere Geraete), sonst die neueste Nacht
+      g.entries.sort((a, b) => (a.stack === "master") !== (b.stack === "master") ? (a.stack === "master" ? -1 : 1)
+        : a.stack === "master" ? b.seconds - a.seconds : (b.last || "").localeCompare(a.last || ""));
       g.primary = g.entries[0];
       g.nights = [...new Map(g.entries.flatMap((e) => e.nights).map((n) => [n.date, n])).values()].sort((a, b) => a.date.localeCompare(b.date));
       g.seconds = g.primary.seconds; g.last = g.nights.at(-1)?.date || "";
@@ -232,7 +234,7 @@
     if (location.hash.slice(1) !== key) history.pushState(null, "", "#" + key);
     window.scrollTo(0, 0);
     const nN = e.nights.length;
-    $("d-eyebrow").textContent = `${KIND1[g.kind]} · ${e.stack === "master" ? `Master aus ${nN} Nächten` : "Einzelnacht"} · Seestar S50`;
+    $("d-eyebrow").textContent = `${KIND1[g.kind]} · ${e.stack === "master" ? `Master aus ${nN} Nächten` : "Einzelnacht"} · ${e.device?.label || "Seestar S50"}`;
     $("d-title").innerHTML = `${esc(g.target.name)} <em>${esc(g.target.common || "")}</em>`;
     $("d-caption").textContent = e.caption || "";
     $("d-integ").innerHTML = e.seconds ? `${fmtInt(e.seconds)} <small>gesamt</small>` : `– <small>Belichtung unbekannt</small>`;
@@ -244,7 +246,9 @@
     const vs = $("d-versions"); vs.innerHTML = "";
     g.entries.forEach((x) => {
       const li = document.createElement("li"); if (x.id === e.id) li.className = "cur";
-      const label = x.source === "app" ? "Seestar-App-Stack" : x.stack === "master" ? "Master · Siril" : "Einzelnacht · Siril";
+      const multi = new Set(g.entries.map((y) => y.device?.id || "s50")).size > 1;
+      const label = (x.source === "app" ? "Seestar-App-Stack" : x.stack === "master" ? "Master · Siril" : "Einzelnacht · Siril")
+        + (multi ? ` · ${esc(x.device?.label || "Seestar S50")}` : "");
       const info = x.stack === "master" ? `${x.nights.length} Nächte` : fmtDate(x.last);
       li.innerHTML = x.id === e.id ? `<span>${label}</span><span>${info}</span>` : `<button type="button">${label}</button><span>${info}</span>`;
       li.querySelector("button")?.addEventListener("click", () => openGroup(key, x.id));

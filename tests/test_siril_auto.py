@@ -141,6 +141,37 @@ GALLERY_OUT={self.astro}/web
         status = [json.loads(m["payload"]) for m in msgs if m["topic"] == "seestar/siril/status"]
         self.assertEqual(status[-1]["state"], "idle")
 
+    def test_second_device_kept_separate(self):
+        s30 = self.astro / "raw" / "s30"
+        frames(s30 / "M 31_sub", "M 31", "IRCUT", "20261018", "2200", 20)
+        frames(s30 / "M 31_sub", "M 31", "IRCUT", "20261019", "2200", 20)
+        cfg = Path(self.env["SIRIL_AUTO_CONFIG"])
+        cfg.write_text(cfg.read_text() + 'DEVICES="s50 s30"\nDEV_s30_LABEL="Seestar S30 Pro"\n')
+        r = self.run_auto()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("STACK [s30] M 31 IRCUT 2026-10-18: 20 Frames", r.stdout)
+        st = self.astro / "stacks" / "M_31"
+        self.assertTrue((st / "M_31_2026-10-18_IRCUT_siril.fit").exists())          # Hauptgeraet unveraendert
+        self.assertTrue((st / "M_31_2026-10-18_IRCUT_s30_siril.fit").exists())
+        self.assertTrue((st / "M_31_master_IRCUT_s30_siril.fit").exists())
+        m = json.loads((st / "M_31_master_IRCUT_s30_siril.meta.json").read_text())
+        self.assertEqual(m["device"], {"id": "s30", "label": "Seestar S30 Pro"})
+        self.assertEqual(sum(n["frames"] for n in m["nights"]), 40)                  # nur S30-Frames
+        main = json.loads((st / "M_31_master_IRCUT_siril.meta.json").read_text())
+        self.assertEqual(main["device"]["id"], "s50")
+        self.assertEqual(sum(n["frames"] for n in main["nights"]), 25 + 22 + 20)
+        masters = [c for c in self.calls_of("master")]
+        self.assertEqual(len(masters), 2)
+        cat = json.loads((self.astro / "web" / "catalog.json").read_text())
+        self.assertEqual({e["device"]["id"] for e in cat["entries"]}, {"s50", "s30"})
+
+    def test_invalid_device_id(self):
+        cfg = Path(self.env["SIRIL_AUTO_CONFIG"])
+        cfg.write_text(cfg.read_text() + 'DEVICES="S50 x-1"\n')
+        r = self.run_auto("--dry-run")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("Ungueltige Geraete-ID", r.stderr)
+
     def test_failure_is_not_retried(self):
         r = self.run_auto(FAKE_SIRIL_FAIL="stack")
         self.assertEqual(r.returncode, 1)

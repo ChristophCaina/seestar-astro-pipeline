@@ -18,5 +18,6 @@
 - [ ] Nachhol-Job für ältere Bilder
 - [x] Tailscale-LXC: Install-Script `scripts/install-tailscale-lxc.sh`
 - [ ] Remote-Zugriff einrichten (Tailscale-LXC, GL.iNet unterwegs)
+- [x] Mehrere Geräte (zweites Seestar, später DSLR): getrennte Archive und Stacks, Gerät in Galerie/MQTT
 - [x] Frames von unterwegs holen (`siril/travel-sync.sh`)
 - [ ] Später: IoT-VLAN, Dachsternwarte (Velux/KLF-200, Regen- und Wolkensensor)
