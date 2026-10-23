@@ -31,7 +31,7 @@ Beispiel 6D (6,54 µm Pixel), 24 mm f/2.8, ohne Nachführung: ≈ 12 s (NPF einf
 
 ## Planung (Home Assistant)
 
-Das Astro-Audit kennt den Modus **weitfeld**: Es berechnet, wie hoch Milchstraßenzentrum, Schwan, Kassiopeia–Perseus und Fuhrmann–Orion im Dunkelfenster maximal stehen, und empfiehlt Weitwinkel bei mondfreier, klarer Nacht mit einer Region ≥ 35° ([02](02-home-assistant.md)). Gestartet wird wie immer nur nach Bestätigung. Hinweis für 48,7° Nord: Das Milchstraßenzentrum steht höchstens etwa 12° hoch (Juni–August, tief im Süden) – lohnender sind Schwan (Sommer/Herbst, fast im Zenit) und Kassiopeia–Perseus (Herbst/Winter).
+Das Astro-Audit kennt den Modus **weitfeld**: Es berechnet, wie hoch Milchstraßenzentrum, Schwan, Kassiopeia–Perseus und Fuhrmann–Orion im Dunkelfenster maximal stehen, und empfiehlt Weitwinkel bei mondfreier, klarer Nacht mit einer Region ≥ 35° ([02](02-home-assistant.md)). Die Milchstraße bekommt eine eigene Stufe und ein eigenes Fenster; zum Fensterbeginn fragt eine Push, ob ein Gerät mit Weitwinkel (S30 Pro) starten soll – parallel zur Deep-Sky-Session eines anderen Geräts. Gestartet wird wie immer nur nach Bestätigung. Hinweis für 48,7° Nord: Das Milchstraßenzentrum steht höchstens etwa 12° hoch (Juni–August, tief im Süden) – lohnender sind Schwan (Sommer/Herbst, fast im Zenit) und Kassiopeia–Perseus (Herbst/Winter).
 
 ## Stacken (siril-auto)
 

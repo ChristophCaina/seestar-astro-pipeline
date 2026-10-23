@@ -8,6 +8,7 @@
 # Anpassen (Suchen/Ersetzen):
 #   seestar_s50                 → Entity-Präfix deines Seestar
 #   seestar_s30                 → Entity-Präfix des zweiten Seestar (Abschnitt nur sichtbar, wenn verbunden)
+#   teleskop: s50 / s30         → ids aus der KONFIGURATION in astro_audit.yaml
 #   http://astro.lan            → Adresse der Astro-Galerie
 #   sensor.gw2000a_*            → Ecowitt-Entities
 #   http://astro-pi.lan:8080    → Web-App des Astro-Pi (Abschnitt blendet sich aus, solange der Pi fehlt)
@@ -33,21 +34,26 @@ views:
 
               {% set s = states('input_datetime.astro_fenster_start') %} {% set
               e = states('input_datetime.astro_fenster_ende') %} {% if s not in
-              ['unknown', 'unavailable'] %} Beobachtungsfenster **{{
-              as_timestamp(s) | timestamp_custom('%H:%M') }}–{{ as_timestamp(e)
-              | timestamp_custom('%H:%M') }} Uhr** · Modus: {{
-              states('input_select.astro_modus') }} {% endif %}
+              ['unknown', 'unavailable'] %} 🔭 Deep-Sky **{{
+              states('input_select.astro_stufe') }}** · {{ as_timestamp(s) |
+              timestamp_custom('%H:%M') }}–{{ as_timestamp(e) |
+              timestamp_custom('%H:%M') }} Uhr {% endif %}
 
-              {% if is_state('input_select.astro_modus', 'weitfeld') %}🌌
-              **Milchstraßen-Nacht** – Weitwinkel mit EOS 6D oder S30 Pro lohnt
-              sich.{% endif %}
+              {% set m = states('input_select.astro_stufe_milchstrasse') %} {% set
+              ms = states('input_datetime.astro_mw_start') %} {% set me =
+              states('input_datetime.astro_mw_ende') %} {% if m in ['ideal',
+              'gut', 'bedingt', 'eingeschraenkt'] and ms not in ['unknown',
+              'unavailable'] %} 🌌 Milchstraße **{{ m }}** · {{ as_timestamp(ms)
+              | timestamp_custom('%H:%M') }}–{{ as_timestamp(me) |
+              timestamp_custom('%H:%M') }} Uhr {% endif %}
           - type: tile
             entity: input_select.astro_stufe
-            name: Stufe
+            name: Deep-Sky
             icon: mdi:star-four-points
           - type: tile
-            entity: input_boolean.astro_nacht_lohnt
-            name: Lohnt sich
+            entity: input_select.astro_stufe_milchstrasse
+            name: Milchstraße
+            icon: mdi:star-shooting
           - type: tile
             entity: input_boolean.astro_automatik
             name: Automatik
@@ -60,15 +66,6 @@ views:
             features_position: inline
             features:
               - type: toggle
-          - type: tile
-            entity: script.astro_session_starten
-            name: Session starten
-            icon: mdi:play-circle
-            tap_action:
-              action: perform-action
-              perform_action: script.astro_session_starten
-              confirmation:
-                text: Session jetzt starten?
           - type: tile
             entity: script.astro_audit
             name: Audit jetzt
@@ -161,6 +158,18 @@ views:
             features_position: inline
             features:
               - type: toggle
+          - type: tile
+            entity: script.astro_session_starten
+            name: Session starten
+            icon: mdi:play-circle
+            tap_action:
+              action: perform-action
+              perform_action: script.astro_session_starten
+              data:
+                teleskop: s50
+                modus: deepsky
+              confirmation:
+                text: S50 jetzt starten (Deep-Sky)?
         column_span: 2
       # Zweites Seestar (S30 Pro) – erscheint nur, solange es verbunden ist.
       # seestar_s30 durch das Entity-Präfix ersetzen, das ha-seestar für das Gerät anlegt.
@@ -201,6 +210,30 @@ views:
             features_position: inline
             features:
               - type: toggle
+          - type: tile
+            entity: script.astro_session_starten
+            name: Milchstraße starten
+            icon: mdi:star-shooting
+            tap_action:
+              action: perform-action
+              perform_action: script.astro_session_starten
+              data:
+                teleskop: s30
+                modus: weitfeld
+              confirmation:
+                text: S30 Pro jetzt starten (Milchstraße)?
+          - type: tile
+            entity: script.astro_session_starten
+            name: Deep-Sky starten
+            icon: mdi:play-circle
+            tap_action:
+              action: perform-action
+              perform_action: script.astro_session_starten
+              data:
+                teleskop: s30
+                modus: deepsky
+              confirmation:
+                text: S30 Pro jetzt starten (Deep-Sky)?
         column_span: 2
       - type: grid
         cards:

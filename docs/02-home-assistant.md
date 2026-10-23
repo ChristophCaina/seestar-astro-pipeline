@@ -48,7 +48,7 @@ Die Meldung „Letztes Ergebnis“ enthält auch `id` und `group`. Daraus entste
 | Zusammenfassung am Morgen | um `input_datetime.astro_zusammenfassung_zeit`, nur wenn es Stacks gab; mit Hinweis, falls siril-auto einen Fehler meldet |
 | Fehler-Push | wenn siril-auto länger als 1 min `error` meldet |
 
-Vorher `http://astro.lan` (Galerie-Adresse) und `notify.mobile_app_handy` ersetzen. Das Vorschaubild lädt nur, wenn das Handy die Galerie erreicht, also im Heimnetz oder über Tailscale ([04](04-remote-access.md)). Uhrzeit und Push-Schalter einmal im UI setzen. Helfer ohne Startwert stehen nach dem ersten Laden auf aus bzw. 00:00.
+Vorher `http://astro.lan` (Galerie-Adresse) ersetzen. Die Empfänger kommen aus der KONFIGURATION in `astro_audit.yaml` – beide Packages gehören zusammen. Das Vorschaubild lädt nur, wenn das Handy die Galerie erreicht, also im Heimnetz oder über Tailscale ([04](04-remote-access.md)). Uhrzeit und Push-Schalter einmal im UI setzen. Helfer ohne Startwert stehen nach dem ersten Laden auf aus bzw. 00:00.
 
 ## Astro-Audit (KI-Empfehlung → Automationen)
 
@@ -56,8 +56,10 @@ Vorher `http://astro.lan` (Galerie-Adresse) und `notify.mobile_app_handy` ersetz
 
 | Helfer | Inhalt |
 |---|---|
-| `input_boolean.astro_nacht_lohnt` | an bei Stufe ideal, gut oder bedingt |
-| `input_select.astro_stufe` / `astro_modus` | ideal … abbruch / deepsky, weitfeld, planetar, keiner |
+| `input_boolean.astro_nacht_lohnt` | an, wenn Deep-Sky **oder** Milchstraße ideal, gut oder bedingt ist |
+| `input_select.astro_stufe` / `astro_modus` | Stufe für Deep-Sky (ideal … abbruch) / bester Modus: deepsky, weitfeld, planetar, keiner |
+| `input_select.astro_stufe_milchstrasse` | Stufe für Milchstraße/Weitwinkel, getrennt bewertet |
+| `input_datetime.astro_mw_start` / `_ende` | Milchstraßen-Fenster: dunkel, Mond weg (falls er stört), eine Region ≥ 30° hoch |
 | `input_text.astro_empfehlung` | Kurztext, z. B. „🌌 Ideal – Deepsky“ |
 | `input_datetime.astro_fenster_start` / `_ende` | astronomische Dunkelheit; für Deep-Sky erst ab Monduntergang, wenn der Mond stört |
 | `input_boolean.astro_automatik` | Hauptschalter für die Automationen |
@@ -65,14 +67,38 @@ Vorher `http://astro.lan` (Galerie-Adresse) und `notify.mobile_app_handy` ersetz
 
 **Modus weitfeld (Milchstraße):** Das Script rechnet für die astronomische Dunkelheit aus, wie hoch Milchstraßenzentrum, Schwan, Kassiopeia–Perseus und Fuhrmann–Orion maximal stehen (Standort aus `zone.home`), und gibt das der KI mit. Sie wählt `weitfeld`, wenn der Mond nicht stört, die Transparenz hoch und eine Region mindestens 35° hoch ist, und nennt Region und Uhrzeit im Bericht. Das Beobachtungsfenster beginnt dann wie bei Deep-Sky erst nach Monduntergang. Keine zusätzlichen Entities – nur eine weitere Option in `input_select.astro_modus`. Ausrüstung und Ablauf: [09](09-weitwinkel.md).
 
+### Mehrere Teleskope und Handys
+
+Oben im Package steht der Abschnitt **KONFIGURATION** (im Script `astro_benachrichtigen`). Dort trägst du alle Teleskope und alle Handys ein. Die Listen gelten für alle Automationen (YAML-Anker) und über das Script auch für die Meldungen aus `astro_stacks.yaml`.
+
+```yaml
+teleskope: &astro_teleskope
+  - {id: s50, name: Seestar S50, prefix: seestar_s50, weitwinkel: false}
+  - {id: s30, name: Seestar S30 Pro, prefix: seestar_s30, weitwinkel: true}
+empfaenger: &astro_empfaenger
+  - notify.mobile_app_handy
+  - notify.mobile_app_handy_2
+```
+
+- `prefix` = Entity-Präfix in ha-seestar (z. B. `switch.<prefix>_dew_heater`). Geräte, die es (noch) nicht gibt oder die nicht verbunden sind, werden übersprungen.
+- `id` kurz und ohne Unterstrich – sie steht in den Push-Aktionen.
+- `weitwinkel: true` = das Gerät bekommt auch die Milchstraßen-Rückfrage.
+
+**Gleiche Nacht, zwei Ziele:** Die KI bewertet Deep-Sky und Milchstraße getrennt. Zum Beginn jedes Fensters kommt eine Push **an alle Handys** – zum Deep-Sky-Fenster mit allen verbundenen Teleskopen, zum Milchstraßen-Fenster mit denen, die `weitwinkel: true` haben. Wer zuerst tippt, startet das Gerät; die Push zeigt danach nur noch die übrigen. Typisch: du startest das S50 in der Deep-Sky-Push, deine Frau das S30 Pro in der Milchstraßen-Push – es geht aber auch jede andere Kombination. Im Dashboard hat jedes Gerät eigene Start-Knöpfe (S30 Pro: Milchstraße oder Deep-Sky).
+
 Automationen:
 - **Audit am Abend:** 30 min nach Sonnenuntergang
-- **Session bestätigen:** Zum Fensterbeginn (Nacht lohnt, Automatik an, Seestar verbunden) kommt eine Push-Nachricht mit **Session starten / Nur freigeben / Heute nicht**. Erst nach dem Tippen wird die Steuerung freigegeben und bei „Session starten“ `script.astro_session_starten` aufgerufen (Platzhalter, mit eigenem Ablauf füllen, z. B. Plan im seestar_alp-Scheduler). Ohne Antwort in 60 min bleibt alles gesperrt. **Nichts startet ohne Bestätigung.**
-- **Steuerung sperren:** zum Fensterende, spätestens eine Stunde vor Sonnenaufgang. Dabei gehen auch Power-Aktionen und Tauheizung aus.
-- **Tauheizung:** mit Hysterese, an ab ≤ 3 K Abstand, aus ab ≥ 5 K
-- **Schutz (Regen, Wind, Tau):** einzige Aktion ohne Rückfrage, nur nachts und bei verbundenem Seestar. Auslöser: Ecowitt-Regen (Event-Regen steigt oder Regenrate > 0), Wettermodell, Böen > 35 km/h (2 min), Taupunktabstand < 1 K trotz Heizung (15 min). Mit `input_boolean.astro_schutz_parken` an wird das Seestar **geparkt** (dafür schaltet die Automation „Allow power actions“ ein), sonst nur gewarnt. Push mit hoher Priorität, höchstens alle 10 Minuten.
+- **Session bestätigen:** zum Beginn des Deep-Sky- bzw. Milchstraßen-Fensters, wenn der Modus lohnt und die Automatik an ist. Aktionen: **<Gerät> starten** (bis zu zwei Geräte) und **Heute nicht**. Erst nach dem Tippen ruft die Automation `script.astro_session_starten` mit Gerät und Modus auf. Das Script gibt die Steuerung des Geräts frei und enthält danach deinen eigenen Ablauf (Platzhalter, z. B. Plan im seestar_alp-Scheduler). Ohne Antwort in 60 min bleibt alles gesperrt. **Nichts startet automatisch nach Zeit oder Bedingung** – ein Tipp in der Push oder im Dashboard ist die Bestätigung.
+- **Steuerung sperren:** zum Fensterende, spätestens eine Stunde vor Sonnenaufgang, für alle Teleskope. Dabei gehen auch Power-Aktionen und Tauheizung aus.
+- **Tauheizung:** mit Hysterese, an ab ≤ 3 K Abstand, aus ab ≥ 5 K – für jedes freigegebene Teleskop
+- **Schutz (Regen, Wind, Tau):** einzige Aktion ohne Rückfrage, nur nachts, für alle verbundenen Teleskope. Auslöser: Ecowitt-Regen (Event-Regen steigt oder Regenrate > 0), Wettermodell, Böen > 35 km/h (2 min), Taupunktabstand < 1 K trotz Heizung (15 min). Mit `input_boolean.astro_schutz_parken` an werden die Geräte **geparkt** (dafür schaltet die Automation „Allow power actions“ ein), sonst nur gewarnt. Push an alle, höchstens alle 10 Minuten.
 
-Vor dem Einsatz musst du `seestar_s50` (Entity-Präfix) und `notify.mobile_app_handy` per Suchen und Ersetzen anpassen. Packages aktivierst du in der `configuration.yaml` mit `homeassistant: packages: !include_dir_named packages`.
+Vor dem Einsatz die KONFIGURATION anpassen. Packages aktivierst du in der `configuration.yaml` (eingerückt unter `homeassistant:`):
+
+```yaml
+homeassistant:
+  packages: !include_dir_named packages
+```
 
 ## Dashboard „Sternwarte“
 
