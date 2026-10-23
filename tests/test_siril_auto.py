@@ -165,6 +165,42 @@ GALLERY_OUT={self.astro}/web
         cat = json.loads((self.astro / "web" / "catalog.json").read_text())
         self.assertEqual({e["device"]["id"] for e in cat["entries"]}, {"s50", "s30"})
 
+    def test_dslr_with_calibration(self):
+        eos = self.astro / "raw" / "eos6d"
+        sub = eos / "M 31_sub"
+        sub.mkdir(parents=True)
+        for i in range(20):
+            (sub / f"Light_M 31_60.0s_DSLR_20261018-22{i:02d}00.fits").write_bytes(b"x")
+        cal = eos / "_calib"
+        cal.mkdir()
+        for i in range(5):
+            (cal / f"Bias_0.001s_DSLR_20261018-2100{i:02d}.fits").write_bytes(b"x")
+            (cal / f"Dark_60.0s_DSLR_20261019-0300{i:02d}.fits").write_bytes(b"x")
+            (cal / f"Flat_0.5s_DSLR_20261017-2000{i:02d}.fits").write_bytes(b"x")   # alte Flats
+            (cal / f"Flat_0.8s_DSLR_20261018-2030{i:02d}.fits").write_bytes(b"x")   # neueste Nacht
+        cfg = Path(self.env["SIRIL_AUTO_CONFIG"])
+        cfg.write_text(cfg.read_text() + 'DEVICES="s50 eos6d"\nDEV_eos6d_TYPE=dslr\nDEV_eos6d_LABEL="Canon EOS 6D"\n')
+        r = self.run_auto()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        caldir = self.astro / "calib" / "eos6d"
+        for m in ("bias.fit", "dark_60s.fit", "flat.fit"):
+            self.assertTrue((caldir / m).exists(), m)
+        calib = [c for c in self.calls_of("calib")]
+        self.assertEqual(len(calib), 3)
+        flat = next(c for c in calib if "-norm=mul" in c["script"])
+        self.assertEqual(flat["lights"], 5)                              # nur die neueste Nacht
+        self.assertIn("calibrate frame -bias=../bias.fit", flat["script"])
+        night = next(c for c in self.calls_of("stack") if c["work"] == "M_31_2026-10-18_DSLR_eos6d_siril")
+        self.assertIn("calibrate light -dark=../dark.fit -cc=dark -flat=../flat.fit -cfa -equalize_cfa -debayer",
+                      night["script"])
+        self.assertIn("Kalibrierung:", r.stdout)
+        m = json.loads((self.astro / "stacks" / "M_31" / "M_31_2026-10-18_DSLR_eos6d_siril.meta.json").read_text())
+        self.assertEqual(m["device"]["label"], "Canon EOS 6D")
+        # zweiter Lauf: Masters unveraendert -> nicht neu gebaut
+        n = len(self.calls_of("calib"))
+        self.run_auto()
+        self.assertEqual(len(self.calls_of("calib")), n)
+
     def test_invalid_device_id(self):
         cfg = Path(self.env["SIRIL_AUTO_CONFIG"])
         cfg.write_text(cfg.read_text() + 'DEVICES="S50 x-1"\n')

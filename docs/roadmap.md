@@ -19,6 +19,7 @@
 - [x] Tailscale-LXC: Install-Script `scripts/install-tailscale-lxc.sh`
 - [ ] Remote-Zugriff einrichten (Tailscale-LXC, GL.iNet unterwegs)
 - [x] Mehrere Geräte (zweites Seestar, später DSLR): getrennte Archive und Stacks, Gerät in Galerie/MQTT
+- [x] DSLR-Profil: Bias/Darks/Flats-Masters, Kalibrierung vor dem Stacken (`dslr_stack.ssf`)
 - [x] Frames von unterwegs holen (`siril/travel-sync.sh`)
 - [x] Astro-Pi: INDI-Dienst + Web-App (GoTo, Zentrieren, Serien, Live View, HFR, MQTT), Installer – gegen Simulatoren getestet
 - [ ] Astro-Pi: Pi kaufen, mit echter iEXOS-100 und 6D testen; StellarMate vergleichen

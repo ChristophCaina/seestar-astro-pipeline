@@ -23,8 +23,10 @@ if args[:1] == ["--version"]:
 
 work = Path(args[args.index("-d") + 1])
 script = Path(args[args.index("-s") + 1]).read_text()
-kind = "solve" if "platesolve" in script else ("master" if "stack r_stack" in script else "stack")
-lights = sorted(p.name for p in (work / "light").iterdir()) if (work / "light").exists() else []
+kind = "solve" if "platesolve" in script else ("master" if "stack r_stack" in script else
+                                               "calib" if "-out=../master" in script else "stack")
+src = work / "light" if (work / "light").exists() else work / "raw"
+lights = sorted(p.name for p in src.iterdir()) if src.exists() else []
 log = os.environ.get("FAKE_SIRIL_LOG")
 if log:
     with open(log, "a") as f:
@@ -47,4 +49,8 @@ else:
     except ImportError:
         (work / "result_preview.jpg").write_bytes(b"\xff\xd8\xff\xd9")
     (work / "result_preview.tif").write_bytes(b"II*\0")
+import re  # noqa: E402
+for out in re.findall(r"-out=\.\./(\w+)", script):         # z. B. master (Kalibrier-Master)
+    if out != "result_linear":
+        write_minimal_fits(work / f"{out}.fit", {"STACKCNT": len(lights)}, nx=8, ny=8)
 print(f"fake siril: {kind} mit {len(lights)} Dateien")

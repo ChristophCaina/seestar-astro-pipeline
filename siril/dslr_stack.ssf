@@ -1,0 +1,42 @@
+############################################################
+# DSLR (z. B. Canon EOS 6D) – Stacking mit Kalibrierung (Siril >= 1.2)
+#
+# Erwartet im Arbeitsverzeichnis "light/" mit den Einzelframes (FITS mit
+# Bayer-Muster, wie vom INDI-gphoto-Treiber). Darks/Flats/Bias legt
+# siril-auto als dark.fit / flat.fit / bias.fit daneben, wenn vorhanden;
+# @CALIBRATE@ wird dabei passend ersetzt (ohne Masters: nur debayern).
+#
+# Ergebnis wie seestar_stack.ssf: result_linear.fit, result_preview.jpg/.tif
+############################################################
+
+requires 1.2.0
+
+set16bits
+setext fit
+
+cd light
+convert light -out=../process
+cd ../process
+
+# 1) Kalibrieren (Dark inkl. Bias, Flat) und debayern -> Sequenz pp_light
+@CALIBRATE@
+
+# 2) Registrieren und schlechte Frames verwerfen
+register pp_light -2pass
+seqapplyreg pp_light -filter-round=2.5k -filter-wfwhm=2.5k
+
+# 3) Stacken (Sigma-Clipping), Ergebnis in 32 Bit
+set32bits
+stack r_pp_light rej 3 3 -norm=addscale -output_norm -rgb_equal -out=../result_linear
+
+# 4) Vorschau
+cd ..
+load result_linear
+subsky 1
+save result_linear
+rmgreen
+autostretch
+savetif result_preview
+savejpg result_preview 95
+
+close
