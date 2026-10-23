@@ -20,7 +20,6 @@ views:
     type: sections
     max_columns: 3
     sections:
-      # ------------------------------------------------------------ Heute Nacht + Bedingungen
       - type: grid
         cards:
           - type: heading
@@ -113,15 +112,23 @@ views:
             entity: weather.renningen_2
             forecast_type: hourly
             show_current: false
-
-      # ------------------------------------------------------------ Seestar
-      # Zweites Seestar (z. B. S30 Pro): diesen Abschnitt kopieren und seestar_s50 durch dessen Präfix ersetzen.
       - type: grid
         cards:
           - type: heading
             heading: Seestar
             icon: mdi:telescope
             heading_style: subtitle
+            badges:
+              - type: entity
+                show_state: true
+                show_icon: true
+                entity: sensor.seestar_s50_storage_used
+                color: state
+              - type: entity
+                show_state: true
+                show_icon: true
+                entity: sensor.seestar_s50_battery
+                color: state
           - type: custom:seestar-card
             device: seestar_s50
             visibility:
@@ -153,20 +160,13 @@ views:
             features_position: inline
             features:
               - type: toggle
-          - type: tile
-            entity: sensor.seestar_s50_battery
-            name: Akku
-          - type: tile
-            entity: sensor.seestar_s50_storage_used
-            name: Speicher
         column_span: 2
-
-      # ------------------------------------------------------------ Nachverarbeitung
       - type: grid
         cards:
           - type: heading
             heading: Nachverarbeitung
             icon: mdi:image-filter-hdr
+            heading_style: subtitle
           - type: tile
             entity: sensor.siril_auto_stacking_status
             name: Siril
@@ -188,8 +188,9 @@ views:
               {% if state_attr(e, 'id') %}<a href="http://astro.lan/#{{
               state_attr(e, 'group') }}"><img src="http://astro.lan/img/{{
               state_attr(e, 'id') }}_t.jpg" width="100%"></a>{% endif %} {% else
-              %} Noch kein Stack. {% endif %}
-          # aus Package astro_stacks.yaml (darf fehlen)
+              %} <ha-alert alert-type="error">Noch kein Stack.</ha-alert> {%
+              endif %}
+            text_only: true
           - type: markdown
             visibility:
               - condition: numeric_state
@@ -210,9 +211,6 @@ views:
             tap_action:
               action: url
               url_path: http://astro.lan
-
-      # ------------------------------------------------------------ Astro-Pi (nur Anzeige)
-      # Entities per MQTT-Discovery vom Astro-Pi (docs/07). Gesteuert wird nur in dessen Web-App.
       - type: grid
         visibility:
           - condition: state
