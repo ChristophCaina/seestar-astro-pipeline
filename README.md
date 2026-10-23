@@ -20,7 +20,7 @@ flowchart LR
 
 | Ordner | Inhalt |
 |---|---|
-| [`docs/`](docs) | Einrichtung Schritt für Schritt: seestar_alp-LXC, HA-Add-on, Siril-LXC, Remote-Zugriff, Immich & Galerie, Astro-Pi, Roadmap |
+| [`docs/`](docs) | Einrichtung Schritt für Schritt: seestar_alp-LXC, HA-Add-on, Siril-LXC, Remote-Zugriff, Immich & Galerie, Astro-Pi, Celestron NexStar, Roadmap |
 | [`scripts/`](scripts) | Install-Scripte: seestar_alp auf amd64-LXC, Siril-LXC, Tailscale-LXC als Subnet-Router, Astro-Pi (Raspberry Pi) |
 | [`siril/`](siril) | `siril-auto`: Abholung, Gruppierung nach Ziel/Filter/Nacht, Master-Stack, Plate-Solving, `meta.json`, systemd-Timer, MQTT-Status |
 | [`tests/`](tests) | Tests ohne Siril und Teleskop (`python3 -m unittest discover -s tests`), laufen per GitHub Actions |

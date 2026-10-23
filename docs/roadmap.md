@@ -24,4 +24,5 @@
 - [x] Astro-Pi: INDI-Dienst + Web-App (GoTo, Zentrieren, Serien, Live View, HFR, MQTT), Installer – gegen Simulatoren getestet
 - [ ] Astro-Pi: Pi kaufen, mit echter iEXOS-100 und 6D testen; StellarMate vergleichen
 - [ ] DSLR-Profil in siril-auto (Darks/Flats, Debayer)
+- [ ] Celestron NexStar GT: Weg A/B klären (Fotos), ggf. AUX-Adapter oder ESP32-WLAN-Brücke ([08](08-celestron-nexstar.md))
 - [ ] Später: IoT-VLAN, Dachsternwarte (Velux/KLF-200, Regen- und Wolkensensor)
