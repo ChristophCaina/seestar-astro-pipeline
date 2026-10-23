@@ -65,10 +65,10 @@ Vorher `http://astro.lan` (Galerie-Adresse) und `notify.mobile_app_handy` ersetz
 
 Automationen:
 - **Audit am Abend:** 30 min nach Sonnenuntergang
-- **Steuerung freigeben:** zum Fensterbeginn, wenn die Nacht lohnt, die Automatik an ist und das Seestar verbunden ist. Dazu kommt eine Push-Nachricht.
+- **Session bestätigen:** Zum Fensterbeginn (Nacht lohnt, Automatik an, Seestar verbunden) kommt eine Push-Nachricht mit **Session starten / Nur freigeben / Heute nicht**. Erst nach dem Tippen wird die Steuerung freigegeben und bei „Session starten“ `script.astro_session_starten` aufgerufen (Platzhalter, mit eigenem Ablauf füllen, z. B. Plan im seestar_alp-Scheduler). Ohne Antwort in 60 min bleibt alles gesperrt. **Nichts startet ohne Bestätigung.**
 - **Steuerung sperren:** zum Fensterende, spätestens eine Stunde vor Sonnenaufgang. Dabei gehen auch Power-Aktionen und Tauheizung aus.
 - **Tauheizung:** mit Hysterese, an ab ≤ 3 K Abstand, aus ab ≥ 5 K
-- **Regenwarnung:** ausgelöst von Ecowitt (Event-Regen steigt oder Regenrate > 0) oder notfalls vom Wettermodell. Push mit hoher Priorität, höchstens alle 10 Minuten. Automatisches Parken ist vorbereitet, aber auskommentiert.
+- **Schutz (Regen, Wind, Tau):** einzige Aktion ohne Rückfrage, nur nachts und bei verbundenem Seestar. Auslöser: Ecowitt-Regen (Event-Regen steigt oder Regenrate > 0), Wettermodell, Böen > 35 km/h (2 min), Taupunktabstand < 1 K trotz Heizung (15 min). Mit `input_boolean.astro_schutz_parken` an wird das Seestar **geparkt** (dafür schaltet die Automation „Allow power actions“ ein), sonst nur gewarnt. Push mit hoher Priorität, höchstens alle 10 Minuten.
 
 Vor dem Einsatz musst du `seestar_s50` (Entity-Präfix) und `notify.mobile_app_handy` per Suchen und Ersetzen anpassen. Packages aktivierst du in der `configuration.yaml` mit `homeassistant: packages: !include_dir_named packages`.
 

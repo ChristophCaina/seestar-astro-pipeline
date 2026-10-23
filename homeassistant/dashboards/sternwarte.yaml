@@ -47,6 +47,12 @@ views:
             features:
               - type: toggle
           - type: tile
+            entity: input_boolean.astro_schutz_parken
+            name: Schutz-Parken
+            features_position: inline
+            features:
+              - type: toggle
+          - type: tile
             entity: script.astro_audit
             name: Audit jetzt
             icon: mdi:robot
