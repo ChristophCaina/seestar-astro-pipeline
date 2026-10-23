@@ -91,7 +91,7 @@ template:
 
 script:
   astro_audit:
-    alias: 'Astro-Audit: Aktuelle Nacht prüfen'
+    alias: 'Astro-Audit: Sternwarten-Modus'
     description: >-
       Führt ein KI-gestütztes Audit durch, das zwischen idealen Deepsky-Bedingungen
       und möglichen Lunar/Planetary-Bedingungen unterscheidet, inklusive
