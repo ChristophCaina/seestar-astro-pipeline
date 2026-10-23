@@ -237,7 +237,7 @@ class TestWithSimulators(unittest.IsolatedAsyncioTestCase):
         self.client = TestClient(TestServer(self.app))
         await self.client.start_server()
         ctl = self.app[self.CTL]
-        for _ in range(100):                                          # Geraete verbunden?
+        for _ in range(300):                                          # Geraete verbunden? (CI kann langsam sein)
             s = ctl.state()
             if s["mount"]["connected"] and s["camera"]["connected"]:
                 break
@@ -269,7 +269,7 @@ class TestWithSimulators(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(code, 200, j)
         code, j = await self.post("/api/camera/series", {"exposure": 0.2, "count": 2})
         self.assertEqual(code, 409)                                     # laeuft schon
-        for _ in range(200):
+        for _ in range(600):
             if not ctl.series.running:
                 break
             await asyncio.sleep(0.1)
@@ -280,9 +280,15 @@ class TestWithSimulators(unittest.IsolatedAsyncioTestCase):
         r = await self.client.get("/api/preview.jpg")
         self.assertEqual(r.headers["Content-Type"], "image/jpeg")
 
-        await asyncio.sleep(2.5)                                       # MQTT-Schleife
-        msgs = [json.loads(x) for x in self.mqtt_log.read_text().splitlines()]
-        topics = {m["topic"] for m in msgs}
+        msgs, topics = [], set()
+        for _ in range(100):                                           # MQTT-Schleife abwarten
+            if self.mqtt_log.exists():
+                msgs = [json.loads(x) for x in self.mqtt_log.read_text().splitlines()]
+                topics = {m["topic"] for m in msgs}
+                if "astro_pi/preview" in topics and any(
+                        m["topic"] == "astro_pi/state" and '"M 31"' in m["payload"] for m in msgs):
+                    break
+            await asyncio.sleep(0.1)
         self.assertIn("homeassistant/image/astro_pi_preview/config", topics)
         self.assertIn("astro_pi/preview", topics)
         state = [json.loads(m["payload"]) for m in msgs if m["topic"] == "astro_pi/state"][-1]
