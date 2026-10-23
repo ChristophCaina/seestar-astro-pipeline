@@ -70,8 +70,32 @@
   <!-- ======================= Kamera ======================= -->
   <section id="tab-camera" class="tab" hidden>
     <div class="card">
+      <div class="row between"><h2>Modus</h2>
+        <div class="seg" role="radiogroup">
+          <button id="m-deep" role="radio" aria-checked="true">Deep-Sky</button>
+          <button id="m-wide" role="radio" aria-checked="false">Weitwinkel</button>
+        </div></div>
+      <p class="muted" id="m-hint">Teleskop: Dateien mit Filter „DSLR“, siril-auto stackt mit Kalibrierung.</p>
+    </div>
+    <div class="card" id="wide-card" hidden>
+      <h2>Weitwinkel / Milchstraße</h2>
+      <div class="form" id="w-form">
+        <label>Objektiv <select id="w-lens"></select></label>
+        <label>Brennweite (mm) <input id="w-focal" type="number" min="5" step="any" value="24"></label>
+        <label>Blende f/ <input id="w-ap" type="number" min="0.7" step="0.1" value="2.8"></label>
+        <label class="chk"><input id="w-tracked" type="checkbox" checked> nachgeführt (iEXOS-100)</label>
+      </div>
+      <dl class="kv" id="w-calc"></dl>
+      <p class="muted" id="w-tips"></p>
+      <div class="row wrap">
+        <button id="w-apply" class="primary">Belichtung übernehmen</button>
+      </div>
+      <h2 style="margin-top:1rem">Vorlagen</h2>
+      <div class="row wrap" id="w-presets"></div>
+    </div>
+    <div class="card">
       <h2>Serie</h2>
-      <div class="form">
+      <div class="form" id="s-form">
         <label>Bildtyp <select id="s-type"><option>Light</option><option>Dark</option><option>Flat</option><option>Bias</option></select></label>
         <label>Ziel <input id="s-target" placeholder="aus GoTo"></label>
         <label>Belichtung (s) <input id="s-exp" type="number" min="0.001" step="any" value="60"></label>

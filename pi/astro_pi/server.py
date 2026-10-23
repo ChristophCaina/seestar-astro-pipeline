@@ -21,6 +21,7 @@ from .control import Controller, Settings
 from .indi import IndiClient
 from .mqtt import Mqtt
 from .targets import Targets
+from . import wide as W
 
 ROOT = Path(__file__).resolve().parents[2]
 WEB = ROOT / "pi" / "web"
@@ -39,6 +40,8 @@ DEFAULTS = {
     "catalog": {"paths": [str(ROOT / "siril" / "data" / "NGC.csv"), str(ROOT / "siril" / "data" / "addendum.csv")]},
     "web": {"host": "0.0.0.0", "port": 8080, "url": ""},
     "mqtt": {"host": "", "port": 1883, "user": "", "password": "", "topic": "astro_pi", "interval": 10},
+    "camera": {"name": "Canon EOS 6D", "width_mm": 35.8, "height_mm": 23.9, "width_px": 5472, "height_px": 3648},
+    "wide": {"filter": "WIDE", "lenses": []},          # lenses: [{name, focal, aperture}], leer = Standardliste
 }
 
 
@@ -61,8 +64,11 @@ def make_app(cfg: dict, indi: IndiClient | None = None) -> web.Application:
                  filter_name=cfg["capture"]["filter"], mount=cfg["indi"]["mount"], camera=cfg["indi"]["camera"],
                  solve_field=cfg["solve"]["solve_field"], scale_low=float(cfg["solve"]["scale_low"]),
                  scale_high=float(cfg["solve"]["scale_high"]),
-                 lat=cfg["location"]["lat"], lon=cfg["location"]["lon"])
+                 lat=cfg["location"]["lat"], lon=cfg["location"]["lon"], wide_filter=cfg["wide"]["filter"])
     ctl = Controller(indi, s)
+    sensor = W.Sensor(**cfg["camera"])
+    lenses = [W.Lens(**x) for x in cfg["wide"]["lenses"]] or list(W.DEFAULT_LENSES)
+    ctl.wide = {"lens": None, "aperture": None, "tracked": True}
     targets = Targets([Path(p) for p in cfg["catalog"]["paths"]])
     mq = Mqtt(cfg["mqtt"]["host"], int(cfg["mqtt"]["port"]), cfg["mqtt"]["user"], cfg["mqtt"]["password"],
               cfg["mqtt"]["topic"], url=cfg["web"]["url"])
@@ -93,7 +99,29 @@ def make_app(cfg: dict, indi: IndiClient | None = None) -> web.Application:
 
     async def search(request):
         q = request.query.get("q", "")
-        return web.json_response(targets.search(q, int(request.query.get("limit", 20)), ctl.altitude))
+        return web.json_response(targets.search(q, int(request.query.get("limit", 20)), ctl.altitude,
+                                                wide=request.query.get("wide") in ("1", "true")))
+
+    # ------------------------------------------------------------ Weitwinkel
+    async def wide_info(_):
+        return web.json_response({"sensor": sensor.__dict__ | {"pixel_um": round(sensor.pixel_um, 2)},
+                                  "lenses": [x.__dict__ for x in lenses],
+                                  "presets": [x.__dict__ for x in W.DEFAULT_PRESETS], "active": ctl.wide})
+
+    async def wide_calc(request):
+        q = request.query
+        dec = float(q.get("dec") or (ctl.state()["mount"]["dec"] or 0))
+        return web.json_response(W.calc(float(q["focal"]), float(q["aperture"]), dec, sensor).as_dict())
+
+    async def wide_lens(request):
+        b = await body(request)
+        focal, ap = float(b["focal"]), float(b.get("aperture") or 2.8)
+        c = W.calc(focal, ap, 0, sensor)
+        ctl.wide = {"lens": b.get("name") or f"{focal:g} mm", "focal": focal, "aperture": ap,
+                    "tracked": bool(b.get("tracked", True))}
+        ctl.solve_scale = (round(c.pixscale * 0.8, 2), round(c.pixscale * 1.25, 2))
+        ctl.publish("state")
+        return json_ok({"calc": c.as_dict()})
 
     async def goto(request):
         b = await body(request)
@@ -149,7 +177,8 @@ def make_app(cfg: dict, indi: IndiClient | None = None) -> web.Application:
             await ctl.stop_series()
         else:
             await ctl.start_series(float(b["exposure"]), int(b.get("count", 0)), float(b.get("delay", 2)),
-                                   b.get("target", ""), str(b.get("iso", "")), b.get("type", "Light"))
+                                   b.get("target", ""), str(b.get("iso", "")), b.get("type", "Light"),
+                                   b.get("mode", "deep"))
         return json_ok()
 
     async def live(request):
@@ -218,6 +247,9 @@ def make_app(cfg: dict, indi: IndiClient | None = None) -> web.Application:
     r.add_post("/api/mount/track", track)
     r.add_post("/api/mount/move", move)
     r.add_post("/api/abort", abort)
+    r.add_get("/api/wide", wide_info)
+    r.add_get("/api/wide/calc", wide_calc)
+    r.add_post("/api/wide/lens", wide_lens)
     r.add_post("/api/camera/capture", capture)
     r.add_post("/api/camera/series", series)
     r.add_post("/api/camera/live", live)
