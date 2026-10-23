@@ -5,7 +5,8 @@ Läuft im Siril-LXC. Ablauf:
 2. Pro **Ziel, Filter und Nacht** stacken.
 3. Für jedes Ziel mit mehreren Nächten einen **Master** bilden.
 4. Jeden Stack **plate-solven**.
-5. Ergebnisse auf dem NAS ablegen, ein JPG mit Aufnahmedatum für Immich schreiben und eine `meta.json` für die Galerie.
+5. Ergebnisse auf dem NAS ablegen, ein JPG mit Aufnahmedatum für Immich schreiben, eine beschriftete Version und eine `meta.json` für die Galerie.
+6. Optional: Immich-Library scannen und alle Versionen eines Ziels zu einem Immich-Stack gruppieren.
 
 ```
 Seestar (SMB) ──rclone──> /data/astro/raw/seestar/            1:1-Archiv, nie löschen
@@ -18,7 +19,7 @@ Seestar (SMB) ──rclone──> /data/astro/raw/seestar/            1:1-Archiv
                                  │  jeder Stack: seestar_solve.ssf (platesolve) + write_meta.py
                                  ▼
    /data/astro/stacks/<ziel>/  *.fit  *.tif  *.log  *.meta.json
-   /data/astro/export/<ziel>/  *.jpg  (Aufnahmedatum per exiftool) → Immich
+   /data/astro/export/<ziel>/  *.jpg + *_beschriftet.jpg (annotate.py) → Immich (immich_sync.py)
    /data/astro/web/            Galerie (optional, gallery_build.py)
 ```
 
@@ -34,7 +35,7 @@ Seestar (SMB) ──rclone──> /data/astro/raw/seestar/            1:1-Archiv
 ## Installation (im Siril-LXC als root)
 
 ```bash
-apt install -y siril rclone libimage-exiftool-perl mosquitto-clients smbclient python3-pil git
+apt install -y siril rclone libimage-exiftool-perl mosquitto-clients smbclient python3-pil fonts-dejavu-core git
 siril-cli --version          # mindestens 1.2.0
 
 git clone https://github.com/ChristophCaina/seestar-astro-pipeline /opt/seestar-astro-pipeline
@@ -105,9 +106,19 @@ Mit `MQTT_ENABLED=1` legt das Script per Discovery das Gerät **„Siril Auto-St
 - **Status**: `idle`, `fetching`, `processing` oder `error`
 - **Letztes Ergebnis**: Ziel und Nacht. Als Attribute kommen Filter, `stack` (`night` oder `master`), Frames und die Pfade zu JPG und FIT dazu.
 
+## Immich
+
+`IMMICH_SYNC=1` plus URL, API-Schlüssel und Library-ID in `/etc/siril-auto.env`. Einrichtung, Zuordnung der App-Stacks und den Nachhol-Job `lib/backfill.py` für ältere App-Bilder beschreibt [docs/05](../docs/05-immich-galerie.md).
+
+| Script | Zweck |
+|---|---|
+| `lib/annotate.py` | beschriftete Version aus JPG + meta.json |
+| `lib/immich_sync.py` | Library-Scan, Immich-Stacks, Album |
+| `lib/backfill.py` | ältere App-Stacks aus Immich plate-solven und beschriften |
+
 ## Entwicklung
 
-Alle Tests laufen ohne Siril und ohne Teleskop. `tests/bin/siril-cli` ersetzt Siril dabei.
+Alle Tests laufen ohne Siril, Teleskop und Immich. `tests/bin/siril-cli` und `tests/bin/solve-field` ersetzen Siril bzw. astrometry.net, Immich wird in `tests/test_immich.py` durch einen kleinen HTTP-Server simuliert.
 
 ```bash
 python3 -m unittest discover -s tests -v

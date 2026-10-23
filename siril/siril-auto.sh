@@ -8,8 +8,9 @@
 #   2. Alle *_sub/*.fit nach Ziel + Filter + Nacht gruppieren (Alias-Liste fuer Zielnamen)
 #   3. Neue / gewachsene Naechte stacken            -> <ziel>_<nacht>_<filter>_siril
 #   4. Ziele mit >= 2 Naechten: Master-Stack        -> <ziel>_master_<filter>_siril
-#   5. Je Stack: platesolve, JPG mit Aufnahmedatum (Immich), meta.json (Galerie)
-#   6. Status per MQTT (optional), Galerie neu bauen (optional)
+#   5. Je Stack: platesolve, JPG mit Aufnahmedatum (Immich), meta.json (Galerie),
+#      beschriftete Version (*_beschriftet.jpg)
+#   6. Status per MQTT, Galerie neu bauen, Immich-Stacks/Album (jeweils optional)
 #
 # Aufruf:  siril-auto.sh [--no-fetch] [--force] [--dry-run] [--master-full]
 #   --master-full  Master diesmal aus ALLEN Einzelframes statt aus den Nacht-Stacks
@@ -17,8 +18,10 @@
 set -euo pipefail
 
 CONFIG="${SIRIL_AUTO_CONFIG:-/etc/siril-auto.env}"
+set -a   # alle Variablen auch fuer die Python-Helfer exportieren
 # shellcheck source=/dev/null
 source "$CONFIG"
+set +a
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="${LIB_DIR:-$HERE/lib}"
@@ -33,6 +36,8 @@ MASTER_STACK_METHOD="${MASTER_STACK_METHOD:-rej n}"
 PLATESOLVE="${PLATESOLVE:-1}"
 SOLVE_ARGS="${SOLVE_ARGS:--noflip}"
 WRITE_META="${WRITE_META:-1}"
+ANNOTATE="${ANNOTATE:-1}"
+IMMICH_SYNC="${IMMICH_SYNC:-0}"
 DEFAULT_EXPOSURE="${DEFAULT_EXPOSURE:-10}"
 LOCK_FILE="${LOCK_FILE:-/run/lock/siril-auto.lock}"
 
@@ -194,6 +199,14 @@ run_stack() {
       --out "$STACK_DIR/$slug/$base.meta.json" --target "$target" --filter "$filter" \
       --exposure "$exp" --stack "$kind" --nights "$spec" "${cat_args[@]}" \
       || log "      WARN: meta.json konnte nicht geschrieben werden"
+    if [[ "$ANNOTATE" == "1" && -f "$STACK_DIR/$slug/$base.meta.json" ]]; then
+      if python3 "$LIB_DIR/annotate.py" --meta "$STACK_DIR/$slug/$base.meta.json" \
+           --out "$EXPORT_DIR/$slug/${base}_beschriftet.jpg" >/dev/null; then
+        touch -d "$ts" "$EXPORT_DIR/$slug/${base}_beschriftet.jpg"
+      else
+        log "      WARN: Beschriftung fehlgeschlagen"
+      fi
+    fi
   fi
 
   rm -rf "$work"
@@ -314,6 +327,11 @@ log "Fertig: $processed verarbeitet, $failed Fehler"
 if (( processed > 0 )) && [[ -n "${GALLERY_BUILD:-}" && $DRY_RUN -eq 0 ]]; then
   log "Baue Galerie neu"
   python3 "$GALLERY_BUILD" --stacks "$STACK_DIR" --out "${GALLERY_OUT:-$ASTRO_ROOT/web}" || log "WARN: Galerie-Build fehlgeschlagen"
+fi
+# 6) Immich: Library-Scan + Versionen stapeln (optional)
+if (( processed > 0 )) && [[ "$IMMICH_SYNC" == "1" && $DRY_RUN -eq 0 ]]; then
+  log "Immich-Sync"
+  python3 "$LIB_DIR/immich_sync.py" --stacks "$STACK_DIR" --state "$STATE_DIR/immich.json" || log "WARN: Immich-Sync fehlgeschlagen"
 fi
 if (( failed == 0 )); then status idle "" "" 0 "$processed verarbeitet"; fi
 exit $(( failed > 0 ? 1 : 0 ))

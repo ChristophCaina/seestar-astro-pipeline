@@ -9,8 +9,10 @@
 - [ ] Siril-LXC: NAS-Volume, erster echter Durchlauf (Share-Name, Dateinamen, Orientierung prüfen)
 - [x] siril-auto: Ziel + Filter, Alias-Liste, Master-Stack, `--master-full`
 - [x] siril-auto: Plate-Solving + `meta.json` (OpenNGC), Tests + CI (ungetestet mit echtem Siril)
-- [ ] `plot-constellations` → beschriftetes JPG für Immich
-- [ ] Immich: External Library, Stack-Zuordnung App ↔ Siril
+- [x] Beschriftetes JPG für Immich (`annotate.py`)
+- [x] Immich: Stack-Zuordnung App ↔ Siril, Album (`immich_sync.py`, ungetestet mit echtem Immich)
+- [ ] Immich: External Library einrichten, API-Schlüssel
+- [x] Nachhol-Job-Script für ältere App-Stacks (`backfill.py`; offen: astrometry.net-Indexdateien, Orientierung)
 - [ ] Galerie im nginx-LXC einrichten (erst mit Beispieldaten), dann echte Stacks
 - [ ] Nachhol-Job für ältere Bilder
 - [x] Tailscale-LXC: Install-Script `scripts/install-tailscale-lxc.sh`
