@@ -24,6 +24,8 @@ from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 GOLD = (233, 201, 124)
 WHITE = (226, 229, 238)
 SHADOW = (0, 0, 0)
+CONST = (120, 150, 230)
+CONST_TXT = (170, 195, 255)
 FONT_DIRS = ["/usr/share/fonts/truetype/dejavu", "/usr/share/fonts/dejavu", "/usr/share/fonts/TTF"]
 
 
@@ -71,12 +73,51 @@ def annotate(meta_path: Path, out: Path) -> Path:
         wcs = {"crval": wcs["crval"], "crpix": [wcs["crpix"][0] * sx, wcs["crpix"][1] * sx],
                "cd": [[c / sx for c in row] for row in wcs["cd"]]}
         px_per_arcmin = 60 / pixscale_arcsec(wcs)
+        # Weitwinkel: Sternbildlinien und -namen zuerst (liegen unter den Objekten)
+        f_con = font(round(30 * k), serif=True)
+        for c in m.get("constellations", []):
+            for seg in c.get("lines", []):
+                pts = []
+                for r, dd in seg:
+                    p = world_to_pixel(r, dd, wcs)
+                    if p is None or abs(p[0]) > 4 * w or abs(p[1]) > 4 * h:
+                        if len(pts) > 1:
+                            d.line(pts, fill=CONST, width=max(1, round(2 * k)))
+                        pts = []
+                        continue
+                    pts.append(p)
+                if len(pts) > 1:
+                    d.line(pts, fill=CONST, width=max(1, round(2 * k)))
+            if c.get("label"):
+                p = world_to_pixel(c["label"][0], c["label"][1], wcs)
+                if p and 0 <= p[0] <= w and 40 * k <= p[1] <= h - 80 * k:
+                    text(d, p, c["name"], f_con, fill=CONST_TXT, anchor="mm")
+        placed: list[tuple] = []
         for o in m.get("objects", []):
             p = world_to_pixel(o["ra"], o["dec"], wcs)
             if p is None:
                 continue
             x, y = p
-            if 0 <= x <= w and 0 <= y <= h:
+            if m.get("wide") and y > h - 70 * k:
+                continue                                     # nicht unter die Fusszeile
+            if 0 <= x <= w and 0 <= y <= h and (o.get("category") == "star" or m.get("wide")):
+                star = o.get("category") == "star"
+                mk = o.get("major") or 0
+                r = 10 * k if star else max(12 * k, mk / 2 * px_per_arcmin)
+                col = WHITE if star else GOLD
+                d.ellipse([x - r, y - r, x + r, y + r], outline=col, width=max(1, round(1.5 * k)))
+                name = o["name"] if star or not o.get("alt") else f"{o['name']} ({o['alt']})"
+                tw = d.textlength(name, font=f_small)
+                # freie Position fuer das Label suchen (rechts oben, rechts unten, links oben, links unten)
+                for ox, oy, anc in ((r + 4 * k, -r - 2 * k, "ls"), (r + 4 * k, r + 20 * k, "ls"),
+                                    (-r - 4 * k, -r - 2 * k, "rs"), (-r - 4 * k, r + 20 * k, "rs")):
+                    bx0 = x + ox - (tw if anc == "rs" else 0)
+                    box = (bx0, y + oy - f_small.size, bx0 + tw, y + oy + 4 * k)
+                    if not any(box[0] < b[2] and b[0] < box[2] and box[1] < b[3] and b[1] < box[3] for b in placed):
+                        placed.append(box)
+                        text(d, (x + ox, y + oy), name, f_small, fill=col, anchor=anc)
+                        break
+            elif 0 <= x <= w and 0 <= y <= h:
                 mk = o.get("marker") or [o.get("major") or 0, o.get("minor") or o.get("major") or 0]
                 rx, ry = mk[0] / 2 * px_per_arcmin, mk[1] / 2 * px_per_arcmin
                 rot = screen_angle_of_pa(o.get("pa") or 0, wcs)
@@ -91,7 +132,7 @@ def annotate(meta_path: Path, out: Path) -> Path:
                 d.line([(x, y), (lx, ly + 6 * k)], fill=GOLD, width=1)
                 anchor = "rs" if lx > w - 300 * k else "ls"
                 text(d, (lx, ly), o["name"], f_lbl, anchor=anchor)
-            elif not o.get("main"):
+            elif not o.get("main") and not m.get("wide"):
                 dx, dy = max(0.0, -x, x - w), max(0.0, -y, y - h)
                 dist = round(math.hypot(dx, dy) / px_per_arcmin)
                 ex, ey = min(max(x, 60 * k), w - 60 * k), min(max(y, 60 * k), h - 90 * k)
@@ -109,11 +150,12 @@ def annotate(meta_path: Path, out: Path) -> Path:
             ux, uy = vx / n, vy / n
             d.line([(ox, oy), (ox + ux * ln, oy + uy * ln)], fill=WHITE, width=max(1, round(2 * k)))
             text(d, (ox + ux * (ln + 16 * k), oy + uy * (ln + 16 * k)), lab, f_small, fill=WHITE, anchor="mm")
-        # Massstab 10' unten links
-        bar = 10 * px_per_arcmin
+        # Massstab unten links (Weitwinkel: 5°)
+        wide = bool(m.get("wide"))
+        bar = (300 if wide else 10) * px_per_arcmin
         y0 = h - 70 * k
         d.line([(40 * k, y0), (40 * k + bar, y0)], fill=WHITE, width=max(1, round(3 * k)))
-        text(d, (40 * k, y0 - 10 * k), "10′", f_small, fill=WHITE)
+        text(d, (40 * k, y0 - 10 * k), "5°" if wide else "10′", f_small, fill=WHITE)
 
     # Fusszeile
     t = m["target"]

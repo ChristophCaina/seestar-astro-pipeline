@@ -14,7 +14,12 @@ img = Path(args[-1])
 out = Path(args[args.index("--dir") + 1]) if "--dir" in args else img.parent
 if "unsolvable" in img.name:
     sys.exit(1)
+import os  # noqa: E402
 w = json.loads((ROOT / "gallery/sample-data/stacks/M_31/M_31_master_IRCUT_siril.meta.json").read_text())["wcs"]
+if os.environ.get("FAKE_WCS_SCALE"):            # Weitwinkel-Tests: Massstab ("/px) und Mitte (RA,Dec in Grad)
+    sc = float(os.environ["FAKE_WCS_SCALE"]) / 3600
+    ra0, dec0 = map(float, os.environ.get("FAKE_WCS_CENTER", "305,38").split(","))
+    w = {"crval": [ra0, dec0], "crpix": [959.5, 539.5], "cd": [[-sc, 0.0], [0.0, -sc]]}
 cards = {"CTYPE1": "RA---TAN", "CTYPE2": "DEC--TAN", "CRVAL1": w["crval"][0], "CRVAL2": w["crval"][1],
          "CRPIX1": w["crpix"][0] + 1, "CRPIX2": w["crpix"][1] + 1,
          "CD1_1": w["cd"][0][0], "CD1_2": w["cd"][0][1], "CD2_1": w["cd"][1][0], "CD2_2": w["cd"][1][1],

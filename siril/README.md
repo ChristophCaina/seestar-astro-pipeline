@@ -133,6 +133,10 @@ Mit `DEV_<id>_TYPE=dslr` stackt siril-auto ein Gerät mit `dslr_stack.ssf` und *
 - Ohne Masters wird nur debayert – das Ergebnis ist trotzdem brauchbar, Darks lohnen sich bei langen Belichtungen und warmen Nächten.
 - Darks am besten in derselben Nacht bei ähnlicher Temperatur aufnehmen (Objektivdeckel drauf), Flats ohne Fokus- oder Kameraverstellung direkt nach der Session.
 
+## Weitwinkel
+
+Frames mit dem Filter-Kürzel `WIDE` (Astro-Pi-App, Modus Weitwinkel) stackt siril-auto mit `wide_stack.ssf`: Homographie-Registrierung, kein Hintergrundabzug, zusätzlicher Vordergrund-Stack, Plate-Solving per astrometry.net, Beschriftung mit Sternbildern. Details: [docs/09](../docs/09-weitwinkel.md).
+
 ## Unterwegs
 
 `travel-sync.sh` holt Frames von unterwegs über Tailscale vom Seestar am Reiserouter (nur Einzelframes, Zeitraum und Ziel wählbar, Bandbreitenlimit, im Hintergrund). Details in [docs/04](../docs/04-remote-access.md#bilder-unterwegs--nas). Bei mehreren Geräten wählt `--device <id>` Freigabe und Archiv.

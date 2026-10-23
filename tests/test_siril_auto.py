@@ -201,6 +201,36 @@ GALLERY_OUT={self.astro}/web
         self.run_auto()
         self.assertEqual(len(self.calls_of("calib")), n)
 
+    def test_widefield_night(self):
+        eos = self.astro / "raw" / "eos6d" / "Milchstrasse_sub"
+        eos.mkdir(parents=True)
+        for i in range(25):
+            (eos / f"Light_Milchstrasse_12.0s_WIDE_20260815-23{i:02d}00.fits").write_bytes(b"x")
+        for i in range(25):     # zweite Nacht: trotzdem kein Master
+            (eos / f"Light_Milchstrasse_12.0s_WIDE_20260816-23{i:02d}00.fits").write_bytes(b"x")
+        cfg = Path(self.env["SIRIL_AUTO_CONFIG"])
+        cfg.write_text(cfg.read_text() + 'DEVICES="s50 eos6d"\nDEV_eos6d_TYPE=dslr\nDEV_eos6d_LABEL="Canon EOS 6D"\n')
+        path = f"{ROOT / 'tests' / 'bin'}:{os.environ['PATH']}"
+        r = self.run_auto(PATH=path, FAKE_WCS_SCALE="40", FAKE_WCS_CENTER="305,38")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        st = self.astro / "stacks" / "Milchstrasse"
+        night = [c for c in self.calls_of("stack") if c["work"] == "Milchstrasse_2026-08-15_WIDE_eos6d_siril"][0]
+        self.assertIn("-transf=homography", night["script"])
+        self.assertIn("\nstack pp_light rej", night["script"])                        # Vordergrund aktiv
+        self.assertIn("convert pp_light -debayer", night["script"])                  # ohne Masters: nur debayern
+        self.assertNotIn("platesolve", "".join(c["script"] for c in self.calls_of("solve")
+                                               if "Milchstrasse" in c["work"]))
+        self.assertFalse((st / "Milchstrasse_master_WIDE_eos6d_siril.fit").exists())
+        exp = self.astro / "export" / "Milchstrasse"
+        self.assertTrue((exp / "Milchstrasse_2026-08-15_WIDE_eos6d_siril_vordergrund.jpg").exists())
+        m = json.loads((st / "Milchstrasse_2026-08-15_WIDE_eos6d_siril.meta.json").read_text())
+        self.assertTrue(m.get("wide"), m.get("wcs"))
+        self.assertEqual(m["target"]["kind"], "wide")
+        names = {c["name"] for c in m["constellations"]}
+        self.assertIn("Schwan", names)
+        self.assertTrue(any(o["category"] == "star" for o in m["objects"]))
+        self.assertIn("Plate-Solving (astrometry.net) ok", r.stdout)
+
     def test_invalid_device_id(self):
         cfg = Path(self.env["SIRIL_AUTO_CONFIG"])
         cfg.write_text(cfg.read_text() + 'DEVICES="S50 x-1"\n')

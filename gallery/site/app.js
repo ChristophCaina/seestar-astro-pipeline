@@ -3,8 +3,8 @@
   "use strict";
   const NS = "http://www.w3.org/2000/svg";
   const $ = (id) => document.getElementById(id);
-  const KIND = { galaxy: "Galaxien", nebula: "Nebel", cluster: "Sternhaufen", other: "Sonstiges" };
-  const KIND1 = { galaxy: "Galaxie", nebula: "Nebel", cluster: "Sternhaufen", other: "Objekt" };
+  const KIND = { galaxy: "Galaxien", nebula: "Nebel", cluster: "Sternhaufen", wide: "Weitwinkel", other: "Sonstiges" };
+  const KIND1 = { galaxy: "Galaxie", nebula: "Nebel", cluster: "Sternhaufen", wide: "Weitwinkel", other: "Objekt" };
   const DAY = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
   const MONTH = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
 
@@ -150,11 +150,11 @@
     const k = imgW / 1920, grp = el("g", { class: `mk ${a.category === "star" ? "star" : "dso"}` }, parent);
     if (a.rx > 0) el("ellipse", { cx: a.x, cy: a.y, rx: a.rx, ry: a.ry, transform: `rotate(${a.rot} ${a.x} ${a.y})`, class: a.dashed ? "shape big" : "shape" }, grp);
     else el("circle", { cx: a.x, cy: a.y, r: 18 * k, class: "shape" }, grp);
-    const lab = a.label || (a.category === "star" ? [34 * k, -34 * k] : [Math.min(Math.max(a.rx * 0.7, 40 * k), 260 * k), -Math.min(Math.max(a.ry * 0.9, 60 * k), 220 * k)]);
+    const lab = a.label || (a.category === "star" || a.small ? [Math.max(a.rx, 14 * k) + 16 * k, -Math.max(a.ry, 14 * k) - 10 * k] : [Math.min(Math.max(a.rx * 0.7, 40 * k), 260 * k), -Math.min(Math.max(a.ry * 0.9, 60 * k), 220 * k)]);
     const lx = a.x + lab[0], ly = a.y + lab[1];
     el("line", { x1: a.x, y1: a.y, x2: lx, y2: ly + (lab[1] < 0 ? 8 * k : -30 * k), class: "lead" }, grp);
     const t = el("text", { x: lx, y: ly, class: "lbl", "text-anchor": lab[0] < 0 ? "end" : "start" }, grp);
-    t.style.fontSize = (a.category === "star" ? 23 : 46) * k * (interactive ? 1 : 2.4) + "px";
+    t.style.fontSize = (a.category === "star" ? 23 : a.small ? 27 : 46) * k * (interactive ? 1 : 2.4) + "px";
     t.textContent = a.name;
     if (interactive) {
       el("circle", { cx: a.x, cy: a.y, r: a.rx ? Math.max(40 * k, Math.min(a.ry, 160 * k)) : 30 * k, class: "hit" }, grp);
@@ -182,6 +182,15 @@
     el("path", { d }, grp);
     const t = el("text", { x: tx, y: ty, class: "lbl", "text-anchor": anchor }, grp);
     t.style.fontSize = 28 * k + "px"; t.textContent = `${o.name} · ${o.dist_arcmin}′ außerhalb`;
+  }
+
+  function drawConstellations(parent, e) {
+    const list = e.constellations || []; if (!list.length) return;
+    const k = e.image.w / 1920, g = el("g", { class: "constl" }, parent);
+    list.forEach((c) => {
+      c.paths.forEach((p) => el("polyline", { points: p.map((q) => q.join(",")).join(" ") }, g));
+      if (c.label) { const t = el("text", { x: c.label[0], y: c.label[1], "text-anchor": "middle" }, g); t.style.fontSize = 30 * k + "px"; t.textContent = c.name; }
+    });
   }
 
   function drawGrid(parent, e) {
@@ -265,6 +274,8 @@
     if (e.wcs) drawGrid(ovg, e);
     $("t-grid").hidden = !e.wcs;
     svgD.classList.add("hide-grid"); $("t-grid").setAttribute("aria-pressed", "false");
+    drawConstellations(ovg, e);
+    $("t-const").hidden = !(e.constellations || []).length;
     e.annotations.forEach((a) => drawMarker(ovg, a, w, true));
     e.offscreen.forEach((o) => drawOff(ovg, o, w, h));
     $("t-star").hidden = !e.annotations.some((a) => a.category === "star");
@@ -275,9 +286,9 @@
     el("line", { x1: ox, y1: oy, x2: ox + E[0] * L * 0.7, y2: oy + E[1] * L * 0.7 }, c);
     [["N", N, L + 18 * k], ["O", E, L * 0.7 + 18 * k]].forEach(([t, v, r]) => {
       const tx = el("text", { x: ox + v[0] * r - 6 * k, y: oy + v[1] * r + 7 * k }, c); tx.style.fontSize = 20 * k + "px"; tx.textContent = t; });
-    const sb = el("g", { class: "scalebar" }, ovg), len = 10 * 60 / s.pixscale;
+    const wideBar = s.fov[0] >= 4, sb = el("g", { class: "scalebar" }, ovg), len = (wideBar ? 300 : 10) * 60 / s.pixscale;
     el("line", { x1: 60 * k, y1: h - 40 * k, x2: 60 * k + len, y2: h - 40 * k }, sb);
-    const st = el("text", { x: 60 * k, y: h - 52 * k }, sb); st.style.fontSize = 18 * k + "px"; st.textContent = "10′";
+    const st = el("text", { x: 60 * k, y: h - 52 * k }, sb); st.style.fontSize = 18 * k + "px"; st.textContent = wideBar ? "5°" : "10′";
   }
 
   function showList() { $("v-detail").hidden = true; $("v-list").hidden = false; }
@@ -293,7 +304,7 @@
   frame.addEventListener("click", () => { if (lastPointer !== "mouse") setPin(!frame.classList.contains("pinned")); else hideCard(); });
   frame.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setPin(!frame.classList.contains("pinned")); } });
   const toggle = (id, cls) => { const b = $(id); b.onclick = () => { const on = b.getAttribute("aria-pressed") !== "true"; b.setAttribute("aria-pressed", on); svgD.classList.toggle(cls, !on); }; };
-  toggle("t-dso", "hide-dso"); toggle("t-star", "hide-star"); toggle("t-grid", "hide-grid");
+  toggle("t-dso", "hide-dso"); toggle("t-star", "hide-star"); toggle("t-grid", "hide-grid"); toggle("t-const", "hide-const");
   document.querySelectorAll(".red-t").forEach((b) => (b.onclick = () => {
     const on = !document.documentElement.classList.contains("redlight");
     document.documentElement.classList.toggle("redlight", on);

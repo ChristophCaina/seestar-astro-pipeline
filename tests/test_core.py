@@ -20,6 +20,20 @@ SAMPLE = ROOT / "gallery" / "sample-data" / "stacks"
 M31_META = SAMPLE / "M_31" / "M_31_master_IRCUT_siril.meta.json"
 
 
+class TestWideThreshold(unittest.TestCase):
+    def test_s30_tele_is_not_wide(self):
+        import sky
+        s30 = {"crval": [10.68, 41.27], "crpix": [1920, 1080], "cd": [[-3.74 / 3600, 0], [0, -3.74 / 3600]]}
+        self.assertFalse(sky.is_wide(s30, 3840, 2160, W.pixscale_arcsec))            # 4,0° Bildbreite
+        wide = {"crval": [305, 38], "crpix": [1920, 1080], "cd": [[-59 / 3600, 0], [0, -59 / 3600]]}
+        self.assertTrue(sky.is_wide(wide, 3840, 2160, W.pixscale_arcsec))            # 63° (S30-Pro-Weitwinkel)
+
+    def test_backfill_names_wide_field_after_constellation(self):
+        import backfill
+        wide = {"crval": [305, 38], "crpix": [1920, 1080], "cd": [[-59 / 3600, 0], [0, -59 / 3600]]}
+        self.assertEqual(backfill.pick_target(wide, 3840, 2160, None), "Sternfeld Schwan")
+
+
 class TestWcs(unittest.TestCase):
     def setUp(self):
         self.wcs = json.loads(M31_META.read_text())["wcs"]
@@ -167,7 +181,10 @@ class TestWriteMetaAndBuild(unittest.TestCase):
                                 "--stacks", str(SAMPLE), "--out", d], capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, r.stderr)
             cat = json.loads((Path(d) / "catalog.json").read_text())
-            self.assertEqual(len(cat["entries"]), 6)
+            self.assertEqual(len(cat["entries"]), 7)
+            wide = next(e for e in cat["entries"] if e.get("wide"))
+            self.assertTrue(wide["constellations"] and all(len(p) > 1 for c in wide["constellations"] for p in c["paths"]))
+            self.assertGreater(wide["solve"]["fov"][0], 60)
             m27 = next(e for e in cat["entries"] if e["target"]["name"] == "M 27")
             self.assertAlmostEqual(m27["annotations"][0]["x"], 960, delta=1)
             self.assertTrue(math.isclose(m27["solve"]["pixscale"], 2.39, abs_tol=0.01))

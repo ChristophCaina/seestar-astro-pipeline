@@ -22,6 +22,7 @@ sys.path.insert(0, str(HERE.parent.parent / "gallery" / "build"))
 from catalog import Catalog, display, norm  # noqa: E402
 from fitsheader import read_header, wcs_from_header  # noqa: E402
 from wcs import pixscale_arcsec, world_to_pixel  # noqa: E402
+import sky  # noqa: E402
 
 MAX_OBJECTS = 25
 
@@ -46,6 +47,18 @@ def field_objects(wcs: dict | None, width: int, height: int, catalog: Catalog, m
     """Katalogobjekte im (und knapp ausserhalb des) Bildfeld(s) im meta.json-Format."""
     if not wcs:
         return []
+    if sky.is_wide(wcs, width, height, pixscale_arcsec):
+        # Weitwinkel: nur grosse/helle Objekte, keine Hinweise ausserhalb, dazu benannte Sterne
+        fov_w = sky.fov_deg(wcs, width, height, pixscale_arcsec)[0]
+        found = [o for o in catalog.in_field(wcs, width, height, world_to_pixel, margin_arcmin=0, max_mag=6.0,
+                                             min_size=60.0, scale_arcsec=pixscale_arcsec(wcs))
+                 if o["messier"] or (o["major"] or 0) >= 60 or (o["mag"] is not None and o["mag"] <= 6.0)]
+        objs = [{
+            "name": o["name"], "alt": o["alt"] or o["common"], "type": o["type"],
+            "ra": round(o["ra"], 6), "dec": round(o["dec"], 6), "major": o["major"], "minor": o["minor"],
+            "pa": o["pa"], "mag": o["mag"], "dist": o.get("dist"), "category": "dso", "main": False,
+        } for o in found[:MAX_OBJECTS]]
+        return objs + sky.bright_stars(wcs, width, height, world_to_pixel, fov_w)
     found = catalog.in_field(wcs, width, height, world_to_pixel, scale_arcsec=pixscale_arcsec(wcs))
     if main_obj and main_obj not in found:
         found.insert(0, main_obj)
@@ -64,7 +77,8 @@ def field_objects(wcs: dict | None, width: int, height: int, catalog: Catalog, m
 
 def build_meta(*, wcs, width, height, target, catalog, jpg: Path, out: Path, stack="night", filter_="",
                exposure=None, gain=None, nights=(), caption="", source="siril", device=None) -> dict:
-    main_obj = catalog.find(target)
+    wide = sky.is_wide(wcs, width, height, pixscale_arcsec)
+    main_obj = None if wide else catalog.find(target)
     name_disp = main_obj["name"] if main_obj else target
     common = (main_obj or {}).get("common") or ""
     if main_obj and common == target:
@@ -73,7 +87,8 @@ def build_meta(*, wcs, width, height, target, catalog, jpg: Path, out: Path, sta
         "schema": 1, "sample": False, "source": source,
         "device": device or {"id": "s50", "label": "Seestar S50"},
         "id": jpg.stem.lower(),
-        "target": {"name": name_disp, "common": common, "kind": (main_obj or {}).get("kind", "other"),
+        "target": {"name": name_disp, "common": common,
+                   "kind": "wide" if wide else (main_obj or {}).get("kind", "other"),
                    "sort": sort_key(name_disp)},
         "stack": stack, "filter": filter_,
         "exposure_s": exposure, "gain": gain,
@@ -81,6 +96,7 @@ def build_meta(*, wcs, width, height, target, catalog, jpg: Path, out: Path, sta
         "image": os.path.relpath(jpg.resolve(), out.resolve().parent), "width": width, "height": height,
         "wcs": wcs, "objects": field_objects(wcs, width, height, catalog, main_obj), "caption": caption,
         "versions": [],
+        **({"wide": True, "constellations": sky.constellations(wcs, width, height, world_to_pixel)} if wide else {}),
     }
 
 
@@ -105,6 +121,8 @@ def main() -> int:
     ap.add_argument("--extra", default=str(HERE / "objects_de.json"))
     ap.add_argument("--no-flip-y", action="store_true", help="FITS ist bereits top-down gespeichert")
     ap.add_argument("--caption", default="")
+    ap.add_argument("--wcs-file", help="WCS aus anderer Datei (z. B. solve-field .wcs zum JPG), JPG-Konvention")
+    ap.add_argument("--wcs-flip-y", action="store_true", help="--wcs-file ist bottom-up")
     ap.add_argument("--device-id", default="s50")
     ap.add_argument("--device-label", default="Seestar S50")
     a = ap.parse_args()
@@ -112,6 +130,16 @@ def main() -> int:
     hdr = read_header(a.fits)
     w, h = int(hdr.get("NAXIS1", 0)), int(hdr.get("NAXIS2", 0))
     wcs = wcs_from_header(hdr, flip_y=not a.no_flip_y)
+    if a.wcs_file and Path(a.wcs_file).exists():
+        wh = read_header(a.wcs_file)
+        if not wh.get("NAXIS2"):
+            wh["NAXIS2"] = wh.get("IMAGEH") or h
+        jw = int(wh.get("IMAGEW") or w)
+        wcs = wcs_from_header(wh, flip_y=a.wcs_flip_y)
+        if wcs and jw and w and jw != w:                 # .wcs bezieht sich aufs JPG -> auf FITS-Groesse skalieren
+            k = w / jw
+            wcs = {"crval": wcs["crval"], "crpix": [c * k for c in wcs["crpix"]],
+                   "cd": [[v / k for v in row] for row in wcs["cd"]]}
     cat = Catalog([Path(p) for p in a.catalog], Path(a.extra))
     meta = build_meta(
         wcs=wcs, width=w, height=h, target=a.target, catalog=cat, jpg=Path(a.jpg), out=Path(a.out),

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import shutil
@@ -35,6 +36,7 @@ from catalog import Catalog  # noqa: E402
 from fitsheader import read_header, wcs_from_header  # noqa: E402
 from immich import from_env  # noqa: E402
 from write_meta import build_meta, write_json  # noqa: E402
+import sky  # noqa: E402
 
 from PIL import Image  # noqa: E402
 
@@ -61,8 +63,19 @@ def solve(jpg: Path, work: Path, solve_field: str, lo: float, hi: float) -> Path
 
 
 def pick_target(wcs: dict, w: int, h: int, cat: Catalog) -> str:
-    """Hauptobjekt = groesstes/hellstes Katalogobjekt nahe der Bildmitte."""
+    """Hauptobjekt = groesstes/hellstes Katalogobjekt nahe der Bildmitte.
+    Weitwinkel (z. B. Milchstrassen-Modus des S30 Pro): Sternbild nahe der Bildmitte."""
     from wcs import pixscale_arcsec, world_to_pixel
+    if sky.is_wide(wcs, w, h, pixscale_arcsec):
+        best, dmin = None, 1e9
+        for c in sky.constellations(wcs, w, h, world_to_pixel, margin_frac=0):
+            if not c.get("label"):
+                continue
+            x, y = world_to_pixel(c["label"][0], c["label"][1], wcs)
+            dist = math.hypot(x - w / 2, y - h / 2)
+            if dist < dmin:
+                best, dmin = c["name"], dist
+        return f"Sternfeld {best}" if best else "Sternfeld"
     best, score = None, -1e9
     for o in cat.in_field(wcs, w, h, world_to_pixel, margin_arcmin=0, scale_arcsec=pixscale_arcsec(wcs)):
         x, y = world_to_pixel(o["ra"], o["dec"], wcs)
