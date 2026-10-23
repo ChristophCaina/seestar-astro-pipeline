@@ -122,7 +122,9 @@ select{font:inherit;font-size:13px;background:var(--panel);color:var(--fg);borde
 .gridl text{font-family:var(--f-mono);font-size:17px;fill:var(--grid)}
 .compass line,.scalebar line{stroke:var(--fg);stroke-width:1.4;vector-effect:non-scaling-stroke}
 .compass text,.scalebar text{font-family:var(--f-mono);font-size:20px;fill:var(--fg)}
-.hide-dso .dso,.hide-star .star,.hide-grid .gridl{display:none}
+.hide-dso .dso,.hide-star .star,.hide-grid .gridl,.hide-const .constl{display:none}
+.constl polyline{fill:none;stroke:rgba(150,180,255,.55);stroke-width:2;vector-effect:non-scaling-stroke}
+.constl text{fill:rgba(170,195,255,.85);font-style:italic;letter-spacing:.06em;paint-order:stroke;stroke:rgba(0,0,0,.6);stroke-width:3px}
 
 .card{position:absolute;z-index:3;width:min(270px,70%);background:rgba(16,20,31,.96);border:1px solid var(--rule);border-left:3px solid var(--chart);padding:10px 12px;pointer-events:none;font-size:13px;line-height:1.4}
 .card h3{margin:0 0 2px;font-family:var(--f-display);font-weight:400;font-size:24px;line-height:1.1}

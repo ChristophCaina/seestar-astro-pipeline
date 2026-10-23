@@ -1,0 +1,48 @@
+############################################################
+# Weitwinkel / Milchstraße (DSLR + Objektiv), Siril >= 1.2
+#
+# Wie dslr_stack.ssf, aber
+#   * Registrierung mit Homographie (Objektivverzeichnung, grosse Bildfelder)
+#   * kein Hintergrundabzug (subsky wuerde das Milchstrassenband entfernen)
+#   * optional Vordergrund-Stack ohne Registrierung (Landschaft bleibt scharf),
+#     Zeilen mit @FG@ aktiviert siril-auto bei WIDE_FOREGROUND=1
+#
+# Ergebnis: result_linear.fit, result_preview.jpg/.tif, ggf. result_foreground.jpg
+############################################################
+
+requires 1.2.0
+
+set16bits
+setext fit
+
+cd light
+convert light -out=../process
+cd ../process
+
+# 1) Kalibrieren + debayern -> pp_light (siril-auto ersetzt @CALIBRATE@)
+@CALIBRATE@
+
+# 2) Sterne registrieren (Homographie), schlechte Frames verwerfen
+register pp_light -2pass -transf=homography
+seqapplyreg pp_light -filter-round=2.5k
+
+# 3) Himmel stacken
+set32bits
+stack r_pp_light rej 3 3 -norm=addscale -output_norm -rgb_equal -out=../result_linear
+
+# 4) Vordergrund: dieselben Frames OHNE Registrierung (Landschaft scharf, Sterne verschmiert)
+@FG@stack pp_light rej 3 3 -norm=addscale -output_norm -rgb_equal -out=../result_foreground
+
+# 5) Vorschauen
+cd ..
+load result_linear
+rmgreen
+autostretch
+savetif result_preview
+savejpg result_preview 95
+@FG@load result_foreground
+@FG@rmgreen
+@FG@autostretch
+@FG@savejpg result_foreground 95
+
+close

@@ -8,7 +8,7 @@
 #                                  [--astro /<host-pfad>/astro] [--chown] [Container-Optionen …]
 #
 # Im CONTAINER (wird vom Host-Modus automatisch aufgerufen, geht aber auch einzeln):
-#   bash install-siril-lxc.sh container [--seestar-ip <ip>] [--astrometry] [--enable-timer] [--branch main]
+#   bash install-siril-lxc.sh container [--seestar-ip <ip>] [--astrometry] [--astrometry-wide] [--enable-timer] [--branch main]
 #   bash install-siril-lxc.sh update    # Repo aktualisieren, systemd-Units neu installieren
 #
 # Wiederholbar: vorhandene Configs in /etc bleiben unangetastet.
@@ -107,11 +107,12 @@ fetch_catalog() {
 }
 
 container_mode() {
-  local seestar_ip="" astrometry=0 enable_timer=0 branch="main"
+  local seestar_ip="" astrometry=0 astro_wide=0 enable_timer=0 branch="main"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --seestar-ip)   seestar_ip="$2"; shift ;;
       --astrometry)   astrometry=1 ;;
+      --astrometry-wide) astrometry=1; astro_wide=1 ;;   # zusaetzlich Indexdateien fuer Weitwinkel
       --enable-timer) enable_timer=1 ;;
       --branch)       branch="$2"; shift ;;
       *)              die "unbekannte Option: $1" ;;
@@ -174,7 +175,9 @@ container_mode() {
   if (( astrometry )); then
     local idx=/usr/share/astrometry
     mkdir -p "$idx"
-    for i in 4107 4108 4109 4110; do
+    local idx_list=(4107 4108 4109 4110)
+    (( astro_wide )) && idx_list+=(4111 4112 4113 4114 4115 4116 4117 4118 4119)
+    for i in "${idx_list[@]}"; do
       [[ -s "$idx/index-$i.fits" ]] || { log "astrometry.net-Index $i laden"; curl -fsSL -o "$idx/index-$i.fits" "$ASTROMETRY_INDEX/index-$i.fits"; }
     done
   fi

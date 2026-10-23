@@ -25,5 +25,6 @@
 - [ ] Astro-Pi: Pi kaufen, mit echter iEXOS-100 und 6D testen; StellarMate vergleichen
 - [ ] DSLR-Profil in siril-auto (Darks/Flats, Debayer)
 - [ ] Celestron NexStar GT: Weg A/B klären (Fotos), ggf. AUX-Adapter oder ESP32-WLAN-Brücke ([08](08-celestron-nexstar.md))
-- [ ] Idee Weitwinkel/Milchstraße: App-Modus (NPF-Belichtungsrechner, Serien-Vorlagen), siril-auto-Profil `wide` (Himmel + Vordergrund getrennt), Beschriftung mit Sternbildern/hellen Sternen, Audit-Modus „Weitwinkel“ mit Milchstraßen-Fenster
+- [x] Weitwinkel: siril-auto-Profil (`wide_stack.ssf`, Vordergrund-Stack, astrometry.net), Sternbilder + helle Sterne in Galerie und Beschriftung ([09](09-weitwinkel.md))
+- [ ] Weitwinkel: App-Modus (NPF-Belichtungsrechner, Serien-Vorlagen), Audit-Modus „Weitwinkel“ mit Milchstraßen-Fenster
 - [ ] Später: IoT-VLAN, Dachsternwarte (Velux/KLF-200, Regen- und Wolkensensor)

@@ -53,4 +53,7 @@ import re  # noqa: E402
 for out in re.findall(r"-out=\.\./(\w+)", script):         # z. B. master (Kalibrier-Master)
     if out != "result_linear":
         write_minimal_fits(work / f"{out}.fit", {"STACKCNT": len(lights)}, nx=8, ny=8)
+if "\nsavejpg result_foreground" in script:
+    from PIL import Image  # noqa: E402
+    Image.new("RGB", (W, H), (20, 30, 10)).save(work / "result_foreground.jpg")
 print(f"fake siril: {kind} mit {len(lights)} Dateien")

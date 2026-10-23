@@ -68,6 +68,23 @@ def unit(dx: float, dy: float) -> list[float]:
     return [round(dx / n, 4), round(dy / n, 4)]
 
 
+def place_labels(annotations: list[dict], img_w: int) -> None:
+    """Weitwinkel: Label-Versatz so waehlen, dass sich Beschriftungen nicht ueberlappen (wie app.js gross)."""
+    k = img_w / 1920
+    placed = []
+    for a in annotations:
+        fs = (23 if a["category"] == "star" else 27) * k
+        tw, r = len(a["name"]) * fs * 0.58, max(a["rx"], 14 * k)
+        for dx, dy in ((r + 16 * k, -r - 10 * k), (r + 16 * k, r + fs + 6 * k),
+                       (-r - 16 * k, -r - 10 * k), (-r - 16 * k, r + fs + 6 * k)):
+            x0 = a["x"] + dx - (tw if dx < 0 else 0)
+            box = (x0, a["y"] + dy - fs, x0 + tw, a["y"] + dy + 4 * k)
+            if not any(box[0] < b[2] and b[0] < box[2] and box[1] < b[3] and b[1] < box[3] for b in placed):
+                placed.append(box)
+                a["label"] = [round(dx, 1), round(dy, 1)]
+                break
+
+
 def build_entry(meta_path: Path, out: Path, web_w: int, thumb_w: int) -> dict:
     m = json.loads(meta_path.read_text(encoding="utf-8"))
     if m.get("schema") != SCHEMA:
@@ -93,7 +110,7 @@ def build_entry(meta_path: Path, out: Path, web_w: int, thumb_w: int) -> dict:
         "device": m.get("device") or {"id": "s50", "label": "Seestar S50"},
     }
     if not m.get("wcs"):            # Plate-Solving fehlgeschlagen: Bild ohne Annotationen
-        return {**base, "wcs": None, "solve": None, "annotations": [], "offscreen": []}
+        return {**base, "wcs": None, "solve": None, "annotations": [], "offscreen": [], "constellations": []}
     wcs = scale_wcs(m["wcs"], k)
     scale = pixscale_arcsec(wcs)                     # "/px im Web-Bild
     px_per_arcmin = 60 / scale
@@ -131,9 +148,36 @@ def build_entry(meta_path: Path, out: Path, web_w: int, thumb_w: int) -> dict:
             "mag": de_num(o["mag"]) if o.get("mag") is not None else "–",
             "size": size_text(major, minor), "dist": o.get("dist") or "–",
             "label": [v * k for v in o["label"]] if o.get("label") else None,
+            "small": bool(m.get("wide")),
         })
 
-    return {**base, "wcs": wcs,
+    if m.get("wide"):
+        place_labels(annotations, w)
+
+    # Weitwinkel: Sternbildlinien in Pixel umrechnen (Teilstuecke hinter der Tangentialebene weglassen)
+    constellations = []
+    for c in m.get("constellations", []):
+        paths = []
+        for seg in c.get("lines", []):
+            cur = []
+            for r, d in seg:
+                p = world_to_pixel(r, d, wcs)
+                if p is None or abs(p[0]) > 4 * w or abs(p[1]) > 4 * h:
+                    if len(cur) > 1:
+                        paths.append(cur)
+                    cur = []
+                    continue
+                cur.append([round(p[0], 1), round(p[1], 1)])
+            if len(cur) > 1:
+                paths.append(cur)
+        lab = None
+        if c.get("label"):
+            q = world_to_pixel(c["label"][0], c["label"][1], wcs)
+            lab = [round(q[0], 1), round(q[1], 1)] if q else None
+        if paths:
+            constellations.append({"name": c["name"], "paths": paths, "label": lab})
+
+    return {**base, "wcs": wcs, "constellations": constellations, "wide": bool(m.get("wide")),
             "solve": {"ra": fmt_ra(ra_c), "dec": fmt_dec(dec_c), "pixscale": round(scale, 2),
                       "fov": [round(w * scale / 3600, 2), round(h * scale / 3600, 2)],
                       "north": north, "east": east, "north_txt": north_txt},

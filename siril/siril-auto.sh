@@ -33,6 +33,14 @@ SIRIL_SCRIPT="${SIRIL_SCRIPT:-$HERE/seestar_stack.ssf}"
 SIRIL_MASTER_SCRIPT="${SIRIL_MASTER_SCRIPT:-$HERE/seestar_master.ssf}"
 SIRIL_SOLVE_SCRIPT="${SIRIL_SOLVE_SCRIPT:-$HERE/seestar_solve.ssf}"
 SIRIL_CALIB_SCRIPT="${SIRIL_CALIB_SCRIPT:-$HERE/dslr_calib.ssf}"
+SIRIL_WIDE_SCRIPT="${SIRIL_WIDE_SCRIPT:-$HERE/wide_stack.ssf}"
+WIDE_FILTERS="${WIDE_FILTERS:-WIDE}"          # Filter-Kuerzel im Dateinamen, die als Weitwinkel gelten
+WIDE_FOREGROUND="${WIDE_FOREGROUND:-1}"       # zusaetzlich Vordergrund-Stack ohne Registrierung
+WIDE_SOLVE="${WIDE_SOLVE:-1}"                 # Plate-Solving per astrometry.net (solve-field)
+WIDE_SCALE_LOW="${WIDE_SCALE_LOW:-8}"         # Bildbreite in Grad (Suchbereich)
+WIDE_SCALE_HIGH="${WIDE_SCALE_HIGH:-130}"
+WIDE_SOLVE_FLIP_Y="${WIDE_SOLVE_FLIP_Y:-0}"
+SOLVE_FIELD="${SOLVE_FIELD:-solve-field}"
 CATALOG="${CATALOG:-$HERE/data/NGC.csv}"
 ALIAS_FILE="${ALIAS_FILE:-/etc/siril-auto.aliases}"
 MIN_FRAMES="${MIN_FRAMES:-20}"
@@ -177,7 +185,20 @@ weight_option() {
 render_script() {   # render_script <vorlage> <ziel>
   sed -e "s|@STACK_METHOD@|${MASTER_STACK_METHOD}|g" -e "s|@WEIGHT@|${WEIGHT_OPT:-}|g" \
       -e "s|@SOLVE_ARGS@|${SOLVE_ARGS}|g" -e "s|@CALIBRATE@|${CALIBRATE:-calibrate light -cfa -debayer}|g" \
-      -e "s|@PRE@|${CAL_PRE:-}|g" -e "s|@SEQ@|${CAL_SEQ:-frame}|g" -e "s|@NORM@|${CAL_NORM:--nonorm}|g" "$1" > "$2"
+      -e "s|@PRE@|${CAL_PRE:-}|g" -e "s|@SEQ@|${CAL_SEQ:-frame}|g" -e "s|@NORM@|${CAL_NORM:--nonorm}|g" \
+      -e "s|^@FG@|${FG_PREFIX-# }|" "$1" > "$2"
+}
+
+is_wide_filter() { [[ " $WIDE_FILTERS " == *" $1 "* ]]; }
+
+# Weitwinkel: astrometry.net auf dem Vorschau-JPG (Siril-platesolve scheitert oft an grossen Feldern)
+solve_wide() {   # solve_wide <work> -> <work>/solve/result_preview.wcs
+  local work="$1"
+  command -v "$SOLVE_FIELD" >/dev/null || { log "      Hinweis: $SOLVE_FIELD fehlt – Weitwinkel ohne Beschriftung"; return 1; }
+  mkdir -p "$work/solve"
+  "$SOLVE_FIELD" --overwrite --no-plots --downsample 4 --cpulimit 180 --scale-units degwidth \
+    --scale-low "$WIDE_SCALE_LOW" --scale-high "$WIDE_SCALE_HIGH" --dir "$work/solve" --new-fits none \
+    "$work/result_preview.jpg" >> "$work/siril.log" 2>&1 && [[ -f "$work/solve/result_preview.wcs" ]]
 }
 
 # ---------------------------------------------------------------- DSLR-Kalibrierung
@@ -240,7 +261,11 @@ dslr_calibrate() {   # dslr_calibrate <work> <belichtung> -> setzt CALIBRATE
   if [[ -f "$CAL_DIR/flat.fit" ]]; then
     cp "$CAL_DIR/flat.fit" "$work/flat.fit"; calargs+=" -flat=../flat.fit"
   fi
-  CALIBRATE="calibrate light${calargs} -cfa -equalize_cfa -debayer"
+  if [[ -n "$calargs" ]]; then
+    CALIBRATE="calibrate light${calargs} -cfa -equalize_cfa -debayer"
+  else                       # ohne Masters nur debayern (Sequenz heisst trotzdem pp_light)
+    CALIBRATE='cd ../light\nconvert pp_light -debayer -out=../process\ncd ../process'
+  fi
   [[ -n "$calargs" ]] && log "      Kalibrierung:${calargs//..\//}"
   return 0
 }
@@ -260,8 +285,14 @@ run_stack() {
     if [[ "$kind" == "master" ]]; then cp "$f" "$work/light/stack_$(printf '%03d' $i).fit"
     else ln "$f" "$work/light/" 2>/dev/null || cp "$f" "$work/light/"; fi
   done
-  CALIBRATE=""
-  [[ "$CUR_TYPE" == "dslr" && "$tmpl" == "$CUR_SCRIPT" ]] && dslr_calibrate "$work" "$exp"
+  CALIBRATE=""; FG_PREFIX="# "
+  local wide=0
+  if is_wide_filter "$filter" && [[ "$kind" == "night" ]]; then
+    wide=1; tmpl="$SIRIL_WIDE_SCRIPT"; [[ "$WIDE_FOREGROUND" == "1" ]] && FG_PREFIX=""
+    dslr_calibrate "$work" "$exp"
+  elif [[ "$CUR_TYPE" == "dslr" && "$tmpl" == "$CUR_SCRIPT" ]]; then
+    dslr_calibrate "$work" "$exp"
+  fi
   render_script "$tmpl" "$work/run.ssf"
 
   if ! "$SIRIL_BIN" -d "$work" -s "$work/run.ssf" > "$work/siril.log" 2>&1 \
@@ -271,7 +302,16 @@ run_stack() {
     return 1
   fi
 
-  if [[ "$PLATESOLVE" == "1" ]]; then
+  local wcs_args=()
+  if (( wide )); then
+    if [[ "$WIDE_SOLVE" == "1" ]] && solve_wide "$work"; then
+      log "      Plate-Solving (astrometry.net) ok"
+      wcs_args=(--wcs-file "$work/solve/result_preview.wcs")
+      [[ "$WIDE_SOLVE_FLIP_Y" == "1" ]] && wcs_args+=(--wcs-flip-y)
+    else
+      log "      WARN: Weitwinkel-Plate-Solving fehlgeschlagen – Bild ohne Beschriftung"
+    fi
+  elif [[ "$PLATESOLVE" == "1" ]]; then
     render_script "$SIRIL_SOLVE_SCRIPT" "$work/solve.ssf"
     if "$SIRIL_BIN" -d "$work" -s "$work/solve.ssf" >> "$work/siril.log" 2>&1; then
       log "      Plate-Solving ok"
@@ -295,6 +335,11 @@ run_stack() {
       "-Software=Siril (siril-auto)" "$jpg" || true
   fi
   touch -d "$ts" "$jpg"
+  if (( wide )) && [[ -f "$work/result_foreground.jpg" ]]; then
+    cp "$work/result_foreground.jpg" "$EXPORT_DIR/$slug/${base}_vordergrund.jpg"
+    touch -d "$ts" "$EXPORT_DIR/$slug/${base}_vordergrund.jpg"
+    log "      Vordergrund-Stack: ${base}_vordergrund.jpg (zum Zusammenfügen mit dem Himmel)"
+  fi
 
   if [[ "$WRITE_META" == "1" ]]; then
     local cat_args=()
@@ -304,7 +349,7 @@ run_stack() {
     python3 "$LIB_DIR/write_meta.py" --fits "$STACK_DIR/$slug/$base.fit" --jpg "$jpg" \
       --out "$STACK_DIR/$slug/$base.meta.json" --target "$target" --filter "$filter" \
       --exposure "$exp" --stack "$kind" --nights "$spec" "${cat_args[@]}" \
-      --device-id "$CUR_DEVICE" --device-label "$CUR_LABEL" \
+      --device-id "$CUR_DEVICE" --device-label "$CUR_LABEL" "${wcs_args[@]}" \
       || log "      WARN: meta.json konnte nicht geschrieben werden"
     if [[ "$ANNOTATE" == "1" && -f "$STACK_DIR/$slug/$base.meta.json" ]]; then
       if python3 "$LIB_DIR/annotate.py" --meta "$STACK_DIR/$slug/$base.meta.json" \
@@ -427,6 +472,7 @@ process_device() {   # process_device <id>
       nights+=("$n"); fits+=("$fit"); frames=$((frames + c)); spec+="${spec:+,}$n:$c"
     done
     (( ${#nights[@]} >= MASTER_MIN_NIGHTS )) || continue
+    is_wide_filter "$filter" && continue          # Weitwinkel: jede Nacht anders gerahmt -> kein Master
     mode="nights"; [[ $MASTER_FULL -eq 1 ]] && mode="full"
     state_file="$STATE_DIR/$mkey.done"; fail_file="$STATE_DIR/$mkey.failed"
     old="$(cat "$state_file" 2>/dev/null || true)"
