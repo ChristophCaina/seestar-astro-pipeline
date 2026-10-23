@@ -13,5 +13,6 @@
 - [ ] Immich: External Library, Stack-Zuordnung App ↔ Siril
 - [ ] Galerie im nginx-LXC einrichten (erst mit Beispieldaten), dann echte Stacks
 - [ ] Nachhol-Job für ältere Bilder
-- [ ] Remote-Zugriff (Tailscale-LXC, GL.iNet unterwegs)
+- [x] Tailscale-LXC: Install-Script `scripts/install-tailscale-lxc.sh`
+- [ ] Remote-Zugriff einrichten (Tailscale-LXC, GL.iNet unterwegs)
 - [ ] Später: IoT-VLAN, Dachsternwarte (Velux/KLF-200, Regen- und Wolkensensor)
