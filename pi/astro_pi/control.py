@@ -35,6 +35,7 @@ class SeriesState:
     error: str = ""
     last_file: str = ""
     frame_type: str = "Light"                 # Light | Dark | Flat | Bias
+    mode: str = "deep"                        # deep | wide
 
 
 @dataclass
@@ -42,6 +43,7 @@ class Settings:
     capture_dir: Path = Path("/data/captures")
     device_id: str = "eos6d"
     filter_name: str = "DSLR"                 # landet im Dateinamen, siril-auto gruppiert danach
+    wide_filter: str = "WIDE"                 # Weitwinkel-Lights (siril-auto: wide_stack.ssf)
     mount: str = ""                           # leer = automatisch (DRIVER_INTERFACE)
     camera: str = ""
     solve_field: str = "solve-field"
@@ -69,6 +71,7 @@ class Controller:
         self._series_task: asyncio.Task | None = None
         self._capture_lock = asyncio.Lock()
         self.target_name = ""
+        self.ready = asyncio.Event()                 # Geraete eingerichtet (BLOBs aktiv, Upload an Client)
         indi.on_blob(self._blob)
         indi.on_property(self._prop)
 
@@ -98,6 +101,7 @@ class Controller:
         if self.mount and self.s.lat is not None and self.indi.get(self.mount, "GEOGRAPHIC_COORD"):
             await self.indi.set_number(self.mount, "GEOGRAPHIC_COORD",
                                        {"LAT": self.s.lat, "LONG": self.s.lon % 360, "ELEV": 0})
+        self.ready.set()
 
     # ------------------------------------------------------------ Ereignisse
     def subscribe(self) -> asyncio.Queue:
@@ -173,6 +177,7 @@ class Controller:
                 "live": self.live_on,
             },
             "series": self.series.__dict__,
+            "wide": getattr(self, "wide", None),
             "preview": {k: v for k, v in (self.preview or {}).items() if k != "jpeg"},
             "disk_free_gb": round(disk.free / 1e9, 1) if disk else None,
             "messages": [{"t": t, "device": d, "text": x} for t, d, x in self.indi.messages[-5:]],
@@ -250,6 +255,11 @@ class Controller:
 
     async def expose(self, seconds: float, timeout_extra: float = 60) -> Blob:
         c = self._need(self.camera, "Kamera")
+        if not self.ready.is_set():
+            try:
+                await asyncio.wait_for(self.ready.wait(), 20)
+            except asyncio.TimeoutError:
+                raise RuntimeError("Kamera noch nicht bereit") from None
         async with self._capture_lock:
             # Treiber noch mit dem letzten Bild beschaeftigt? Kurz warten, sonst ignoriert er den Befehl.
             p = self.indi.get(c, "CCD_EXPOSURE")
@@ -286,12 +296,13 @@ class Controller:
             raise asyncio.TimeoutError()
 
     def frame_path(self, target: str, seconds: float, ext: str, when: datetime | None = None,
-                   frame_type: str = "Light") -> Path:
+                   frame_type: str = "Light", mode: str = "deep") -> Path:
         """Gleiche Namenskonvention wie das Seestar -> siril-auto erkennt Ziel, Belichtung, Nacht.
         Kalibrierbilder (Dark/Flat/Bias) landen in _calib/ und werden dort zu Masters gestackt."""
         when = when or datetime.now()
         exp = f"{seconds:.6f}".rstrip("0") if seconds < 1 else f"{seconds:.1f}"   # 0.00025 / 0.5 / 60.0
-        stamp = f"{exp}s_{self.s.filter_name}_{when:%Y%m%d-%H%M%S}{ext}"
+        filt = self.s.wide_filter if mode == "wide" and frame_type == "Light" else self.s.filter_name
+        stamp = f"{exp}s_{filt}_{when:%Y%m%d-%H%M%S}{ext}"
         if frame_type != "Light":
             return self.s.capture_dir / "_calib" / f"{frame_type}_{stamp}"
         t = slug(target or self.target_name or "Unbekannt")
@@ -304,13 +315,14 @@ class Controller:
         if self.indi.get(c, "CCD_FRAME_TYPE"):
             await self.indi.set_switch(c, "CCD_FRAME_TYPE", f"FRAME_{frame_type.upper()}")
 
-    async def capture(self, seconds: float, target: str = "", save: bool = True, frame_type: str = "Light") -> dict:
+    async def capture(self, seconds: float, target: str = "", save: bool = True, frame_type: str = "Light",
+                      mode: str = "deep") -> dict:
         b = await self.expose(seconds)
         ext = b.fmt if b.fmt.startswith(".") else f".{b.fmt or 'fits'}"
         path = None
         if save:
             path = self.frame_path(target, seconds, ".fits" if ext.lower() in (".fits", ".fit") else ext,
-                                   frame_type=frame_type)
+                                   frame_type=frame_type, mode=mode)
             base, n = path, 1
             while path.exists():                     # mehrere Bilder in derselben Sekunde (Bias, kurze Serien)
                 n += 1
@@ -328,7 +340,9 @@ class Controller:
 
     # ------------------------------------------------------------ Serien
     async def start_series(self, exposure: float, count: int, delay: float = 2.0, target: str = "", iso: str = "",
-                           frame_type: str = "Light"):
+                           frame_type: str = "Light", mode: str = "deep"):
+        if mode not in ("deep", "wide"):
+            raise ValueError("Modus: deep oder wide")
         if self.series.running:
             raise RuntimeError("Es läuft bereits eine Serie")
         self._need(self.camera, "Kamera")
@@ -336,7 +350,7 @@ class Controller:
             await self.set_iso(iso)
         await self.set_frame_type(frame_type)
         self.series = SeriesState(True, target or self.target_name, exposure, count, 0, delay, time.time(),
-                                  frame_type=frame_type)
+                                  frame_type=frame_type, mode=mode)
         self._series_task = asyncio.create_task(self._run_series())
         self.publish("state")
 
@@ -344,7 +358,7 @@ class Controller:
         s = self.series
         try:
             while s.running and (s.count <= 0 or s.done < s.count):
-                r = await self.capture(s.exposure, s.target, frame_type=s.frame_type)
+                r = await self.capture(s.exposure, s.target, frame_type=s.frame_type, mode=s.mode)
                 s.done += 1
                 s.last_file = r["file"]
                 self.publish("state")
@@ -386,6 +400,8 @@ class Controller:
         self.publish("state")
 
     # ------------------------------------------------------------ Plate-Solving
+    solve_scale: tuple[float, float] | None = None     # Weitwinkel: ("/px min, max) aus dem Objektiv
+
     async def solve_last(self) -> dict:
         """Letzte Aufnahme mit astrometry.net loesen. Liefert RA (h) / Dec (Grad) der Bildmitte."""
         f = (self.preview or {}).get("file")
@@ -396,8 +412,9 @@ class Controller:
     def _solve_file(self, path: Path) -> dict:
         with tempfile.TemporaryDirectory() as tmp:
             cmd = [self.s.solve_field, "--overwrite", "--no-plots", "--downsample", "2", "--cpulimit", "60",
-                   "--scale-units", "arcsecperpix", "--scale-low", str(self.s.scale_low),
-                   "--scale-high", str(self.s.scale_high), "--dir", tmp, "--new-fits", "none", str(path)]
+                   "--scale-units", "arcsecperpix",
+                   "--scale-low", str((self.solve_scale or (self.s.scale_low, 0))[0]),
+                   "--scale-high", str((self.solve_scale or (0, self.s.scale_high))[1]), "--dir", tmp, "--new-fits", "none", str(path)]
             r = subprocess.run(cmd, capture_output=True, text=True)
             wcs = Path(tmp) / (path.stem + ".wcs")
             if r.returncode != 0 or not wcs.exists():

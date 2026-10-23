@@ -79,6 +79,28 @@ class TestImage(unittest.TestCase):
         self.assertAlmostEqual(float(a.mean()), 40000.0)
 
 
+class TestWide(unittest.TestCase):
+    def test_npf_and_fov(self):
+        from astro_pi import wide
+        c = wide.calc(24, 2.8, 0)
+        self.assertAlmostEqual(c.pixel_um, 6.54, places=2)
+        self.assertAlmostEqual(c.npf_simple_s, (35 * 2.8 + 30 * 6.54) / 24, places=2)    # ≈ 12 s
+        self.assertAlmostEqual(c.rule500_s, 500 / 24, places=2)
+        self.assertAlmostEqual(c.fov[0], 73.4, delta=0.5)
+        self.assertAlmostEqual(c.pixscale, 56.2, delta=0.5)
+        self.assertGreater(wide.calc(24, 2.8, 60).npf_s, c.npf_s * 1.9)                # cos(60°) = 0.5
+        with self.assertRaises(ValueError):
+            wide.calc(0, 2.8)
+
+    def test_wide_targets(self):
+        t = Targets([FIXTURE])
+        names = [h["name"] for h in t.search("schwan", 5, wide=True)]
+        self.assertEqual(names[:2], ["Schwan", "Milchstraße im Schwan"])
+        self.assertNotIn("Schwan", [h["name"] for h in t.search("schwan", 5)])
+        mw = t.search("milchstraßenzentrum", 1, wide=True)[0]
+        self.assertAlmostEqual(mw["ra"], 266.42 / 15, places=3)
+
+
 class TestTargets(unittest.TestCase):
     def test_search(self):
         t = Targets([FIXTURE])
@@ -170,6 +192,10 @@ class TestControlOffline(unittest.TestCase):
         self.assertEqual(str(p), "/x/M 31_sub/Light_M 31_120.0s_DSLR_20261018-230509.fits")
         # gleicher Ausdruck wie frame_info() in siril/siril-auto.sh
         self.assertRegex(p.name, r"_([0-9]+(\.[0-9]+)?)s_([A-Za-z0-9]+)_(20[0-9]{6})-([0-9]{6})")
+        wp = ctl.frame_path("Schwan", 12, ".fits", datetime(2026, 8, 15, 23, 0, 0), mode="wide")
+        self.assertEqual(wp.name, "Light_Schwan_12.0s_WIDE_20260815-230000.fits")
+        dw = ctl.frame_path("", 12, ".fits", datetime(2026, 8, 15, 23, 0, 0), frame_type="Dark", mode="wide")
+        self.assertEqual(dw.name, "Dark_12.0s_DSLR_20260815-230000.fits")             # Kalibrierung bleibt DSLR
         d = ctl.frame_path("", 60, ".fits", datetime(2026, 10, 19, 3, 0, 0), frame_type="Dark")
         self.assertEqual(str(d), "/x/_calib/Dark_60.0s_DSLR_20261019-030000.fits")
         b = ctl.frame_path("", 0.00025, ".fits", datetime(2026, 10, 19, 3, 0, 0), frame_type="Bias")
@@ -241,6 +267,7 @@ class TestWithSimulators(unittest.IsolatedAsyncioTestCase):
         self.client = TestClient(TestServer(self.app))
         await self.client.start_server()
         ctl = self.app[self.CTL]
+        await asyncio.wait_for(ctl.ready.wait(), 30)                  # Geraete eingerichtet
         for _ in range(300):                                          # Geraete verbunden? (CI kann langsam sein)
             s = ctl.state()
             if s["mount"]["connected"] and s["camera"]["connected"]:
@@ -311,6 +338,32 @@ class TestWithSimulators(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0.3)
         self.assertEqual(ctl.indi.get(ctl.camera, "CCD_FRAME_TYPE").on(), ["FRAME_LIGHT"])   # zurueckgesetzt
         code, j = await self.post("/api/camera/series", {"exposure": 1, "type": "Sonstwas"})
+        self.assertEqual(code, 409)
+
+    async def test_wide_api_and_series(self):
+        r = await self.client.get("/api/wide")
+        info = await r.json()
+        self.assertTrue(info["lenses"] and info["presets"])
+        r = await self.client.get("/api/wide/calc?focal=24&aperture=2.8&dec=40")
+        c = await r.json()
+        self.assertAlmostEqual(c["fov"][0], 73.4, delta=0.5)
+        code, j = await self.post("/api/wide/lens", {"focal": 24, "aperture": 2.8, "tracked": False})
+        self.assertEqual(code, 200, j)
+        ctl = self.app[self.CTL]
+        self.assertAlmostEqual(ctl.solve_scale[0], 56.2 * 0.8, delta=0.5)
+        self.assertFalse(ctl.state()["wide"]["tracked"])
+        r = await self.client.get("/api/targets?q=schwan&wide=1")
+        self.assertEqual((await r.json())[0]["name"], "Schwan")
+        code, j = await self.post("/api/camera/series", {"exposure": 0.1, "count": 1, "delay": 0, "mode": "wide",
+                                                         "target": "Schwan"})
+        self.assertEqual(code, 200, j)
+        for _ in range(600):
+            if not ctl.series.running:
+                break
+            await asyncio.sleep(0.1)
+        files = list((self.tmp / "captures" / "Schwan_sub").glob("Light_Schwan_0.1s_WIDE_*.fits"))
+        self.assertEqual(len(files), 1, ctl.series)
+        code, j = await self.post("/api/camera/series", {"exposure": 1, "mode": "foo"})
         self.assertEqual(code, 409)
 
     async def test_park_track_errors(self):

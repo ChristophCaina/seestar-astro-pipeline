@@ -113,7 +113,7 @@
     const q = $("q").value.trim(), ul = $("hits");
     if (q.length < 2) { ul.innerHTML = ""; return; }
     try {
-      const hits = await api(`/api/targets?q=${encodeURIComponent(q)}&limit=15`);
+      const hits = await api(`/api/targets?q=${encodeURIComponent(q)}&limit=15${mode === "wide" ? "&wide=1" : ""}`);
       ul.innerHTML = "";
       hits.forEach((h) => {
         const li = document.createElement("li");
@@ -152,14 +152,83 @@
   $("s-type").onchange = () => { const t = $("s-type").value; $("s-target").disabled = t !== "Light"; if (HINT[t]) toast(HINT[t]); };
   $("s-start").onclick = act(async () => {
     const type = $("s-type").value;
-    const b = { exposure: +$("s-exp").value, count: +$("s-count").value, delay: +$("s-delay").value, type,
+    const b = { exposure: +$("s-exp").value, count: +$("s-count").value, delay: +$("s-delay").value, type, mode,
       target: $("s-target").value.trim() || st?.mount.target || "", iso: $("s-iso").value };
+    if (mode === "wide" && type === "Light" && !$("w-tracked").checked && lastCalc && b.exposure > lastCalc.npf_simple_s * 1.2
+        && !confirm(`Ohne Nachführung sind bei ${lastCalc.focal} mm etwa ${lastCalc.npf_simple_s.toFixed(0)} s möglich – trotzdem ${b.exposure} s?`)) return;
     if (type !== "Light" && !confirm(`${type}-Serie: ${HINT[type]} Starten?`)) return;
     if (type === "Light" && !b.target && !confirm("Kein Ziel gesetzt – Aufnahmen landen unter „Unbekannt“. Trotzdem starten?")) return;
     await api("/api/camera/series", b); toast("Serie gestartet");
   });
   $("s-stop").onclick = act(() => api("/api/camera/series", { stop: true }), "Serie gestoppt");
   $("s-test").onclick = act(async () => { toast("Belichte …"); await api("/api/camera/capture", { exposure: Math.min(+$("s-exp").value, 10), iso: $("s-iso").value }); });
+  // ---------------- Weitwinkel ----------------
+  let mode = "deep", lastCalc = null, wideInfo = null;
+  function setMode(m) {
+    mode = m;
+    $("m-deep").setAttribute("aria-checked", m === "deep"); $("m-wide").setAttribute("aria-checked", m === "wide");
+    $("wide-card").hidden = m !== "wide";
+    $("m-hint").textContent = m === "wide"
+      ? "Objektiv: Dateien mit Filter „WIDE“ – siril-auto stackt mit Homographie, Vordergrund-Stack und Sternbild-Beschriftung."
+      : "Teleskop: Dateien mit Filter „DSLR“, siril-auto stackt mit Kalibrierung.";
+    $("q").placeholder = m === "wide" ? "Schwan, Milchstraßenzentrum, Kassiopeia …" : "M 31, NGC 7000, Orionnebel …";
+    try { localStorage.setItem("mode", m); } catch { /* egal */ }
+    if (m === "wide") loadWide();
+  }
+  $("m-deep").onclick = () => setMode("deep");
+  $("m-wide").onclick = () => setMode("wide");
+  async function loadWide() {
+    if (!wideInfo) {
+      try { wideInfo = await api("/api/wide"); } catch (e) { toast(e.message, true); return; }
+      $("w-lens").innerHTML = wideInfo.lenses.map((l, i) => `<option value="${i}">${esc(l.name)}</option>`).join("") + `<option value="">eigene Werte</option>`;
+      $("w-presets").innerHTML = "";
+      wideInfo.presets.forEach((p) => { const b = document.createElement("button"); b.textContent = p.name; b.title = p.note || "";
+        b.onclick = () => applyPreset(p); $("w-presets").appendChild(b); });
+      const a = wideInfo.active;
+      if (a && a.focal) { $("w-focal").value = a.focal; $("w-ap").value = a.aperture; $("w-tracked").checked = a.tracked; $("w-lens").value = ""; }
+      else pickLens();
+    }
+    wideCalc();
+  }
+  function pickLens() { const i = $("w-lens").value; if (i === "") return; const l = wideInfo.lenses[+i]; $("w-focal").value = l.focal; $("w-ap").value = l.aperture; }
+  $("w-lens").onchange = () => { pickLens(); wideCalc(true); };
+  ["w-focal", "w-ap"].forEach((id) => ($(id).oninput = () => { $("w-lens").value = ""; wideCalc(true); }));
+  $("w-tracked").onchange = () => wideCalc(true);
+  let wTimer;
+  function wideCalc(save) {
+    clearTimeout(wTimer);
+    wTimer = setTimeout(async () => {
+      const f = +$("w-focal").value, a = +$("w-ap").value; if (!(f > 0 && a > 0)) return;
+      try {
+        lastCalc = await api(`/api/wide/calc?focal=${f}&aperture=${a}`);
+        const c = lastCalc, tr = $("w-tracked").checked;
+        $("w-calc").innerHTML = [
+          ["Bildfeld", `${c.fov[0]}° × ${c.fov[1]}°`], ["Bildmaßstab", `${c.pixscale.toFixed(1)}″/px`],
+          ["Ohne Nachführung (NPF)", `${c.npf_simple_s.toFixed(1)} s · streng ${c.npf_s.toFixed(1)} s (Dec ${c.dec.toFixed(0)}°)`],
+          ["500er-Regel", `${c.rule500_s.toFixed(1)} s`],
+          ["Empfehlung", tr ? "60–180 s (Nachführung), ISO 800–1600" : `${Math.floor(c.npf_simple_s)} s, ISO 3200, 30–60 Bilder`],
+        ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+        $("w-tips").textContent = c.tips.join(" ");
+        if (save) await api("/api/wide/lens", { focal: f, aperture: a, tracked: tr, name: $("w-lens").selectedOptions[0]?.textContent });
+      } catch (e) { toast(e.message, true); }
+    }, 250);
+  }
+  $("w-apply").onclick = () => {
+    if (!lastCalc) return;
+    $("s-exp").value = $("w-tracked").checked ? 120 : Math.floor(lastCalc.npf_simple_s);
+    api("/api/wide/lens", { focal: +$("w-focal").value, aperture: +$("w-ap").value, tracked: $("w-tracked").checked }).catch(() => {});
+    toast(`Belichtung ${$("s-exp").value} s übernommen`);
+  };
+  function applyPreset(p) {
+    $("w-tracked").checked = p.tracked; $("s-type").value = "Light";
+    $("s-count").value = p.count; $("s-delay").value = p.tracked ? 2 : 1;
+    if ([...$("s-iso").options].some((o) => o.value === p.iso)) $("s-iso").value = p.iso;
+    $("s-exp").value = p.exposure ?? (lastCalc ? Math.floor(lastCalc.npf_simple_s) : 10);
+    wideCalc(true);
+    toast(`${p.name}: ${p.count} × ${$("s-exp").value} s, ISO ${p.iso}${p.note ? " – " + p.note : ""}`);
+  }
+  try { if (localStorage.getItem("mode") === "wide") setMode("wide"); } catch { /* egal */ }
+
   const showSolve = (r) => ($("solve-res").textContent = `Bildmitte ${hms(r.ra)} ${dms(r.dec)} · ${r.scale}″/px`);
   $("solve").onclick = act(async () => { $("solve-res").textContent = "löse …"; showSolve(await api("/api/solve", {})); });
   $("solve-sync").onclick = act(async () => { $("solve-res").textContent = "löse …"; showSolve(await api("/api/solve", { sync: true })); toast("Montierung synchronisiert"); });

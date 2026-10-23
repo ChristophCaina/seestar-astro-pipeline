@@ -57,6 +57,7 @@ Montierung wechseln: `/etc/default/astro-pi-indi` anpassen (`INDI_DRIVERS="indi_
 | Fokus | **Live View** der 6D mit Zoom auf einen Stern, Testbild-Schleife mit HFR-Verlauf |
 | Status | Geräte, Speicher, Meldungen der Treiber, Link zu Ekos (noVNC) |
 
+- **Modus Weitwinkel** (Kamera-Tab): Objektiv, NPF-Belichtungsrechner, Vorlagen für Milchstraße – siehe [09](09-weitwinkel.md).
 - **STOPP** oben rechts bricht Schwenk und Serie sofort ab.
 - **Rotlicht** (Punkt-Taste) für die Nachtsicht.
 - Gestartet wird nur in der App. Home Assistant bekommt per MQTT nur Status und Vorschau, keine Befehle.

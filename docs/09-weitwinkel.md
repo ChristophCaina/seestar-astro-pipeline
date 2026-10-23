@@ -13,6 +13,22 @@ Astro-Pi-App (Modus Weitwinkel)  →  Light_<Ziel>_<Bel.>s_WIDE_<Datum>-<Zeit>.f
    export/…_WIDE_eos6d_siril.jpg (+ _vordergrund.jpg, _beschriftet.jpg) → Immich
 ```
 
+## Aufnahme (Astro-Pi-App)
+
+In der App unter **Kamera → Modus: Weitwinkel** ([07](07-astro-pi.md)):
+
+| Element | Funktion |
+|---|---|
+| Objektiv | Liste (14/24/35/50/135 mm, eigene in `/etc/astro-pi.toml` unter `[wide] lenses`) oder Brennweite + Blende frei |
+| Rechner | Bildfeld, Bildmaßstab, maximale Belichtung **ohne Nachführung** nach NPF-Regel (einfach `(35·N + 30·p)/f` und streng nach Michaud mit Deklination), 500er-Regel zum Vergleich |
+| nachgeführt | iEXOS-100 als reine Nachführung: Empfehlung 60–180 s; ohne Haken warnt die App, wenn die Belichtung über der NPF-Grenze liegt |
+| Vorlagen | „Milchstraße vom Stativ“ (NPF-Belichtung, 40 × ISO 3200), „Milchstraße nachgeführt“ (30 × 120 s), „Sternbild / Sternfeld“, „Nordamerika-/Cirrusregion (H-alpha)“ |
+| Zielsuche | im Weitwinkel-Modus zuerst **Sternbilder** und Himmelsregionen (Milchstraßenzentrum, Schwan, Sommerdreieck, Kassiopeia–Perseus, Wintersechseck) – GoTo auf die Mitte |
+| Dateinamen | `Light_<Ziel>_<Bel.>s_WIDE_<Datum>-<Zeit>.fits` → siril-auto erkennt den Weitwinkel-Modus; Darks/Flats/Bias bleiben `DSLR` und gelten für beide Modi |
+| Plate-Solving | Suchbereich aus dem Objektiv (Bildmaßstab ±20 %) |
+
+Beispiel 6D (6,54 µm Pixel), 24 mm f/2.8, ohne Nachführung: ≈ 12 s (NPF einfach), 73° × 49° Bildfeld, 56″/px.
+
 ## Stacken (siril-auto)
 
 Bilder, deren Dateiname das Filter-Kürzel `WIDE` trägt (`WIDE_FILTERS`), stackt siril-auto mit [`siril/wide_stack.ssf`](../siril/wide_stack.ssf):

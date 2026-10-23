@@ -20,6 +20,19 @@ solve_field = "solve-field"
 scale_low = 0.5     # Bildmassstab in "/px; 6D (6,54 µm) an 400 mm ≈ 3,4"/px, an 200 mm ≈ 6,7"/px
 scale_high = 8.0
 
+[camera]            # Sensor fuer Bildfeld- und NPF-Rechner (Default: EOS 6D)
+name = "Canon EOS 6D"
+width_mm = 35.8
+height_mm = 23.9
+width_px = 5472
+height_px = 3648
+
+[wide]
+filter = "WIDE"     # Kuerzel im Dateinamen fuer Weitwinkel-Lights (siril-auto WIDE_FILTERS)
+# eigene Objektive, sonst Standardliste 14/24/35/50/135 mm:
+# lenses = [ { name = "Samyang 14 mm f/2.8", focal = 14, aperture = 2.8 },
+#            { name = "EF 24 mm f/1.4", focal = 24, aperture = 1.4 } ]
+
 [web]
 host = "0.0.0.0"
 port = 8080
