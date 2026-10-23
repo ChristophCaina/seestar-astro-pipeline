@@ -3,7 +3,7 @@
 # Einrichten: Einstellungen → Dashboards → Dashboard hinzufügen → „Neues Dashboard von Grund auf“,
 # dann ⋮ → Bearbeiten → ⋮ → Raw-Konfigurationseditor → diesen Inhalt einfügen.
 #
-# Voraussetzungen: Package astro_audit.yaml, HA-Add-on ha-seestar, seestar-lovelace-card (HACS),
+# Voraussetzungen: Packages astro_audit.yaml und astro_stacks.yaml, HA-Add-on ha-seestar, seestar-lovelace-card (HACS),
 # siril-auto mit MQTT_ENABLED=1.
 # Anpassen (Suchen/Ersetzen):
 #   seestar_s50                 → Entity-Präfix deines Seestar
@@ -154,6 +154,20 @@ views:
               {% else %}
               Noch kein Stack.
               {% endif %}
+          # aus Package astro_stacks.yaml (darf fehlen)
+          - type: markdown
+            visibility:
+              - condition: numeric_state
+                entity: sensor.astro_stacks_dieser_nacht
+                above: 0
+            content: >-
+              **Diese Nacht:**
+              {% for s in state_attr('sensor.astro_stacks_dieser_nacht', 'stacks') or [] %}
+              [{{ s.target }} {{ s.filter }} · {{ 'Master' if s.stack == 'master' else s.frames ~ ' Frames' }}](http://astro.lan/#{{ s.group }}){{ ',' if not loop.last }}
+              {%- endfor %}
+          - type: tile
+            entity: input_boolean.astro_push_pro_stack
+            name: Push je Stack
           - type: button
             name: Astro-Galerie öffnen
             icon: mdi:image-multiple

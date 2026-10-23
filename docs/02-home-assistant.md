@@ -35,7 +35,20 @@ Mit `MQTT_ENABLED=1` legt [`siril-auto`](../siril) per Discovery das Gerät **Si
 - **Status**: `idle`, `fetching`, `processing` oder `error`
 - **Letztes Ergebnis**: Ziel und Nacht, dazu als Attribute Frames und die Pfade zu JPG und FIT
 
-Eine Beispiel-Automation, die bei neuem Ergebnis eine Push-Nachricht schickt: [`homeassistant/automation-siril-ergebnis.yaml`](../homeassistant/automation-siril-ergebnis.yaml)
+Die Meldung „Letztes Ergebnis“ enthält auch `id` und `group`. Daraus entstehen die Galerie-Links: `<galerie>/img/<id>.jpg` für das Bild, `<galerie>/#<group>` für die Detailseite.
+
+### Package Astro-Stacks (Benachrichtigungen)
+
+[`homeassistant/packages/astro_stacks.yaml`](../homeassistant/packages/astro_stacks.yaml):
+
+| Teil | Was |
+|---|---|
+| `sensor.astro_stacks_dieser_nacht` | Anzahl der Stacks seit 12 Uhr, Attribut `stacks` mit Ziel, Nacht, Filter, Frames und Galerie-Gruppe. Doppelte Meldungen nach einem HA-Neustart (retained) zählen nicht. |
+| Push je Stack | Vorschaubild aus der Galerie. Tippen öffnet die Detailseite. Schalter: `input_boolean.astro_push_pro_stack` |
+| Zusammenfassung am Morgen | um `input_datetime.astro_zusammenfassung_zeit`, nur wenn es Stacks gab; mit Hinweis, falls siril-auto einen Fehler meldet |
+| Fehler-Push | wenn siril-auto länger als 1 min `error` meldet |
+
+Vorher `http://astro.lan` (Galerie-Adresse) und `notify.mobile_app_handy` ersetzen. Das Vorschaubild lädt nur, wenn das Handy die Galerie erreicht, also im Heimnetz oder über Tailscale ([04](04-remote-access.md)). Uhrzeit und Push-Schalter einmal im UI setzen. Helfer ohne Startwert stehen nach dem ersten Laden auf aus bzw. 00:00.
 
 ## Astro-Audit (KI-Empfehlung → Automationen)
 

@@ -1,0 +1,153 @@
+# =============================================================================
+# Astro-Stacks – Package fuer Home Assistant
+#
+# Ablage: /config/packages/astro_stacks.yaml   (Packages aktivieren wie bei astro_audit.yaml)
+#
+# Enthaelt:
+#   * Sensor "Astro – Stacks dieser Nacht": sammelt die MQTT-Meldungen von siril-auto
+#     (Nacht = 12–12 Uhr), Attribut "stacks" mit Ziel, Nacht, Filter, Frames, Galerie-Link
+#   * Push je fertigem Stack: Vorschaubild aus der Galerie, Tippen oeffnet die Detailseite
+#   * Morgen-Zusammenfassung: alle Stacks der Nacht in einer Nachricht
+#   * Helfer: Push je Stack an/aus, Uhrzeit der Zusammenfassung
+#
+# Ersetzt die fruehere Beispiel-Automation automation-siril-ergebnis.yaml.
+#
+# VOR DEM EINSATZ ANPASSEN (Suchen/Ersetzen):
+#   http://astro.lan        -> Adresse deiner Galerie (nginx-vhost, docs/06). Damit das
+#                              Vorschaubild unterwegs laedt, muss das Handy sie erreichen
+#                              (Heimnetz oder Tailscale).
+#   notify.mobile_app_handy -> dein Benachrichtigungsdienst
+#   seestar/siril           -> MQTT_TOPIC aus /etc/siril-auto.env, falls geaendert
+# =============================================================================
+
+input_boolean:
+  astro_push_pro_stack:
+    name: Astro – Push je Stack
+    icon: mdi:bell-ring
+
+input_datetime:
+  astro_zusammenfassung_zeit:
+    name: Astro – Zusammenfassung um
+    has_date: false
+    has_time: true
+    icon: mdi:weather-sunset-up
+
+template:
+  - triggers:
+      - trigger: mqtt
+        topic: seestar/siril/last
+        id: stack
+      - trigger: time
+        at: "12:00:00"
+        id: reset
+    actions:
+      # Liste einmal berechnen – Zustand und Attribut lesen beide "liste"
+      - variables:
+          liste: >-
+            {% set alt = (this.attributes.get('stacks') if this is defined and this.attributes is defined else none) or [] %}
+            {% if trigger.id == 'reset' %}
+              {{ [] }}
+            {% else %}
+              {% set p = trigger.payload_json %}
+              {# Retained-Meldung nach HA-Neustart nicht doppelt zaehlen #}
+              {% if p.timestamp in alt | map(attribute='timestamp') | list %}
+                {{ alt }}
+              {% else %}
+                {{ (alt + [{'target': p.target, 'night': p.night, 'filter': p.filter, 'stack': p.stack,
+                            'frames': p.frames | int(0), 'id': p.id | default(''), 'group': p.group | default(''),
+                            'timestamp': p.timestamp}])[-20:] }}
+              {% endif %}
+            {% endif %}
+    sensor:
+      - name: Astro – Stacks dieser Nacht
+        unique_id: astro_stacks_diese_nacht
+        icon: mdi:image-multiple
+        state: "{{ liste | count }}"
+        attributes:
+          stacks: "{{ liste }}"
+
+automation:
+  - id: astro_push_stack_fertig
+    alias: Astro – Push bei fertigem Stack
+    description: Meldet jeden neuen Stack von siril-auto mit Vorschaubild und Link zur Galerie
+    mode: queued
+    triggers:
+      - trigger: mqtt
+        topic: seestar/siril/last
+    conditions:
+      - condition: state
+        entity_id: input_boolean.astro_push_pro_stack
+        state: "on"
+      # Retained-Meldung beim (Neu-)Verbinden ignorieren: nur frische Ergebnisse
+      - condition: template
+        value_template: >
+          {{ trigger.payload_json.timestamp is defined
+             and (now() - as_datetime(trigger.payload_json.timestamp)).total_seconds() < 900 }}
+    variables:
+      galerie: "http://astro.lan"
+      p: "{{ trigger.payload_json }}"
+      link: "{{ galerie ~ '/#' ~ p.group if p.group | default('') else galerie }}"
+      bild: "{{ galerie ~ '/img/' ~ p.id ~ '_t.jpg' if p.id | default('') else '' }}"
+    actions:
+      - action: notify.mobile_app_handy
+        data:
+          title: >-
+            🔭 {{ p.target }} {{ 'Master' if p.stack == 'master' else 'gestackt' }}
+          message: >-
+            {% if p.stack == 'master' %}Master über alle Nächte{% else %}Nacht {{ p.night }}{% endif %}
+            · {{ p.frames }} Frames · {{ p.filter }}
+          data:
+            image: "{{ bild }}"
+            url: "{{ link }}"            # iOS
+            clickAction: "{{ link }}"    # Android
+            group: astro
+            tag: "astro-{{ p.group | default(p.target) }}"
+
+  - id: astro_zusammenfassung_morgen
+    alias: Astro – Zusammenfassung am Morgen
+    description: Alle Stacks der vergangenen Nacht in einer Nachricht
+    mode: single
+    triggers:
+      - trigger: time
+        at: input_datetime.astro_zusammenfassung_zeit
+    conditions:
+      - condition: template
+        value_template: "{{ state_attr('sensor.astro_stacks_dieser_nacht', 'stacks') | default([], true) | count > 0 }}"
+    variables:
+      galerie: "http://astro.lan"
+      stacks: "{{ state_attr('sensor.astro_stacks_dieser_nacht', 'stacks') }}"
+      fehler: "{{ is_state('sensor.siril_auto_stacking_status', 'error') }}"
+    actions:
+      - action: notify.mobile_app_handy
+        data:
+          title: >-
+            🌅 Astro-Nacht: {{ stacks | count }} Stack{{ '' if stacks | count == 1 else 's' }}
+          message: |-
+            {% for s in stacks -%}
+            • {{ s.target }} {{ s.filter }}: {{ 'Master' if s.stack == 'master' else s.night }}, {{ s.frames }} Frames
+            {% endfor -%}
+            {% if fehler %}⚠️ siril-auto meldet einen Fehler – Log prüfen{% endif %}
+          data:
+            url: "{{ galerie }}"
+            clickAction: "{{ galerie }}"
+            group: astro
+            tag: astro-zusammenfassung
+
+  - id: astro_siril_fehler
+    alias: Astro – siril-auto meldet Fehler
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: sensor.siril_auto_stacking_status
+        to: error
+        for: "00:01:00"
+    actions:
+      - action: notify.mobile_app_handy
+        data:
+          title: ⚠️ siril-auto
+          message: >-
+            {{ state_attr('sensor.siril_auto_stacking_status', 'message') or 'Fehler beim Stacken' }}
+            {%- set t = state_attr('sensor.siril_auto_stacking_status', 'target') %}{% if t %} ({{ t }}){% endif %}
+          data:
+            group: astro
+            tag: astro-fehler

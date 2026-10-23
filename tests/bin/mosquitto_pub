@@ -1,0 +1,10 @@
+#!/usr/bin/env python3
+"""Fake mosquitto_pub fuer Tests: haengt {"topic", "payload", "retain"} an $FAKE_MQTT_LOG an."""
+import json
+import os
+import sys
+
+a = sys.argv[1:]
+rec = {"topic": a[a.index("-t") + 1], "payload": a[a.index("-m") + 1], "retain": "-r" in a}
+with open(os.environ.get("FAKE_MQTT_LOG", os.devnull), "a", encoding="utf-8") as f:
+    f.write(json.dumps(rec) + "\n")
