@@ -33,14 +33,14 @@ sudo reboot
 
 | Option | Wirkung |
 |---|---|
-| `--mount pmc8` / `celestron` / `simulator` | Treiber `indi_pmc8_telescope` (iEXOS-100), `indi_celestron_gps` (NexStar) oder Simulator |
+| `--mount pmc8` / `celestron` / `celestron-aux` / `simulator` | Treiber `indi_pmc8_telescope` (iEXOS-100), `indi_celestron_gps` (NexStar über Handbox), `indi_celestron_aux` (NexStar ohne Handbox, [08](08-celestron-nexstar.md)) oder Simulator |
 | `--camera canon` / `simulator` | `indi_canon_ccd` (gphoto, USB) oder Simulator |
 | `--lat --lon` | Standort für Zielhöhe und Montierung (später in `/etc/astro-pi.toml` änderbar) |
 | `--tailscale` | Pi direkt ins Tailnet (sonst reicht das geroutete Netz des GL.iNet) |
 | `--hotspot` | eigenes WLAN „Astro-Pi“, falls kein bekanntes WLAN da ist (Passwort in `/root/astro-pi-hotspot-passwort.txt`) |
 | `--no-desktop` | ohne KStars/noVNC, nur Web-App |
 
-**Celestron NexStar GT als Zweitmontierung:** Treiber `indi_celestron_gps`, Verbindung über das serielle Kabel der Handbox (RS-232 → USB-Adapter). Bei sehr alten GT-Handboxen kann der Treiber nur einen Teil der Funktionen nutzen (GoTo und Sync gehen meist, Parken/Nachführmodi je nach Firmware) – am Gerät testen. Die GT ist azimutal: Belichtungen kurz halten (≈ 15–30 s), die Feldrotation gleicht die 2-Pass-Registrierung in siril-auto wie beim Seestar aus.
+**Celestron NexStar GT als Zweitmontierung:** über die Handbox (`indi_celestron_gps`) oder direkt am AUX-Bus ohne Handbox (`indi_celestron_aux`) – Anschlüsse, Adapter, Sicherheit und Checkliste in [08](08-celestron-nexstar.md).
 
 Montierung wechseln: `/etc/default/astro-pi-indi` anpassen (`INDI_DRIVERS="indi_celestron_gps indi_canon_ccd"`), dann `sudo systemctl restart indiserver`. Updates: `sudo bash install-astro-pi.sh update`.
 

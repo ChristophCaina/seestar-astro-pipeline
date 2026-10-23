@@ -8,7 +8,7 @@
 #   * astrometry.net fuer Plate-Solving, optional Tailscale und WLAN-Hotspot als Rueckfall
 #
 # Aufruf als root auf dem Pi:
-#   sudo bash install-astro-pi.sh [--mount pmc8|celestron|simulator] [--camera canon|simulator]
+#   sudo bash install-astro-pi.sh [--mount pmc8|celestron|celestron-aux|simulator] [--camera canon|simulator]
 #                                 [--lat 48.7 --lon 8.9] [--tailscale] [--hotspot] [--no-desktop]
 #   sudo bash install-astro-pi.sh update     # Repo aktualisieren, Dienste neu starten
 #
@@ -58,8 +58,9 @@ done
 case "$MOUNT" in
   pmc8)      MOUNT_DRV="indi_pmc8_telescope" ;;      # Explore Scientific iEXOS-100 / EXOS-2 (PMC-Eight)
   celestron) MOUNT_DRV="indi_celestron_gps" ;;       # Celestron NexStar (auch aeltere Handbox per Seriell)
+  celestron-aux) MOUNT_DRV="indi_celestron_aux" ;;   # Celestron direkt am AUX-Bus, ohne Handbox (docs/08)
   simulator) MOUNT_DRV="indi_simulator_telescope" ;;
-  *) die "--mount: pmc8 | celestron | simulator" ;;
+  *) die "--mount: pmc8 | celestron | celestron-aux | simulator" ;;
 esac
 case "$CAMERA" in
   canon)     CAM_DRV="indi_canon_ccd" ;;              # Canon EOS per USB (gphoto)
@@ -75,6 +76,11 @@ pkgs=(git curl ca-certificates indi-bin indi-gphoto gphoto2 astrometry.net mosqu
       python3 python3-aiohttp python3-numpy python3-pil)
 (( DESKTOP )) && pkgs+=(kstars novnc websockify tigervnc-scraping-server)
 DEBIAN_FRONTEND=noninteractive apt-get install -y "${pkgs[@]}"
+if [[ "$MOUNT" == "celestron-aux" ]] && ! command -v "$MOUNT_DRV" >/dev/null; then
+  # liegt bei manchen Distributionen im 3rd-Party-Paket
+  DEBIAN_FRONTEND=noninteractive apt-get install -y indi-celestronaux 2>/dev/null \
+    || log "Hinweis: indi_celestron_aux nicht im Paketquellen-Stand – INDI-PPA/3rd-Party-Treiber nötig (docs/08)"
+fi
 command -v "$MOUNT_DRV" >/dev/null || die "Treiber $MOUNT_DRV fehlt nach der Installation"
 command -v "$CAM_DRV" >/dev/null || die "Treiber $CAM_DRV fehlt (Paket indi-gphoto?)"
 
