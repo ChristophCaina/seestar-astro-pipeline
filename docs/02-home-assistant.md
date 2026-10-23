@@ -76,13 +76,13 @@ Vor dem Einsatz musst du `seestar_s50` (Entity-Präfix) und `notify.mobile_app_h
 
 ## Dashboard „Sternwarte“
 
-[`homeassistant/dashboards/sternwarte.yaml`](../homeassistant/dashboards/sternwarte.yaml) ist ein Sections-Dashboard mit vier Bereichen (Heute Nacht und Bedingungen teilen sich eine Spalte, Seestar ist doppelt breit):
+[`homeassistant/dashboards/sternwarte.yaml`](../homeassistant/dashboards/sternwarte.yaml) ist ein Sections-Dashboard:
 
-- **Heute Nacht:** Empfehlung und Beobachtungsfenster aus dem Astro-Audit, Hinweis bei einer Milchstraßen-Nacht (Modus `weitfeld`), Stufe, „lohnt sich“, Schalter für Automatik und Schutz-Parken, **Session starten** und Audit – beide nur per Knopf mit Rückfrage
-- **Seestar:** seestar-lovelace-card, wenn das Teleskop verbunden ist, sonst ein Hinweis. Dazu Steuerungsfreigabe, Tauheizung, Akku, Speicher. Für ein zweites Seestar (S30 Pro) den Abschnitt kopieren.
-- **Bedingungen:** Taupunktabstand samt Quelle, Ecowitt (Temperatur, Feuchte, Regenrate), AstroWeather (Deep-Sky, Seeing, Transparenz, Wolken), Stundenvorhersage
+- **Heute Nacht und Bedingungen** (eine Spalte): Empfehlung und Beobachtungsfenster aus dem Astro-Audit, Hinweis bei einer Milchstraßen-Nacht (Modus `weitfeld`), Stufe, „lohnt sich“, Schalter für Automatik und Schutz-Parken, **Session starten** und Audit – beide nur per Knopf mit Rückfrage. Darunter Taupunktabstand samt Quelle, Ecowitt, AstroWeather und Stundenvorhersage.
+- **Seestar** (doppelt breit): Akku und Speicher als Badges, seestar-lovelace-card, wenn das Teleskop verbunden ist, sonst ein Warnhinweis; Steuerungsfreigabe, Tauheizung
+- **Seestar S30 Pro**: gleicher Aufbau, nur sichtbar, solange das zweite Seestar verbunden ist
 - **Nachverarbeitung:** Siril-Status, letzter Stack mit Gerät und Vorschaubild aus der Galerie, Stacks dieser Nacht, Link zur Astro-Galerie
-- **Astro-Pi** (nur sichtbar, wenn der Pi per MQTT gemeldet ist): Montierung, Ziel, Serie, HFR, Speicher, letzte Aufnahme und Link zur Web-App – nur Anzeige, gesteuert wird in der App
+- **Astro-Pi** (iEXOS-100 bzw. NexStar GT mit EOS 6D; nur sichtbar, wenn der Pi per MQTT gemeldet ist): Montierung, Ziel, Serie, HFR, Speicher, letzte Aufnahme und Link zur Web-App – nur Anzeige, gesteuert wird in der App
 
 Einfügen über den Raw-Konfigurationseditor eines neuen Dashboards. Vorher `seestar_s50`, die Galerie-Adresse und die Adresse des Astro-Pi anpassen.
 

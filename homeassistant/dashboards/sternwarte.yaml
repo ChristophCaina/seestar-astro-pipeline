@@ -7,6 +7,7 @@
 # siril-auto mit MQTT_ENABLED=1.
 # Anpassen (Suchen/Ersetzen):
 #   seestar_s50                 → Entity-Präfix deines Seestar
+#   seestar_s30                 → Entity-Präfix des zweiten Seestar (Abschnitt nur sichtbar, wenn verbunden)
 #   http://astro.lan            → Adresse der Astro-Galerie
 #   sensor.gw2000a_*            → Ecowitt-Entities
 #   http://astro-pi.lan:8080    → Web-App des Astro-Pi (Abschnitt blendet sich aus, solange der Pi fehlt)
@@ -156,6 +157,46 @@ views:
               - type: toggle
           - type: tile
             entity: switch.seestar_s50_dew_heater
+            name: Tauheizung
+            features_position: inline
+            features:
+              - type: toggle
+        column_span: 2
+      # Zweites Seestar (S30 Pro) – erscheint nur, solange es verbunden ist.
+      # seestar_s30 durch das Entity-Präfix ersetzen, das ha-seestar für das Gerät anlegt.
+      - type: grid
+        visibility:
+          - condition: state
+            entity: binary_sensor.seestar_s30_connected
+            state: 'on'
+        cards:
+          - type: heading
+            heading: Seestar S30 Pro
+            icon: mdi:telescope
+            heading_style: subtitle
+            badges:
+              - type: entity
+                show_state: true
+                show_icon: true
+                entity: sensor.seestar_s30_storage_used
+                color: state
+              - type: entity
+                show_state: true
+                show_icon: true
+                entity: sensor.seestar_s30_battery
+                color: state
+          - type: custom:seestar-card
+            device: seestar_s30
+            grid_options:
+              columns: full
+          - type: tile
+            entity: switch.seestar_s30_controls_enabled
+            name: Steuerung freigegeben
+            features_position: inline
+            features:
+              - type: toggle
+          - type: tile
+            entity: switch.seestar_s30_dew_heater
             name: Tauheizung
             features_position: inline
             features:
