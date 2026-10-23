@@ -94,6 +94,18 @@ LOCK_FILE={self.tmp}/lock
         self.assertIn("Starte siril-auto", r.stdout)
         self.assertTrue((self.astro / "stacks" / "M_31").exists(), r.stdout)
 
+    def test_second_device(self):
+        cfg = Path(self.env["SIRIL_AUTO_CONFIG"])
+        cfg.write_text(cfg.read_text() + 'DEVICES="s50 s30"\nDEV_s30_REMOTE=seestar30\n')
+        r = self.run_sync("--ip", "127.0.0.1", "--device", "s30")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        (call,) = self.calls()
+        self.assertEqual(call[1], "seestar30,host=127.0.0.1:EMMC Images/MyWorks")
+        self.assertEqual(call[2], str(self.astro / "raw" / "s30"))
+        r = self.run_sync("--ip", "127.0.0.1", "--device", "s99")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("steht nicht in DEVICES", r.stderr)
+
     def test_all_and_since_off(self):
         r = self.run_sync("--ip", "127.0.0.1", "--all", "--since", "off", "--dry-run")
         self.assertEqual(r.returncode, 0, r.stderr)

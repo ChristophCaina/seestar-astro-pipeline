@@ -13,6 +13,7 @@
 #
 # Optionen:
 #   --ip <ip>        IP des Seestar im Reiserouter-Netz (Pflicht)
+#   --device <id>    Geraet aus DEVICES (Default: das erste), bestimmt Remote, Pfad und Archiv
 #   --since <dauer>  nur Dateien juenger als <dauer> (rclone: 12h, 2d, 1w; Default 2d)
 #   --target <name>  nur dieses Ziel (Ordnername in der App, z. B. "M 31")
 #   --all            auch Seestar-eigene Stacks/JPGs, nicht nur *_sub
@@ -37,11 +38,12 @@ log() { echo "$(date '+%F %T') $*"; }
 die() { echo "FEHLER: $*" >&2; exit 2; }
 usage() { sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
-IP=""; SINCE="2d"; TARGET=""; ALL=0; BWLIMIT=""; SIZE=0; DRY=0; STACK=0; BG=0
+DEVICE=""; IP=""; SINCE="2d"; TARGET=""; ALL=0; BWLIMIT=""; SIZE=0; DRY=0; STACK=0; BG=0
 ORIG_ARGS=("$@")
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --ip)         IP="${2:-}"; shift ;;
+    --device)     DEVICE="${2:-}"; shift ;;
     --since)      SINCE="${2:-}"; shift ;;
     --target)     TARGET="${2:-}"; shift ;;
     --all)        ALL=1 ;;
@@ -55,6 +57,24 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
+# Geraet: Remote, Quellpfad und Archiv wie in siril-auto (DEV_<id>_*)
+read -ra DEVICE_LIST <<< "${DEVICES:-s50}"
+DEVICE="${DEVICE:-${DEVICE_LIST[0]}}"
+[[ " ${DEVICE_LIST[*]} " == *" $DEVICE "* ]] || die "Gerät '$DEVICE' steht nicht in DEVICES (${DEVICE_LIST[*]})"
+if [[ "$DEVICE" != "${DEVICE_LIST[0]}" ]]; then
+  v="DEV_${DEVICE}_REMOTE"; RCLONE_REMOTE="${!v:-}"
+  v="DEV_${DEVICE}_SRC"; RCLONE_SRC_PATH="${!v:-$RCLONE_SRC_PATH}"
+  v="DEV_${DEVICE}_MIRROR"; MIRROR_DIR="${!v:-${ASTRO_ROOT}/raw/$DEVICE}"
+  [[ -n "$RCLONE_REMOTE" ]] || die "DEV_${DEVICE}_REMOTE fehlt in $CONFIG"
+else
+  for k in REMOTE SRC MIRROR; do
+    v="DEV_${DEVICE}_${k}"
+    if [[ -n "${!v:-}" ]]; then
+      case "$k" in REMOTE) RCLONE_REMOTE="${!v}" ;; SRC) RCLONE_SRC_PATH="${!v}" ;; MIRROR) MIRROR_DIR="${!v}" ;; esac
+    fi
+  done
+fi
+
 [[ "$IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "--ip <Seestar-IP im Reiserouter-Netz> fehlt"
 [[ "$SINCE" =~ ^[0-9]+(ms|s|m|h|d|w|M|y)?$ || "$SINCE" == "off" ]] || die "--since: z. B. 12h, 2d, 1w oder off"
 
@@ -117,7 +137,7 @@ args=(copy "$src" "$MIRROR_DIR" "${filters[@]}" --transfers 2 --checkers 4
       --stats 1m --stats-one-line --log-level NOTICE)
 [[ -n "$BWLIMIT" ]] && args+=(--bwlimit "$BWLIMIT")
 (( DRY )) && args+=(--dry-run)
-log "Hole Frames von $IP (${TARGET:-alle Ziele}, seit $SINCE${BWLIMIT:+, max. ${BWLIMIT}B/s})"
+log "Hole Frames von $DEVICE @ $IP → $MIRROR_DIR (${TARGET:-alle Ziele}, seit $SINCE${BWLIMIT:+, max. ${BWLIMIT}B/s})"
 if "$RCLONE" "${args[@]}"; then
   log "Kopieren fertig"
 else

@@ -7,6 +7,8 @@ Neben jedem fertigen Stack-JPG liegt eine `<name>.meta.json`. Der Builder (`buil
   "schema": 1,
   "id": "m_31_master_ircut_siril",          // eindeutig, wird Dateiname im Web-Ordner
   "sample": false,                          // true = simulierte Beispieldaten
+  "source": "siril",                        // "siril" oder "app" (nachgeholter App-Stack)
+  "device": { "id": "s50", "label": "Seestar S50" },   // Aufnahmegerät, fehlt = Seestar S50
   "target": { "name": "M 31", "common": "Andromeda-Galaxie", "kind": "galaxy", "sort": 1031 },
   "stack": "master",                        // "master" (mehrere Nächte) oder "night"
   "filter": "IRCUT",                        // IRCUT | LP

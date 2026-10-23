@@ -63,7 +63,7 @@ def field_objects(wcs: dict | None, width: int, height: int, catalog: Catalog, m
 
 
 def build_meta(*, wcs, width, height, target, catalog, jpg: Path, out: Path, stack="night", filter_="",
-               exposure=None, gain=None, nights=(), caption="", source="siril") -> dict:
+               exposure=None, gain=None, nights=(), caption="", source="siril", device=None) -> dict:
     main_obj = catalog.find(target)
     name_disp = main_obj["name"] if main_obj else target
     common = (main_obj or {}).get("common") or ""
@@ -71,6 +71,7 @@ def build_meta(*, wcs, width, height, target, catalog, jpg: Path, out: Path, sta
         common = ""
     return {
         "schema": 1, "sample": False, "source": source,
+        "device": device or {"id": "s50", "label": "Seestar S50"},
         "id": jpg.stem.lower(),
         "target": {"name": name_disp, "common": common, "kind": (main_obj or {}).get("kind", "other"),
                    "sort": sort_key(name_disp)},
@@ -104,6 +105,8 @@ def main() -> int:
     ap.add_argument("--extra", default=str(HERE / "objects_de.json"))
     ap.add_argument("--no-flip-y", action="store_true", help="FITS ist bereits top-down gespeichert")
     ap.add_argument("--caption", default="")
+    ap.add_argument("--device-id", default="s50")
+    ap.add_argument("--device-label", default="Seestar S50")
     a = ap.parse_args()
 
     hdr = read_header(a.fits)
@@ -114,7 +117,8 @@ def main() -> int:
         wcs=wcs, width=w, height=h, target=a.target, catalog=cat, jpg=Path(a.jpg), out=Path(a.out),
         stack=a.stack, filter_=a.filter,
         exposure=a.exposure if a.exposure is not None else hdr.get("EXPTIME"), gain=hdr.get("GAIN"),
-        nights=parse_nights(a.nights), caption=a.caption)
+        nights=parse_nights(a.nights), caption=a.caption,
+        device={"id": a.device_id, "label": a.device_label})
     write_json(Path(a.out), meta)
     print(f"{a.out}: {len(meta['objects'])} Objekte, WCS {'ja' if wcs else 'nein'}, Ziel {display(meta['target']['name'])}")
     return 0

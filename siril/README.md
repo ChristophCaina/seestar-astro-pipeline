@@ -102,15 +102,32 @@ systemctl daemon-reload && systemctl enable --now siril-auto.timer
 journalctl -u siril-auto -f
 ```
 
+## Mehrere Geräte
+
+Ein zweites Seestar (z. B. S30 Pro) oder später andere Kameras kommen als weiteres Gerät in `/etc/siril-auto.env`:
+
+```bash
+DEVICES="s50 s30"
+DEV_s30_LABEL="Seestar S30 Pro"
+DEV_s30_IP="192.168.1.XX"
+DEV_s30_REMOTE="seestar30"        # rclone config create seestar30 smb host=<ip> user=guest
+```
+
+- Jedes Gerät hat ein eigenes Rohdaten-Archiv (`raw/<id>/`, das Hauptgerät behält `raw/seestar/`) und eigene Stacks. Nächte und Master werden **nie zwischen Geräten gemischt**, weil Sensor und Bildfeld verschieden sind.
+- Das erste Gerät in `DEVICES` ist das Hauptgerät, seine Dateinamen bleiben wie bisher. Weitere Geräte bekommen `_<id>` angehängt: `M_31_master_IRCUT_s30_siril`.
+- In der Galerie landen die Stacks beider Geräte beim selben Objekt; Versionen zeigen dann das Gerät, Titelbild ist der Master mit der längsten Belichtung.
+- `meta.json`, beschriftete Version und MQTT-Meldung enthalten das Gerät (`device`, `device_label`).
+- Optional je Gerät: `DEV_<id>_SRC` (Pfad auf der Freigabe), `DEV_<id>_MIRROR`, `DEV_<id>_SCRIPT` (eigenes Siril-Script).
+
 ## Unterwegs
 
-`travel-sync.sh` holt Frames von unterwegs über Tailscale vom Seestar am Reiserouter (nur Einzelframes, Zeitraum und Ziel wählbar, Bandbreitenlimit, im Hintergrund). Details in [docs/04](../docs/04-remote-access.md#bilder-unterwegs--nas).
+`travel-sync.sh` holt Frames von unterwegs über Tailscale vom Seestar am Reiserouter (nur Einzelframes, Zeitraum und Ziel wählbar, Bandbreitenlimit, im Hintergrund). Details in [docs/04](../docs/04-remote-access.md#bilder-unterwegs--nas). Bei mehreren Geräten wählt `--device <id>` Freigabe und Archiv.
 
 ## Home Assistant (MQTT)
 
 Mit `MQTT_ENABLED=1` legt das Script per Discovery das Gerät **„Siril Auto-Stacking“** an. Es hat zwei Sensoren:
 - **Status**: `idle`, `fetching`, `processing` oder `error`
-- **Letztes Ergebnis**: Ziel und Nacht. Als Attribute kommen Filter, `stack` (`night` oder `master`), Frames und die Pfade zu JPG und FIT dazu.
+- **Letztes Ergebnis**: Ziel und Nacht. Als Attribute kommen Filter, `stack` (`night` oder `master`), Frames, Gerät (`device`, `device_label`), Galerie-Bezug (`id`, `group`) und die Pfade zu JPG und FIT dazu.
 
 ## Immich
 
