@@ -120,6 +120,27 @@ GALLERY_OUT={self.astro}/web
         full = [c for c in self.calls_of("stack") if c["work"] == "M_31_master_IRCUT_siril"]
         self.assertEqual(full[-1]["lights"], 70)
 
+    def test_mqtt_payload_links_gallery(self):
+        cfg = Path(self.env["SIRIL_AUTO_CONFIG"])
+        cfg.write_text(cfg.read_text() + "MQTT_ENABLED=1\nMQTT_HOST=localhost\nMQTT_TOPIC=seestar/siril\n")
+        log = self.tmp / "mqtt.log"
+        r = self.run_auto(PATH=f"{ROOT / 'tests' / 'bin'}:{os.environ['PATH']}", FAKE_MQTT_LOG=str(log))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        msgs = [json.loads(x) for x in log.read_text().splitlines()]
+        topics = {m["topic"] for m in msgs}
+        self.assertIn("homeassistant/sensor/siril_auto_last/config", topics)
+        last = [json.loads(m["payload"]) for m in msgs if m["topic"] == "seestar/siril/last"]
+        self.assertTrue(all(m["retain"] for m in msgs if m["topic"] == "seestar/siril/last"))
+        master = next(p for p in last if p["stack"] == "master")
+        self.assertEqual(master["id"], "m_31_master_ircut_siril")
+        self.assertEqual(master["group"], "m-31-ircut")
+        self.assertRegex(master["timestamp"], r"^20\d\d-\d\d-\d\dT")
+        # id muss zum Galerie-Eintrag passen, group zum Schluessel im Frontend
+        cat = json.loads((self.astro / "web" / "catalog.json").read_text())
+        self.assertIn(master["id"], {e["id"] for e in cat["entries"]})
+        status = [json.loads(m["payload"]) for m in msgs if m["topic"] == "seestar/siril/status"]
+        self.assertEqual(status[-1]["state"], "idle")
+
     def test_failure_is_not_retried(self):
         r = self.run_auto(FAKE_SIRIL_FAIL="stack")
         self.assertEqual(r.returncode, 1)

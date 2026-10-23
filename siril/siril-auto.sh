@@ -211,9 +211,17 @@ run_stack() {
 
   rm -rf "$work"
   log "OK    $target $label $filter -> $jpg"
-  mqtt_pub last "$(printf '{"target":"%s","night":"%s","filter":"%s","stack":"%s","frames":%s,"jpg":"%s","fit":"%s","timestamp":"%s"}' \
-    "$(json_escape "$target")" "$label" "$filter" "$kind" "$frames" "$(json_escape "$jpg")" \
-    "$(json_escape "$STACK_DIR/$slug/$base.fit")" "$(date -Iseconds)")" retain
+  # Galerie-Adressen: Bild img/<id>.jpg, Detailseite #<group> (wie gallery/site/app.js)
+  local gid="${base,,}" gname="$target"
+  if [[ -f "$STACK_DIR/$slug/$base.meta.json" ]]; then
+    gname="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["target"]["name"])' \
+      "$STACK_DIR/$slug/$base.meta.json" 2>/dev/null || echo "$target")"
+  fi
+  local group; group="$(printf '%s-%s' "$gname" "${filter:-na}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g')"
+  # erst nach dem Galerie-Build senden (Abschnitt 5), damit das Vorschaubild schon existiert
+  PENDING_LAST+=("$(printf '{"target":"%s","night":"%s","filter":"%s","stack":"%s","frames":%s,"id":"%s","group":"%s","jpg":"%s","fit":"%s","timestamp":"%s"}' \
+    "$(json_escape "$target")" "$label" "$filter" "$kind" "$frames" "$gid" "$group" "$(json_escape "$jpg")" \
+    "$(json_escape "$STACK_DIR/$slug/$base.fit")" "__TS__")")
   return 0
 }
 
@@ -224,6 +232,7 @@ if [[ -z "$SIRIL_BIN" && $DRY_RUN -eq 0 ]]; then
 fi
 [[ $DRY_RUN -eq 0 ]] && WEIGHT_OPT="$(weight_option)"
 
+PENDING_LAST=()   # Ergebnis-Meldungen, gesendet nach dem Galerie-Build
 mkdir -p "$MIRROR_DIR" "$WORK_DIR" "$STACK_DIR" "$EXPORT_DIR" "$STATE_DIR"
 mqtt_discovery
 
@@ -328,6 +337,7 @@ if (( processed > 0 )) && [[ -n "${GALLERY_BUILD:-}" && $DRY_RUN -eq 0 ]]; then
   log "Baue Galerie neu"
   python3 "$GALLERY_BUILD" --stacks "$STACK_DIR" --out "${GALLERY_OUT:-$ASTRO_ROOT/web}" || log "WARN: Galerie-Build fehlgeschlagen"
 fi
+for payload in "${PENDING_LAST[@]}"; do mqtt_pub last "${payload//__TS__/$(date -Iseconds)}" retain; done
 # 6) Immich: Library-Scan + Versionen stapeln (optional)
 if (( processed > 0 )) && [[ "$IMMICH_SYNC" == "1" && $DRY_RUN -eq 0 ]]; then
   log "Immich-Sync"
