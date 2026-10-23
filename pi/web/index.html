@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Astro-Pi</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="bar">
+  <div class="brand"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Astro-Pi</div>
+  <div id="conn" class="pill off">getrennt</div>
+  <button id="red" class="icon" title="Rotlicht" aria-pressed="false">●</button>
+  <button id="stop" class="danger" title="Alles stoppen">STOPP</button>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" data-tab="mount" aria-selected="true">Montierung</button>
+  <button role="tab" data-tab="camera">Kamera</button>
+  <button role="tab" data-tab="focus">Fokus</button>
+  <button role="tab" data-tab="status">Status</button>
+</nav>
+
+<main>
+  <!-- ======================= Montierung ======================= -->
+  <section id="tab-mount" class="tab">
+    <div class="card">
+      <div class="row between"><h2>Position</h2><span id="m-state" class="pill">–</span></div>
+      <div class="grid3">
+        <div><small>RA</small><b id="m-ra">–</b></div>
+        <div><small>Dec</small><b id="m-dec">–</b></div>
+        <div><small>Höhe</small><b id="m-alt">–</b></div>
+      </div>
+      <div class="row"><small>Ziel</small>&nbsp;<b id="m-target">–</b></div>
+    </div>
+
+    <div class="card">
+      <h2>Ziel suchen</h2>
+      <input id="q" type="search" placeholder="M 31, NGC 7000, Orionnebel …" autocomplete="off">
+      <ul id="hits" class="hits"></ul>
+      <div id="sel" class="sel" hidden>
+        <div><b id="sel-name"></b> <span id="sel-info" class="muted"></span></div>
+        <div class="row wrap">
+          <button id="goto" class="primary">GoTo</button>
+          <button id="goto-center">GoTo + zentrieren</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row between"><h2>Manuell</h2>
+        <label class="muted">Tempo <input id="rate" type="range" min="0" max="3" value="1"></label></div>
+      <div class="pad">
+        <span></span><button data-dir="N">N</button><span></span>
+        <button data-dir="E">O</button><span class="muted center">halten</span><button data-dir="W">W</button>
+        <span></span><button data-dir="S">S</button><span></span>
+      </div>
+      <div class="row wrap">
+        <button id="track">Nachführung</button>
+        <button id="park">Parken</button>
+        <button id="unpark">Entparken</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= Kamera ======================= -->
+  <section id="tab-camera" class="tab" hidden>
+    <div class="card">
+      <h2>Serie</h2>
+      <div class="form">
+        <label>Bildtyp <select id="s-type"><option>Light</option><option>Dark</option><option>Flat</option><option>Bias</option></select></label>
+        <label>Ziel <input id="s-target" placeholder="aus GoTo"></label>
+        <label>Belichtung (s) <input id="s-exp" type="number" min="0.001" step="any" value="60"></label>
+        <label>Anzahl (0 = ∞) <input id="s-count" type="number" min="0" value="30"></label>
+        <label>Pause (s) <input id="s-delay" type="number" min="0" step="any" value="2"></label>
+        <label>ISO <select id="s-iso"><option value="">wie Kamera</option></select></label>
+      </div>
+      <div id="s-progress" class="progress" hidden><div></div><span></span></div>
+      <div class="row wrap">
+        <button id="s-start" class="primary">Serie starten</button>
+        <button id="s-stop">Serie stoppen</button>
+        <button id="s-test">Testbild (nicht speichern)</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="row between"><h2>Letzte Aufnahme</h2><span id="p-info" class="muted"></span></div>
+      <img id="p-img" class="shot" alt="Letzte Aufnahme" hidden>
+      <div class="row wrap">
+        <button id="solve">Plate-Solve</button>
+        <button id="solve-sync">Solve + Sync</button>
+      </div>
+      <p id="solve-res" class="muted"></p>
+    </div>
+  </section>
+
+  <!-- ======================= Fokus ======================= -->
+  <section id="tab-focus" class="tab" hidden>
+    <div class="card">
+      <div class="row between"><h2>Live View</h2>
+        <div class="row"><button id="live-on" class="primary">Start</button><button id="live-off">Stopp</button></div></div>
+      <div id="live-wrap" class="live"><img id="live-img" alt="Live View"><p class="muted center" id="live-hint">Live View aus</p></div>
+      <div class="row wrap">
+        <label class="muted">Zoom <input id="zoom" type="range" min="1" max="8" step="0.5" value="1"></label>
+        <span class="muted">Tippen = Zoompunkt setzen</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="row between"><h2>Fokus mit Testbild</h2><b id="hfr">HFR –</b></div>
+      <div class="row wrap">
+        <label>Belichtung (s) <input id="f-exp" type="number" min="0.1" step="any" value="3" style="width:6em"></label>
+        <button id="f-shot">Testbild</button>
+        <button id="f-loop">Schleife</button>
+      </div>
+      <canvas id="hfr-chart" height="90"></canvas>
+    </div>
+  </section>
+
+  <!-- ======================= Status ======================= -->
+  <section id="tab-status" class="tab" hidden>
+    <div class="card">
+      <h2>Geräte</h2>
+      <dl class="kv" id="devs"></dl>
+    </div>
+    <div class="card">
+      <h2>Meldungen</h2>
+      <ul id="msgs" class="msgs"></ul>
+    </div>
+    <div class="card">
+      <h2>Mehr</h2>
+      <p class="muted">Polausrichtung, Guiding und alles Weitere: Ekos im Browser.</p>
+      <a id="vnc" class="button" href="#" target="_blank" rel="noopener">Ekos (noVNC) öffnen</a>
+    </div>
+  </section>
+</main>
+
+<div id="toast" class="toast" role="status" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>

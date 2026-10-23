@@ -1,0 +1,15 @@
+[Unit]
+Description=INDI-Server (Montierung + Kamera)
+After=network.target
+
+[Service]
+User=astro
+Group=astro
+EnvironmentFile=/etc/default/astro-pi-indi
+# Treiber aus /etc/default/astro-pi-indi, z. B. indi_pmc8_telescope indi_canon_ccd
+ExecStart=/bin/sh -c 'exec /usr/bin/indiserver -v -p 7624 $INDI_DRIVERS'
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

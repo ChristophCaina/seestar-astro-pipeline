@@ -1,0 +1,11 @@
+[Unit]
+Description=noVNC (KStars/Ekos im Browser, Port 6080)
+After=network.target
+
+[Service]
+User=astro
+ExecStart=/usr/bin/websockify --web /usr/share/novnc 6080 localhost:5900
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

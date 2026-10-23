@@ -1,0 +1,15 @@
+[Unit]
+Description=Astro-Pi Web-App (INDI-Steuerung)
+After=network-online.target indiserver.service
+Wants=network-online.target indiserver.service
+
+[Service]
+User=astro
+Group=astro
+WorkingDirectory=/opt/seestar-astro-pipeline/pi
+ExecStart=/usr/bin/python3 -m astro_pi.server --config /etc/astro-pi.toml
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

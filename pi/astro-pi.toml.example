@@ -1,0 +1,34 @@
+# Konfiguration fuer den Astro-Pi-Dienst (Ablage: /etc/astro-pi.toml)
+
+[indi]
+host = "127.0.0.1"
+port = 7624
+mount = ""          # leer = automatisch (erstes Geraet mit Teleskop-Schnittstelle)
+camera = ""         # leer = automatisch (erste Kamera)
+
+[capture]
+dir = "/data/captures"     # Aufnahmen: <dir>/<Ziel>_sub/Light_<Ziel>_<Bel.>s_DSLR_<Datum>-<Zeit>.fits
+filter = "DSLR"            # steht im Dateinamen, siril-auto gruppiert danach
+device_id = "eos6d"        # Geraete-ID in siril-auto (DEVICES)
+
+[location]
+lat = 48.7          # Breite (Nord +), fuer Zielhoehe und Montierung – anpassen
+lon = 8.9           # Laenge (Ost +)
+
+[solve]
+solve_field = "solve-field"
+scale_low = 0.5     # Bildmassstab in "/px; 6D (6,54 µm) an 400 mm ≈ 3,4"/px, an 200 mm ≈ 6,7"/px
+scale_high = 8.0
+
+[web]
+host = "0.0.0.0"
+port = 8080
+url = "http://astro-pi.local:8080"
+
+[mqtt]
+host = ""           # leer = aus; z. B. "192.168.1.XX" (HA-Broker, unterwegs ueber Tailscale)
+port = 1883
+user = ""
+password = ""
+topic = "astro_pi"
+interval = 10
