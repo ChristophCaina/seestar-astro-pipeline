@@ -57,9 +57,21 @@ WIDE_SCALE_HIGH=130
 WIDE_SOLVE_FLIP_Y=0          # 1, falls die Beschriftung vertikal gespiegelt ist
 ```
 
+## Seestar S30 Pro (Weitwinkelkamera)
+
+Das S30 Pro hat neben dem Tele (160 mm, 4,6° Feld) eine **Weitwinkelkamera** (6 mm, IMX586, ca. 63° Feld) mit eigenem **Milchstraßen-Modus** inklusive KI-Vordergrundtrennung und Panorama ([Herstellerseite](https://www.seestar.com/products/seestar-s30-pro), [Test bei AstroBackyard](https://astrobackyard.com/seestar-s30-pro-review/)). Für die Pipeline:
+
+| Weg | Was passiert |
+|---|---|
+| **App-Ergebnis** (JPG vom Handy → Immich) | `backfill.py` löst das Bild nachträglich und beschriftet es mit Sternbildern. Skalenhinweis in ″/px = 63° × 3600 / Bildbreite, bei 3840 px also etwa `--scale-low 45 --scale-high 75`; `IMMICH_APP_PATTERN` ggf. an die Dateinamen des S30 anpassen. Zielname wird „Sternfeld <Sternbild>“. |
+| **Einzelframes** (FITS, falls die App sie in diesem Modus speichert) | als Gerät `s30` in siril-auto (`DEVICES="s50 s30"`). Welches Kürzel die Dateien tragen, zeigt sich erst am Gerät – dann in `WIDE_FILTERS` eintragen, damit `wide_stack.ssf` sie stackt. |
+| **Tele** (Deep-Sky, 4,6°) | normales Seestar-Profil; liegt unter der 10°-Schwelle und wird wie Deep-Sky beschriftet |
+
+Den Vordergrund trennt beim S30 Pro schon die App – `WIDE_FOREGROUND` ist dort meist unnötig. Für Panoramen über ~75° Bildbreite reichen die Indexdateien 4107–4119 noch; darüber hinaus wird das Lösen unsicher.
+
 ## Beschriftung
 
-Ab 4° Bildbreite gilt ein Bild als Weitwinkel (`siril/lib/sky.py`):
+Ab 10° Bildbreite gilt ein Bild als Weitwinkel (`siril/lib/sky.py`) – das Tele des S30 Pro (4,6°) wird also weiter wie Deep-Sky beschriftet:
 
 - **Sternbildlinien und -namen** (deutsch), Linien als Großkreise interpoliert
 - **benannte helle Sterne** (bis 3,0/3,5/4,0 mag je nach Bildfeld) mit Bayer-Bezeichnung im Info-Kärtchen

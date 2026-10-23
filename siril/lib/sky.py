@@ -11,7 +11,7 @@ from functools import lru_cache
 from pathlib import Path
 
 SKY = Path(__file__).with_name("sky.json")
-WIDE_FOV_DEG = 4.0          # ab dieser Bildbreite gilt ein Bild als Weitwinkel
+WIDE_FOV_DEG = 10.0         # ab dieser Bildbreite gilt ein Bild als Weitwinkel (S30 Pro Tele: 4,6° bleibt Deep-Sky)
 
 
 @lru_cache(maxsize=1)
