@@ -8,7 +8,7 @@
 # Anpassen (Suchen/Ersetzen):
 #   seestar_s50                 → Entity-Präfix deines Seestar
 #   seestar_s30                 → Entity-Präfix des zweiten Seestar (Abschnitt nur sichtbar, wenn verbunden)
-#   teleskop: s50 / s30         → ids aus der KONFIGURATION in astro_audit.yaml
+#   script.astro_start_*        → Start-Scripts je Gerät aus astro_audit.yaml
 #   http://astro.lan            → Adresse der Astro-Galerie
 #   sensor.gw2000a_*            → Ecowitt-Entities
 #   http://astro-pi.lan:8080    → Web-App des Astro-Pi (Abschnitt blendet sich aus, solange der Pi fehlt)
@@ -38,22 +38,23 @@ views:
               ## {{ states('input_text.astro_empfehlung') }}
 
               {% set s = states('input_datetime.astro_fenster_start') %}
-              🔭 Deep-Sky **{{ states('input_select.astro_stufe') }}** · {{ as_timestamp(s) | timestamp_custom('%H:%M') }}–{{ as_timestamp(e) | timestamp_custom('%H:%M') }} Uhr
+              <ha-alert alert-type="success">🔭 Deep-Sky **{{ states('input_select.astro_stufe') }}** · {{ as_timestamp(s) | timestamp_custom('%H:%M') }}–{{ as_timestamp(e) | timestamp_custom('%H:%M') }} Uhr</ha-alert>
 
               {% set m = states('input_select.astro_stufe_milchstrasse') %}
               {% set ms = states('input_datetime.astro_mw_start') %}
               {% set me = states('input_datetime.astro_mw_ende') %}
               {% if m in ['ideal', 'gut', 'bedingt', 'eingeschraenkt'] and as_timestamp(me, 0) > as_timestamp(now()) %}
-              🌌 Milchstraße **{{ m }}** · {{ as_timestamp(ms) | timestamp_custom('%H:%M') }}–{{ as_timestamp(me) | timestamp_custom('%H:%M') }} Uhr
+              <ha-alert alert-type="success">🌌 Milchstraße **{{ m }}** · {{ as_timestamp(ms) | timestamp_custom('%H:%M') }}–{{ as_timestamp(me) | timestamp_custom('%H:%M') }} Uhr</ha-alert>
               {% endif %}
               {% else %}
               {% set su = state_attr('sun.sun', 'next_setting') or states('sensor.sun_next_setting') %}
               ## ☀️ Noch kein Audit für heute Nacht
 
-              {% if as_timestamp(su, 0) > 0 %}Audit um ca. **{{ (as_timestamp(su) + 1800) | timestamp_custom('%H:%M') }} Uhr** (30 min nach Sonnenuntergang) – oder jetzt per Knopf.{% endif %}
+              {% if as_timestamp(su, 0) > 0 %}<ha-alert alert-type="info">Audit um ca. **{{ (as_timestamp(su) + 1800) | timestamp_custom('%H:%M') }} Uhr** (30 min nach Sonnenuntergang) – oder jetzt per Knopf.</ha-alert>{% endif %}
 
               <small>Letzte Nacht: {{ states('input_text.astro_empfehlung') }}</small>
               {% endif %}
+            text_only: true
           - type: tile
             entity: input_select.astro_stufe
             name: Deep-Sky
@@ -85,6 +86,8 @@ views:
               perform_action: script.astro_audit
               confirmation:
                 text: KI-Audit jetzt ausführen?
+            features:
+              - type: button
           - type: heading
             heading: Bedingungen
             icon: mdi:weather-partly-cloudy
@@ -147,7 +150,7 @@ views:
               columns: full
           - type: markdown
             content: >-
-              <ha-alert alert-type="warning">Das Seestar ist nicht verbunden.
+              <ha-alert alert-type="error">Das Seestar ist nicht verbunden.
               Station-Modus und WLAN prüfen.</ha-alert>
             visibility:
               - condition: state
@@ -169,17 +172,16 @@ views:
             features:
               - type: toggle
           - type: tile
-            entity: script.astro_session_starten
+            entity: script.astro_start_s50
             name: Session starten
             icon: mdi:play-circle
             tap_action:
               action: perform-action
-              perform_action: script.astro_session_starten
-              data:
-                teleskop: s50
-                modus: deepsky
+              perform_action: script.astro_start_s50
               confirmation:
                 text: S50 jetzt starten (Deep-Sky)?
+            features:
+              - type: button
         column_span: 2
       # Zweites Seestar (S30 Pro) – erscheint nur, solange es verbunden ist.
       # seestar_s30 durch das Entity-Präfix ersetzen, das ha-seestar für das Gerät anlegt.
@@ -221,29 +223,27 @@ views:
             features:
               - type: toggle
           - type: tile
-            entity: script.astro_session_starten
+            entity: script.astro_start_s30_milchstrasse
             name: Milchstraße starten
             icon: mdi:star-shooting
             tap_action:
               action: perform-action
-              perform_action: script.astro_session_starten
-              data:
-                teleskop: s30
-                modus: weitfeld
+              perform_action: script.astro_start_s30_milchstrasse
               confirmation:
                 text: S30 Pro jetzt starten (Milchstraße)?
+            features:
+              - type: button
           - type: tile
-            entity: script.astro_session_starten
+            entity: script.astro_start_s30_deepsky
             name: Deep-Sky starten
             icon: mdi:play-circle
             tap_action:
               action: perform-action
-              perform_action: script.astro_session_starten
-              data:
-                teleskop: s30
-                modus: deepsky
+              perform_action: script.astro_start_s30_deepsky
               confirmation:
                 text: S30 Pro jetzt starten (Deep-Sky)?
+            features:
+              - type: button
         column_span: 2
       - type: grid
         cards:
@@ -272,7 +272,7 @@ views:
               {% if state_attr(e, 'id') %}<a href="http://astro.lan/#{{
               state_attr(e, 'group') }}"><img src="http://astro.lan/img/{{
               state_attr(e, 'id') }}_t.jpg" width="100%"></a>{% endif %} {% else
-              %} <ha-alert alert-type="error">Noch kein Stack.</ha-alert> {%
+              %} <ha-alert alert-type="info">Noch kein Stack.</ha-alert> {%
               endif %}
             text_only: true
           - type: markdown

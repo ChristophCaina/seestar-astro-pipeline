@@ -544,6 +544,30 @@ script:
             Session bestätigt: {{ t.name }} – {{ modus_name }}
             (script.astro_session_starten ist noch ein Platzhalter)
 
+  # Ein Start-Script je Geraet und Modus – fuer die Knoepfe im Dashboard (Kachel + Knopf).
+  # Neues Geraet: Block kopieren, teleskop = id aus der KONFIGURATION.
+  astro_start_s50:
+    alias: Astro – S50 starten (Deep-Sky)
+    icon: mdi:play-circle
+    mode: single
+    sequence:
+      - action: script.astro_session_starten
+        data: {teleskop: s50, modus: deepsky}
+  astro_start_s30_milchstrasse:
+    alias: Astro – S30 Pro starten (Milchstraße)
+    icon: mdi:star-shooting
+    mode: single
+    sequence:
+      - action: script.astro_session_starten
+        data: {teleskop: s30, modus: weitfeld}
+  astro_start_s30_deepsky:
+    alias: Astro – S30 Pro starten (Deep-Sky)
+    icon: mdi:play-circle
+    mode: single
+    sequence:
+      - action: script.astro_session_starten
+        data: {teleskop: s30, modus: deepsky}
+
 automation:
   # Audit jeden Abend kurz nach Sonnenuntergang
   - id: astro_audit_abends
