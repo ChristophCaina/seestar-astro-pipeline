@@ -1,3 +1,19 @@
+# Lovelace-Dashboard „Sternwarte“
+#
+# Einrichten: Einstellungen → Dashboards → Dashboard hinzufügen → „Neues Dashboard von Grund auf“,
+# dann ⋮ → Bearbeiten → ⋮ → Raw-Konfigurationseditor → diesen Inhalt einfügen.
+#
+# Voraussetzungen: Packages astro_audit.yaml und astro_stacks.yaml, HA-Add-on ha-seestar, seestar-lovelace-card (HACS),
+# siril-auto mit MQTT_ENABLED=1.
+# Anpassen (Suchen/Ersetzen):
+#   seestar_s50                 → Entity-Präfix deines Seestar
+#   seestar_s30                 → Entity-Präfix des zweiten Seestar (Abschnitt nur sichtbar, wenn verbunden)
+#   script.astro_start_*        → Start-Scripts je Gerät aus astro_audit.yaml
+#   http://astro.lan            → Adresse der Astro-Galerie
+#   sensor.gw2000a_*            → Ecowitt-Entities
+#   http://astro-pi.lan:8080    → Web-App des Astro-Pi (Abschnitt blendet sich aus, solange der Pi fehlt)
+#
+# Bedienung: Starten nur per Knopf je Gerät – automatisch passiert nur das Schutz-Parken in der Nacht.
 title: Sternwarte
 views:
   - title: Sternwarte
@@ -12,52 +28,55 @@ views:
             heading: Heute Nacht
             icon: mdi:weather-night
             heading_style: subtitle
+          # Tagsüber (Fenster der letzten Nacht vorbei) statt des alten Ergebnisses:
+          # Uhrzeit des nächsten Audits und das Ergebnis der letzten Nacht klein darunter.
           - type: markdown
-            content: >-
+            content: |-
+              {% set e = states('input_datetime.astro_fenster_ende') %}
+              {% set aktuell = e not in ['unknown', 'unavailable'] and as_timestamp(e, 0) > as_timestamp(now()) %}
+              {% if aktuell %}
               ## {{ states('input_text.astro_empfehlung') }}
 
-              {% set s = states('input_datetime.astro_fenster_start') %} {% set
-              e = states('input_datetime.astro_fenster_ende') %} {% if s not in
-              ['unknown', 'unavailable'] %} <ha-alert
-              alert-type="success">Beobachtungsfenster **{{ as_timestamp(s) |
-              timestamp_custom('%H:%M') }}–{{ as_timestamp(e) |
-              timestamp_custom('%H:%M') }} Uhr** · Modus: {{
-              states('input_select.astro_modus') }} </ha-alert>{% endif %}
+              {% set s = states('input_datetime.astro_fenster_start') %}
+              <ha-alert alert-type="success">🔭 Deep-Sky **{{ states('input_select.astro_stufe') }}** · {{ as_timestamp(s) | timestamp_custom('%H:%M') }}–{{ as_timestamp(e) | timestamp_custom('%H:%M') }} Uhr</ha-alert>
 
-              {% if is_state('input_select.astro_modus', 'weitfeld') %}<ha-alert
-              alert-type="success">🌌 **Milchstraßen-Nacht** – Weitwinkel mit
-              EOS 6D oder S30 Pro lohnt sich.</ha-alert>{% endif %}
+              {% set m = states('input_select.astro_stufe_milchstrasse') %}
+              {% set ms = states('input_datetime.astro_mw_start') %}
+              {% set me = states('input_datetime.astro_mw_ende') %}
+              {% if m in ['ideal', 'gut', 'bedingt', 'eingeschraenkt'] and as_timestamp(me, 0) > as_timestamp(now()) %}
+              <ha-alert alert-type="success">🌌 Milchstraße **{{ m }}** · {{ as_timestamp(ms) | timestamp_custom('%H:%M') }}–{{ as_timestamp(me) | timestamp_custom('%H:%M') }} Uhr</ha-alert>
+              {% endif %}
+              {% else %}
+              {% set su = state_attr('sun.sun', 'next_setting') or states('sensor.sun_next_setting') %}
+              ## ☀️ Noch kein Audit für heute Nacht
+
+              {% if as_timestamp(su, 0) > 0 %}<ha-alert alert-type="info">Audit um ca. **{{ (as_timestamp(su) + 1800) | timestamp_custom('%H:%M') }} Uhr** (30 min nach Sonnenuntergang) – oder jetzt per Knopf.</ha-alert>{% endif %}
+
+              <small>Letzte Nacht: {{ states('input_text.astro_empfehlung') }}</small>
+              {% endif %}
             text_only: true
           - type: tile
             entity: input_select.astro_stufe
-            name: Stufe
+            name: Deep-Sky
+            visibility:
+              - condition: state
+                entity: sun.sun
+                state: below_horizon
             icon: mdi:star-four-points
           - type: tile
-            entity: input_boolean.astro_nacht_lohnt
-            name: Lohnt sich
-          - type: tile
-            entity: input_boolean.astro_automatik
-            name: Automatik
-            features_position: inline
-            features:
-              - type: toggle
+            entity: input_select.astro_stufe_milchstrasse
+            name: Milchstraße
+            visibility:
+              - condition: state
+                entity: sun.sun
+                state: below_horizon
+            icon: mdi:star-shooting
           - type: tile
             entity: input_boolean.astro_schutz_parken
             name: Schutz-Parken
             features_position: inline
             features:
               - type: toggle
-          - type: tile
-            entity: script.astro_session_starten
-            name: Session starten
-            icon: mdi:play-circle
-            tap_action:
-              action: perform-action
-              perform_action: script.astro_session_starten
-              confirmation:
-                text: Session jetzt starten?
-            features:
-              - type: button
           - type: tile
             entity: script.astro_audit
             name: Audit jetzt
@@ -152,7 +171,42 @@ views:
             features_position: inline
             features:
               - type: toggle
+          - type: tile
+            entity: script.astro_start_s50
+            name: Session starten
+            icon: mdi:play-circle
+            tap_action:
+              action: perform-action
+              perform_action: script.astro_start_s50
+              confirmation:
+                text: S50 jetzt starten (Deep-Sky)?
+            features:
+              - type: button
+          # Kein „Drücken“-Knopf: Kachel-Funktionen kennen (noch) keine Rückfrage
+          - type: tile
+            entity: script.astro_stopp_s50
+            name: Stoppen
+            icon: mdi:stop-circle
+            color: red
+            tap_action:
+              action: perform-action
+              perform_action: script.astro_stopp_s50
+              confirmation:
+                text: "S50: Aufnahme jetzt stoppen?"
+          # Kein „Drücken“-Knopf: Kachel-Funktionen kennen (noch) keine Rückfrage
+          - type: tile
+            entity: script.astro_parken_s50
+            name: Parken
+            icon: mdi:home-import-outline
+            color: red
+            tap_action:
+              action: perform-action
+              perform_action: script.astro_parken_s50
+              confirmation:
+                text: "S50: Aufnahme stoppen und parken?"
         column_span: 2
+      # Zweites Seestar (S30 Pro) – erscheint nur, solange es verbunden ist.
+      # seestar_s30 durch das Entity-Präfix ersetzen, das ha-seestar für das Gerät anlegt.
       - type: grid
         visibility:
           - condition: state
@@ -190,6 +244,50 @@ views:
             features_position: inline
             features:
               - type: toggle
+          - type: tile
+            entity: script.astro_start_s30_milchstrasse
+            name: Milchstraße starten
+            icon: mdi:star-shooting
+            tap_action:
+              action: perform-action
+              perform_action: script.astro_start_s30_milchstrasse
+              confirmation:
+                text: S30 Pro jetzt starten (Milchstraße)?
+            features:
+              - type: button
+          - type: tile
+            entity: script.astro_start_s30_deepsky
+            name: Deep-Sky starten
+            icon: mdi:play-circle
+            tap_action:
+              action: perform-action
+              perform_action: script.astro_start_s30_deepsky
+              confirmation:
+                text: S30 Pro jetzt starten (Deep-Sky)?
+            features:
+              - type: button
+          # Kein „Drücken“-Knopf: Kachel-Funktionen kennen (noch) keine Rückfrage
+          - type: tile
+            entity: script.astro_stopp_s30
+            name: Stoppen
+            icon: mdi:stop-circle
+            color: red
+            tap_action:
+              action: perform-action
+              perform_action: script.astro_stopp_s30
+              confirmation:
+                text: "S30 Pro: Aufnahme jetzt stoppen?"
+          # Kein „Drücken“-Knopf: Kachel-Funktionen kennen (noch) keine Rückfrage
+          - type: tile
+            entity: script.astro_parken_s30
+            name: Parken
+            icon: mdi:home-import-outline
+            color: red
+            tap_action:
+              action: perform-action
+              perform_action: script.astro_parken_s30
+              confirmation:
+                text: "S30 Pro: Aufnahme stoppen und parken?"
         column_span: 2
       - type: grid
         cards:

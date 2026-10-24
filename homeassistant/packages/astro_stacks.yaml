@@ -16,7 +16,7 @@
 #   http://astro.lan        -> Adresse deiner Galerie (nginx-vhost, docs/06). Damit das
 #                              Vorschaubild unterwegs laedt, muss das Handy sie erreichen
 #                              (Heimnetz oder Tailscale).
-#   notify.mobile_app_handy -> dein Benachrichtigungsdienst
+#   Empfaenger: in astro_audit.yaml (script astro_benachrichtigen) – dieses Package braucht es
 #   seestar/siril           -> MQTT_TOPIC aus /etc/siril-auto.env, falls geaendert
 # =============================================================================
 
@@ -89,7 +89,7 @@ automation:
       link: "{{ galerie ~ '/#' ~ p.group if p.group | default('') else galerie }}"
       bild: "{{ galerie ~ '/img/' ~ p.id ~ '_t.jpg' if p.id | default('') else '' }}"
     actions:
-      - action: notify.mobile_app_handy
+      - action: script.astro_benachrichtigen   # an alle Handys aus astro_audit.yaml
         data:
           title: >-
             🔭 {{ p.target }} {{ 'Master' if p.stack == 'master' else 'gestackt' }}
@@ -118,7 +118,7 @@ automation:
       stacks: "{{ state_attr('sensor.astro_stacks_dieser_nacht', 'stacks') }}"
       fehler: "{{ is_state('sensor.siril_auto_stacking_status', 'error') }}"
     actions:
-      - action: notify.mobile_app_handy
+      - action: script.astro_benachrichtigen   # an alle Handys aus astro_audit.yaml
         data:
           title: >-
             🌅 Astro-Nacht: {{ stacks | count }} Stack{{ '' if stacks | count == 1 else 's' }}
@@ -142,7 +142,7 @@ automation:
         to: error
         for: "00:01:00"
     actions:
-      - action: notify.mobile_app_handy
+      - action: script.astro_benachrichtigen   # an alle Handys aus astro_audit.yaml
         data:
           title: ⚠️ siril-auto
           message: >-

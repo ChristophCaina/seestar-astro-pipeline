@@ -8,13 +8,14 @@
 # Enthaelt:
 #   * Helfer: Empfehlung (an/aus), Stufe, Modus, Kurztext, Beobachtungsfenster
 #   * Script astro_audit: KI-Bewertung (ai_task) -> Helfer + Benachrichtigung
-#   * Automationen: Audit am Abend, Session-Start NUR nach Bestaetigung am Handy,
+#   * Script astro_session_starten: Start je Geraet, NUR per Knopf im Dashboard
+#   * Automationen: Audit am Abend,
 #     Steuerung sperren, Tauheizung (automatisch), Schutz bei Regen/Wind/Tau
-#     (automatisch parken, abschaltbar) – sonst wird nichts ohne Rueckfrage gestartet
+#     (automatisch parken, abschaltbar) – gestartet wird nie automatisch (Zeit/Bedingung)
 #
-# VOR DEM EINSATZ ANPASSEN (Suchen/Ersetzen):
-#   seestar_s50          -> Entity-Praefix deines Seestar (Geraeteseite in HA)
-#   notify.mobile_app_handy -> dein Benachrichtigungsdienst
+# VOR DEM EINSATZ ANPASSEN:
+#   Abschnitt KONFIGURATION (script astro_benachrichtigen, oben unter script:):
+#     Teleskope (Entity-Praefix, Weitwinkel ja/nein) und die Handys fuer Meldungen
 #   weather.renningen_2, sensor.astroweather_backyard_* -> wie in deinem Script
 #   sensor.gw2000a_outdoor_temperature / _rain_rate / _wind_gust -> Namen deiner Ecowitt-Entities pruefen
 #   sensor.sternwarte_*  -> spaeterer Sensor am Teleskop (darf fehlen)
@@ -24,9 +25,6 @@ input_boolean:
   astro_nacht_lohnt:
     name: Astro – Nacht lohnt sich
     icon: mdi:telescope
-  astro_automatik:
-    name: Astro – Automatik aktiv
-    icon: mdi:robot
   astro_schutz_parken:
     name: Astro – Bei Regen/Wind/Tau parken
     icon: mdi:shield-sun
@@ -35,6 +33,10 @@ input_select:
   astro_stufe:
     name: Astro – Stufe
     icon: mdi:weather-night
+    options: [ideal, gut, bedingt, eingeschraenkt, abbruch]
+  astro_stufe_milchstrasse:
+    name: Astro – Stufe Milchstraße
+    icon: mdi:star-shooting
     options: [ideal, gut, bedingt, eingeschraenkt, abbruch]
   astro_modus:
     name: Astro – Modus
@@ -53,6 +55,14 @@ input_datetime:
     has_time: true
   astro_fenster_ende:
     name: Astro – Fenster Ende
+    has_date: true
+    has_time: true
+  astro_mw_start:
+    name: Astro – Milchstraße Beginn
+    has_date: true
+    has_time: true
+  astro_mw_ende:
+    name: Astro – Milchstraße Ende
     has_date: true
     has_time: true
 
@@ -90,6 +100,49 @@ template:
             {% else %}Wettermodell (AstroWeather){% endif %}
 
 script:
+  # ===========================================================================
+  # KONFIGURATION – Teleskope und Empfaenger. Die Listen gelten fuer alle
+  # Automationen dieses Packages (YAML-Anker *astro_teleskope) und – ueber dieses
+  # Script – auch fuer die Meldungen aus astro_stacks.yaml.
+  #   id         kurz, OHNE Unterstrich (steht in den Push-Aktionen)
+  #   prefix     Entity-Praefix des Geraets in ha-seestar (switch.<prefix>_dew_heater …)
+  #   weitwinkel true = Milchstrassen-Modus moeglich (S30 Pro), nur zur Info
+  # Geraete, die (noch) nicht existieren oder nicht verbunden sind, werden uebersprungen.
+  # ===========================================================================
+  astro_benachrichtigen:
+    alias: Astro – Benachrichtigen
+    description: Schickt eine Nachricht an alle Handys aus der Konfiguration.
+    mode: parallel
+    max: 20
+    icon: mdi:message-badge
+    fields:
+      title:
+        description: Überschrift
+        selector: {text: {}}
+      message:
+        description: Text
+        selector: {text: {multiline: true}}
+      data:
+        description: Zusatzdaten für die Companion-App (tag, actions, image …)
+        selector: {object: {}}
+    variables:
+      teleskope: &astro_teleskope
+        - {id: s50, name: Seestar S50, prefix: seestar_s50, weitwinkel: false}
+        - {id: s30, name: Seestar S30 Pro, prefix: seestar_s30, weitwinkel: true}
+      empfaenger: &astro_empfaenger
+        - notify.mobile_app_handy          # dein Handy
+        - notify.mobile_app_handy_2        # weiteres Handy (z. B. deiner Frau) – oder Zeile loeschen
+    sequence:
+      - repeat:
+          for_each: *astro_empfaenger
+          sequence:
+            - action: "{{ repeat.item }}"
+              continue_on_error: true
+              data:
+                title: "{{ title | default('') }}"
+                message: "{{ message | default('') }}"
+                data: "{{ data | default({}) }}"
+
   astro_audit:
     alias: 'Astro-Audit: Sternwarten-Modus'
     description: >-
@@ -233,6 +286,14 @@ script:
             nenne den anderen als Alternative. Im Bericht bei weitfeld die beste Region
             und Uhrzeit nennen.
 
+            ZWEI BEWERTUNGEN: In derselben Nacht können zwei Geräte parallel arbeiten
+            (Deep-Sky mit dem Tele, Milchstraße mit einer Weitwinkelkamera). Gib daher
+            stufe (Deep-Sky/Planeten) UND stufe_milchstrasse getrennt an.
+            stufe_milchstrasse nach denselben Stufen, aber mit den Kriterien von MODUS
+            WEITFELD: Seeing egal; Mond, Transparenz, Wolken und die Höhe der
+            Milchstraßen-Regionen zählen. Steht keine Region mindestens 30° hoch oder
+            stört der Mond die ganze Nacht → abbruch. Nenne im Bericht beide Stufen.
+
             EMPFEHLUNGS-STUFEN:
               🌌 IDEAL        → Deepsky >= 70, Seeing <= 3, Wind < 10, Wolken < 20%
               🌠 GUT          → Deepsky >= 50, Seeing <= 4, Wind < 15, Wolken < 40%
@@ -306,6 +367,18 @@ script:
                     - bedingt
                     - eingeschraenkt
                     - abbruch
+            stufe_milchstrasse:
+              description: >-
+                Stufe für Milchstraße/Weitwinkel gemäß ZWEI BEWERTUNGEN.
+              required: true
+              selector:
+                select:
+                  options:
+                    - ideal
+                    - gut
+                    - bedingt
+                    - eingeschraenkt
+                    - abbruch
             modus:
               description: >-
                 Wofür sich die Nacht eignet: deepsky (Nebel, Galaxien), weitfeld
@@ -336,8 +409,34 @@ script:
       # ---- Ergebnis in Helfer schreiben (Grundlage fuer alle Folge-Automationen) ----
       - variables:
           stufe: "{{ astro_report.data.stufe | default('abbruch') }}"
+          stufe_mw: "{{ astro_report.data.stufe_milchstrasse | default('abbruch') }}"
           modus: "{{ astro_report.data.modus | default('keiner') }}"
-          lohnt: "{{ stufe in ['ideal', 'gut', 'bedingt'] }}"
+          lohnt: "{{ stufe in ['ideal', 'gut', 'bedingt'] or stufe_mw in ['ideal', 'gut', 'bedingt'] }}"
+          # Milchstrassen-Fenster: dunkel, Mond untergegangen (falls er stoert) und
+          # mindestens eine Milchstrassen-Region >= 30° hoch; 15-min-Raster
+          mw_fenster: >-
+            {% set lat = state_attr('zone.home', 'latitude') | float(48.7) %}
+            {% set lon = state_attr('zone.home', 'longitude') | float(8.9) %}
+            {% set ds = as_datetime(astro_dark_start, none) %}
+            {% set de = as_datetime(astro_dark_end, none) %}
+            {% set ms = as_datetime(moon_next_setting, none) %}
+            {% if ds is none or de is none or de <= ds %}{{ {} }}{% else %}
+            {% set t0 = as_timestamp(ms) if (not moon_ok and ms is not none and ds < ms < de) else as_timestamp(ds) %}
+            {% set regions = [[266.42, -29.0], [305.0, 40.0], [30.0, 58.0], [90.0, 25.0]] %}
+            {% set ns = namespace(a=none, b=none) %}
+            {% for i in range((((as_timestamp(de) - t0) / 900) | int) + 1) %}
+              {% set t = t0 + i * 900 %}
+              {% set gmst = (280.46061837 + 360.98564736629 * (t / 86400 + 2440587.5 - 2451545.0)) % 360 %}
+              {% set hoch = namespace(ok=false) %}
+              {% for r in regions %}
+                {% set ha = ((gmst + lon - r[0]) % 360) * pi / 180 %}
+                {% set alt = asin(sin(lat * pi / 180) * sin(r[1] * pi / 180)
+                                  + cos(lat * pi / 180) * cos(r[1] * pi / 180) * cos(ha)) * 180 / pi %}
+                {% if alt >= 30 %}{% set hoch.ok = true %}{% endif %}
+              {% endfor %}
+              {% if hoch.ok %}{% if ns.a is none %}{% set ns.a = t %}{% endif %}{% set ns.b = t %}{% endif %}
+            {% endfor %}
+            {{ {'start': ns.a, 'ende': ns.b} if ns.a is not none and ns.b > ns.a else {} }}{% endif %}
           # Beobachtungsfenster: astronomische Dunkelheit; fuer Deep-Sky erst nach
           # Monduntergang, wenn der Mond sonst stoert.
           fenster_start: >-
@@ -356,6 +455,11 @@ script:
           entity_id: input_select.astro_stufe
         data:
           option: "{{ stufe }}"
+      - action: input_select.select_option
+        target:
+          entity_id: input_select.astro_stufe_milchstrasse
+        data:
+          option: "{{ stufe_mw }}"
       - action: input_select.select_option
         target:
           entity_id: input_select.astro_modus
@@ -378,31 +482,163 @@ script:
               entity_id: input_datetime.astro_fenster_ende
             data:
               timestamp: "{{ as_timestamp(fenster_ende) }}"
+      - if: "{{ mw_fenster.start is defined }}"
+        then:
+          - action: input_datetime.set_datetime
+            target:
+              entity_id: input_datetime.astro_mw_start
+            data:
+              timestamp: "{{ mw_fenster.start }}"
+          - action: input_datetime.set_datetime
+            target:
+              entity_id: input_datetime.astro_mw_ende
+            data:
+              timestamp: "{{ mw_fenster.ende }}"
       # ---- Benachrichtigung wie bisher ----
       - action: persistent_notification.create
         data:
           title: '🔭 ASTRO-AUDIT: {{ astro_report.data.empfehlung_kurz }}'
           message: '{{ astro_report.data.begruendung_detailliert }}'
 
-  # Wird NUR nach "Session starten" am Handy aufgerufen. Inhalt an deinen Ablauf anpassen.
+  # Startet eine Session auf EINEM Teleskop. Aufruf nur von Hand (Knopf je Geraet im
+  # Dashboard) – keine Automation ruft es auf. Gibt die Steuerung frei, dann der eigene Ablauf.
   astro_session_starten:
     alias: Astro – Session starten
     icon: mdi:play-circle
-    mode: single
+    mode: parallel
+    max: 4
+    fields:
+      teleskop:
+        description: id aus der Konfiguration (z. B. s50)
+        required: true
+        example: s50
+        selector: {text: {}}
+      modus:
+        description: deepsky oder weitfeld
+        default: deepsky
+        selector:
+          select:
+            options: [deepsky, weitfeld]
+    variables:
+      teleskope: *astro_teleskope
+      t: "{{ (teleskope | selectattr('id', 'eq', teleskop) | list + [{}])[0] }}"
+      modus_name: "{{ 'Milchstraße' if modus | default('deepsky') == 'weitfeld' else 'Deep-Sky' }}"
     sequence:
-      # Beispiel A – Zielliste/Plan im seestar_alp-Scheduler starten (rest_command selbst anlegen,
-      #   Endpunkt laut seestar_alp-Doku pruefen):
+      - condition: template
+        value_template: "{{ t.prefix is defined }}"
+      - action: switch.turn_on
+        target:
+          entity_id: "switch.{{ t.prefix }}_controls_enabled"
+      # ---- eigener Ablauf je Modus (Platzhalter) ----
+      # Beispiel A – Plan im seestar_alp-Scheduler starten (rest_command selbst anlegen,
+      #   Endpunkt laut seestar_alp-Doku pruefen, Geraet ueber t.id/t.prefix waehlen):
       # - action: rest_command.seestar_alp_schedule_start
+      #   data: {device: "{{ t.id }}", plan: "{{ modus }}"}
       # Beispiel B – Entities des HA-Add-ons (Namen auf der Geraeteseite pruefen):
-      # - action: select.select_option
-      #   target: {entity_id: select.seestar_s50_target}
-      #   data: {option: "M 31"}
       # - action: button.press
-      #   target: {entity_id: button.seestar_s50_start_imaging}
+      #   target: {entity_id: "button.{{ t.prefix }}_start_imaging"}
       - action: logbook.log
         data:
           name: Astro
-          message: Session bestätigt (script.astro_session_starten ist noch ein Platzhalter)
+          message: >-
+            Session bestätigt: {{ t.name }} – {{ modus_name }}
+            (script.astro_session_starten ist noch ein Platzhalter)
+
+  # Ein Start-Script je Geraet und Modus – fuer die Knoepfe im Dashboard (Kachel + Knopf).
+  # Neues Geraet: Block kopieren, teleskop = id aus der KONFIGURATION.
+  astro_start_s50:
+    alias: Astro – S50 starten (Deep-Sky)
+    icon: mdi:play-circle
+    mode: single
+    sequence:
+      - action: script.astro_session_starten
+        data: {teleskop: s50, modus: deepsky}
+  astro_start_s30_milchstrasse:
+    alias: Astro – S30 Pro starten (Milchstraße)
+    icon: mdi:star-shooting
+    mode: single
+    sequence:
+      - action: script.astro_session_starten
+        data: {teleskop: s30, modus: weitfeld}
+  astro_start_s30_deepsky:
+    alias: Astro – S30 Pro starten (Deep-Sky)
+    icon: mdi:play-circle
+    mode: single
+    sequence:
+      - action: script.astro_session_starten
+        data: {teleskop: s30, modus: deepsky}
+
+  # Stopp / Parken je Teleskop – nur per Knopf im Dashboard (Kachel mit Rueckfrage).
+  astro_session_beenden:
+    alias: Astro – Session beenden
+    icon: mdi:stop-circle
+    mode: parallel
+    max: 4
+    fields:
+      teleskop:
+        description: id aus der Konfiguration (z. B. s50)
+        required: true
+        example: s50
+        selector: {text: {}}
+      parken:
+        description: nach dem Stoppen parken
+        default: false
+        selector: {boolean: {}}
+    variables:
+      teleskope: *astro_teleskope
+      t: "{{ (teleskope | selectattr('id', 'eq', teleskop) | list + [{}])[0] }}"
+    sequence:
+      - condition: template
+        value_template: "{{ t.prefix is defined }}"
+      - action: switch.turn_on
+        target:
+          entity_id: "switch.{{ t.prefix }}_controls_enabled"
+      # Aufnahme/Plan stoppen – Entity-Name auf der Geraeteseite von ha-seestar pruefen
+      - action: button.press
+        target:
+          entity_id: "button.{{ t.prefix }}_stop_imaging"
+        continue_on_error: true
+      - if: "{{ parken | default(false) }}"
+        then:
+          - action: switch.turn_on
+            target:
+              entity_id: "switch.{{ t.prefix }}_allow_power_actions"
+          - action: button.press
+            target:
+              entity_id: "button.{{ t.prefix }}_park"
+            continue_on_error: true
+      - action: logbook.log
+        data:
+          name: Astro
+          message: "{{ t.name }}: {{ 'gestoppt und geparkt' if parken | default(false) else 'gestoppt' }}"
+  astro_stopp_s50:
+    alias: Astro – S50 stoppen
+    icon: mdi:stop-circle
+    mode: single
+    sequence:
+      - action: script.astro_session_beenden
+        data: {teleskop: s50, parken: false}
+  astro_parken_s50:
+    alias: Astro – S50 parken
+    icon: mdi:home-import-outline
+    mode: single
+    sequence:
+      - action: script.astro_session_beenden
+        data: {teleskop: s50, parken: true}
+  astro_stopp_s30:
+    alias: Astro – S30 Pro stoppen
+    icon: mdi:stop-circle
+    mode: single
+    sequence:
+      - action: script.astro_session_beenden
+        data: {teleskop: s30, parken: false}
+  astro_parken_s30:
+    alias: Astro – S30 Pro parken
+    icon: mdi:home-import-outline
+    mode: single
+    sequence:
+      - action: script.astro_session_beenden
+        data: {teleskop: s30, parken: true}
 
 automation:
   # Audit jeden Abend kurz nach Sonnenuntergang
@@ -416,86 +652,7 @@ automation:
     actions:
       - action: script.astro_audit
 
-  # Zum Fensterbeginn NUR fragen: freigegeben/gestartet wird erst nach Bestaetigung am Handy.
-  # Ohne Antwort innerhalb von 60 min bleibt alles gesperrt.
-  - id: astro_steuerung_freigeben
-    alias: Astro – Session bestätigen
-    mode: single
-    triggers:
-      - trigger: time
-        at: input_datetime.astro_fenster_start
-    conditions:
-      - condition: state
-        entity_id: input_boolean.astro_automatik
-        state: "on"
-      - condition: state
-        entity_id: input_boolean.astro_nacht_lohnt
-        state: "on"
-      - condition: state
-        entity_id: binary_sensor.seestar_s50_connected
-        state: "on"
-    variables:
-      tag: "astro_{{ now().strftime('%Y%m%d') }}"
-    actions:
-      - action: notify.mobile_app_handy
-        data:
-          title: 🔭 Beobachtungsfenster offen
-          message: >-
-            {{ states('input_text.astro_empfehlung') }} · bis
-            {{ as_timestamp(states('input_datetime.astro_fenster_ende')) | timestamp_custom('%H:%M') }}.
-            Session starten?
-          data:
-            tag: "{{ tag }}"
-            actions:
-              - action: "{{ tag }}_start"
-                title: Session starten
-              - action: "{{ tag }}_frei"
-                title: Nur freigeben
-              - action: "{{ tag }}_nein"
-                title: Heute nicht
-      - wait_for_trigger:
-          - trigger: event
-            event_type: mobile_app_notification_action
-            event_data:
-              action: "{{ tag }}_start"
-          - trigger: event
-            event_type: mobile_app_notification_action
-            event_data:
-              action: "{{ tag }}_frei"
-          - trigger: event
-            event_type: mobile_app_notification_action
-            event_data:
-              action: "{{ tag }}_nein"
-        timeout: "01:00:00"
-        continue_on_timeout: true
-      - variables:
-          antwort: "{{ (wait.trigger.event.data.action | default('')).split('_')[-1] if wait.trigger else 'timeout' }}"
-      - choose:
-          - conditions: "{{ antwort in ['start', 'frei'] }}"
-            sequence:
-              - action: switch.turn_on
-                target:
-                  entity_id: switch.seestar_s50_controls_enabled
-              - if: "{{ antwort == 'start' }}"
-                then:
-                  - action: script.astro_session_starten
-              - action: notify.mobile_app_handy
-                data:
-                  title: "🔭 {{ 'Session gestartet' if antwort == 'start' else 'Steuerung freigegeben' }}"
-                  message: >-
-                    Bis {{ as_timestamp(states('input_datetime.astro_fenster_ende')) | timestamp_custom('%H:%M') }}.
-                    Bei Regen, Wind oder Tau parkt das Seestar automatisch.
-                  data:
-                    tag: "{{ tag }}"
-        default:
-          - action: notify.mobile_app_handy
-            data:
-              title: 🔭 Keine Session heute
-              message: "{{ 'Nicht bestätigt' if antwort == 'timeout' else 'Abgelehnt' }} – Steuerung bleibt gesperrt."
-              data:
-                tag: "{{ tag }}"
-
-  # ... und am Ende (oder spaetestens zur Daemmerung) wieder sperren
+  # ... und am Ende (oder spaetestens vor der Daemmerung) alle wieder sperren
   - id: astro_steuerung_sperren
     alias: Astro – Steuerung sperren
     mode: single
@@ -505,17 +662,24 @@ automation:
       - trigger: sun
         event: sunrise
         offset: "-01:00:00"
+    variables:
+      teleskope: *astro_teleskope
+      schalter: >-
+        {% set ns = namespace(l=[]) %}
+        {% for t in teleskope %}
+          {% for s in ['allow_power_actions', 'controls_enabled', 'dew_heater'] %}
+            {% set e = 'switch.' ~ t.prefix ~ '_' ~ s %}
+            {% if has_value(e) %}{% set ns.l = ns.l + [e] %}{% endif %}
+          {% endfor %}
+        {% endfor %}{{ ns.l }}
     actions:
+      - condition: template
+        value_template: "{{ schalter | count > 0 }}"
       - action: switch.turn_off
         target:
-          entity_id:
-            - switch.seestar_s50_allow_power_actions
-            - switch.seestar_s50_controls_enabled
-      - action: switch.turn_off
-        target:
-          entity_id: switch.seestar_s50_dew_heater
+          entity_id: "{{ schalter }}"
 
-  # Tauheizung mit Hysterese (an <= 3 K, aus >= 5 K)
+  # Tauheizung mit Hysterese (an <= 3 K, aus >= 5 K) – fuer jedes freigegebene Teleskop
   - id: astro_tauheizung
     alias: Astro – Tauheizung
     mode: single
@@ -528,17 +692,22 @@ automation:
         entity_id: sensor.astro_taupunktabstand
         above: 5
         id: aus
-    conditions:
-      - condition: state
-        entity_id: switch.seestar_s50_controls_enabled
-        state: "on"
+    variables:
+      teleskope: *astro_teleskope
+      heizungen: >-
+        {% set ns = namespace(l=[]) %}
+        {% for t in teleskope if is_state('switch.' ~ t.prefix ~ '_controls_enabled', 'on') %}
+          {% set ns.l = ns.l + ['switch.' ~ t.prefix ~ '_dew_heater'] %}
+        {% endfor %}{{ ns.l }}
     actions:
+      - condition: template
+        value_template: "{{ heizungen | count > 0 }}"
       - action: "switch.turn_{{ 'on' if trigger.id == 'an' else 'off' }}"
         target:
-          entity_id: switch.seestar_s50_dew_heater
+          entity_id: "{{ heizungen }}"
 
-  # Schutz in der Nacht: bei Regen, Sturmboeen oder Tau trotz Heizung AUTOMATISCH parken.
-  # Das ist die einzige Aktion ohne Rueckfrage (Schalter: input_boolean.astro_schutz_parken).
+  # Schutz in der Nacht: bei Regen, Sturmboeen oder Tau trotz Heizung AUTOMATISCH parken –
+  # alle verbundenen Teleskope. Einzige automatische Aktion neben der Tauheizung (Schalter: input_boolean.astro_schutz_parken).
   - id: astro_regenwarnung
     alias: Astro – Schutz (Regen, Wind, Tau)
     mode: single
@@ -565,10 +734,17 @@ automation:
         below: 1
         for: "00:15:00"                               # Heizung kommt nicht mehr hinterher
         id: tau
+    variables:
+      teleskope: *astro_teleskope
+      # Praefixe der verbundenen Teleskope
+      draussen: >-
+        {% set ns = namespace(l=[]) %}
+        {% for t in teleskope if is_state('binary_sensor.' ~ t.prefix ~ '_connected', 'on') %}
+          {% set ns.l = ns.l + [t.prefix] %}
+        {% endfor %}{{ ns.l }}
     conditions:
-      - condition: state
-        entity_id: binary_sensor.seestar_s50_connected
-        state: "on"
+      - condition: template
+        value_template: "{{ draussen | count > 0 }}"
       - condition: state
         entity_id: sun.sun
         state: below_horizon
@@ -577,28 +753,34 @@ automation:
         value_template: >-
           {{ trigger.id != 'regen' or trigger.platform != 'state'
              or (trigger.to_state.state | float(0)) > (trigger.from_state.state | float(0)) }}
-    variables:
-      grund: >-
-        {{ {'regen': 'Ecowitt misst Regen', 'wetter': 'Wetter meldet ' ~ states('weather.renningen_2'),
-            'wind': 'Böen ' ~ states('sensor.gw2000a_wind_gust') ~ ' km/h',
-            'tau': 'Taupunktabstand ' ~ states('sensor.astro_taupunktabstand') ~ ' K'}[trigger.id] }}
-      parken: "{{ is_state('input_boolean.astro_schutz_parken', 'on') }}"
     actions:
+      - variables:
+          grund: >-
+            {{ {'regen': 'Ecowitt misst Regen', 'wetter': 'Wetter meldet ' ~ states('weather.renningen_2'),
+                'wind': 'Böen ' ~ states('sensor.gw2000a_wind_gust') ~ ' km/h',
+                'tau': 'Taupunktabstand ' ~ states('sensor.astro_taupunktabstand') ~ ' K'}[trigger.id] }}
+          parken: "{{ is_state('input_boolean.astro_schutz_parken', 'on') }}"
+          namen: >-
+            {{ teleskope | selectattr('prefix', 'in', draussen) | map(attribute='name') | join(', ') }}
       - if: "{{ parken }}"
         then:
           - action: switch.turn_on
             target:
-              entity_id:
-                - switch.seestar_s50_controls_enabled
-                - switch.seestar_s50_allow_power_actions
+              entity_id: >-
+                {% set ns = namespace(l=[]) %}
+                {% for p in draussen %}
+                  {% set ns.l = ns.l + ['switch.' ~ p ~ '_controls_enabled', 'switch.' ~ p ~ '_allow_power_actions'] %}
+                {% endfor %}{{ ns.l }}
           - action: button.press
             target:
-              entity_id: button.seestar_s50_park
+              entity_id: >-
+                {% set ns = namespace(l=[]) %}
+                {% for p in draussen %}{% set ns.l = ns.l + ['button.' ~ p ~ '_park'] %}{% endfor %}{{ ns.l }}
             continue_on_error: true
-      - action: notify.mobile_app_handy
+      - action: script.astro_benachrichtigen
         data:
-          title: "{{ '🛑 Seestar geparkt' if parken else '⚠️ Seestar draußen?' }}"
-          message: "{{ grund }}. {{ 'Automatisch geparkt – Gerät reinholen.' if parken else 'Teleskop ggf. reinholen (automatisches Parken ist aus).' }}"
+          title: "{{ '🛑 Geparkt: ' ~ namen if parken else '⚠️ Noch draußen: ' ~ namen }}"
+          message: "{{ grund }}. {{ 'Automatisch geparkt – Geräte reinholen.' if parken else 'Teleskope ggf. reinholen (automatisches Parken ist aus).' }}"
           data:
             priority: high
             tag: astro_schutz
