@@ -1,18 +1,3 @@
-# Lovelace-Dashboard „Sternwarte“
-#
-# Einrichten: Einstellungen → Dashboards → Dashboard hinzufügen → „Neues Dashboard von Grund auf“,
-# dann ⋮ → Bearbeiten → ⋮ → Raw-Konfigurationseditor → diesen Inhalt einfügen.
-#
-# Voraussetzungen: Packages astro_audit.yaml und astro_stacks.yaml, HA-Add-on ha-seestar, seestar-lovelace-card (HACS),
-# siril-auto mit MQTT_ENABLED=1.
-# Anpassen (Suchen/Ersetzen):
-#   seestar_s50                 → Entity-Präfix deines Seestar
-#   seestar_s30                 → Entity-Präfix des zweiten Seestar (Abschnitt nur sichtbar, wenn verbunden)
-#   http://astro.lan            → Adresse der Astro-Galerie
-#   sensor.gw2000a_*            → Ecowitt-Entities
-#   http://astro-pi.lan:8080    → Web-App des Astro-Pi (Abschnitt blendet sich aus, solange der Pi fehlt)
-#
-# Bedienung: Starten nur per Knopf mit Rückfrage – automatisch passiert nur das Schutz-Parken in der Nacht.
 title: Sternwarte
 views:
   - title: Sternwarte
@@ -33,14 +18,16 @@ views:
 
               {% set s = states('input_datetime.astro_fenster_start') %} {% set
               e = states('input_datetime.astro_fenster_ende') %} {% if s not in
-              ['unknown', 'unavailable'] %} Beobachtungsfenster **{{
-              as_timestamp(s) | timestamp_custom('%H:%M') }}–{{ as_timestamp(e)
-              | timestamp_custom('%H:%M') }} Uhr** · Modus: {{
-              states('input_select.astro_modus') }} {% endif %}
+              ['unknown', 'unavailable'] %} <ha-alert
+              alert-type="success">Beobachtungsfenster **{{ as_timestamp(s) |
+              timestamp_custom('%H:%M') }}–{{ as_timestamp(e) |
+              timestamp_custom('%H:%M') }} Uhr** · Modus: {{
+              states('input_select.astro_modus') }} </ha-alert>{% endif %}
 
-              {% if is_state('input_select.astro_modus', 'weitfeld') %}🌌
-              **Milchstraßen-Nacht** – Weitwinkel mit EOS 6D oder S30 Pro lohnt
-              sich.{% endif %}
+              {% if is_state('input_select.astro_modus', 'weitfeld') %}<ha-alert
+              alert-type="success">🌌 **Milchstraßen-Nacht** – Weitwinkel mit
+              EOS 6D oder S30 Pro lohnt sich.</ha-alert>{% endif %}
+            text_only: true
           - type: tile
             entity: input_select.astro_stufe
             name: Stufe
@@ -69,6 +56,8 @@ views:
               perform_action: script.astro_session_starten
               confirmation:
                 text: Session jetzt starten?
+            features:
+              - type: button
           - type: tile
             entity: script.astro_audit
             name: Audit jetzt
@@ -78,6 +67,8 @@ views:
               perform_action: script.astro_audit
               confirmation:
                 text: KI-Audit jetzt ausführen?
+            features:
+              - type: button
           - type: heading
             heading: Bedingungen
             icon: mdi:weather-partly-cloudy
@@ -140,7 +131,7 @@ views:
               columns: full
           - type: markdown
             content: >-
-              <ha-alert alert-type="warning">Das Seestar ist nicht verbunden.
+              <ha-alert alert-type="error">Das Seestar ist nicht verbunden.
               Station-Modus und WLAN prüfen.</ha-alert>
             visibility:
               - condition: state
@@ -162,8 +153,6 @@ views:
             features:
               - type: toggle
         column_span: 2
-      # Zweites Seestar (S30 Pro) – erscheint nur, solange es verbunden ist.
-      # seestar_s30 durch das Entity-Präfix ersetzen, das ha-seestar für das Gerät anlegt.
       - type: grid
         visibility:
           - condition: state
@@ -229,7 +218,7 @@ views:
               {% if state_attr(e, 'id') %}<a href="http://astro.lan/#{{
               state_attr(e, 'group') }}"><img src="http://astro.lan/img/{{
               state_attr(e, 'id') }}_t.jpg" width="100%"></a>{% endif %} {% else
-              %} <ha-alert alert-type="error">Noch kein Stack.</ha-alert> {%
+              %} <ha-alert alert-type="info">Noch kein Stack.</ha-alert> {%
               endif %}
             text_only: true
           - type: markdown
