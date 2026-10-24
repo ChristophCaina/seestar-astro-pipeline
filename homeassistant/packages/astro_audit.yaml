@@ -568,6 +568,78 @@ script:
       - action: script.astro_session_starten
         data: {teleskop: s30, modus: deepsky}
 
+  # Stopp / Parken je Teleskop – nur per Knopf im Dashboard (Kachel mit Rueckfrage).
+  astro_session_beenden:
+    alias: Astro – Session beenden
+    icon: mdi:stop-circle
+    mode: parallel
+    max: 4
+    fields:
+      teleskop:
+        description: id aus der Konfiguration (z. B. s50)
+        required: true
+        example: s50
+        selector: {text: {}}
+      parken:
+        description: nach dem Stoppen parken
+        default: false
+        selector: {boolean: {}}
+    variables:
+      teleskope: *astro_teleskope
+      t: "{{ (teleskope | selectattr('id', 'eq', teleskop) | list + [{}])[0] }}"
+    sequence:
+      - condition: template
+        value_template: "{{ t.prefix is defined }}"
+      - action: switch.turn_on
+        target:
+          entity_id: "switch.{{ t.prefix }}_controls_enabled"
+      # Aufnahme/Plan stoppen – Entity-Name auf der Geraeteseite von ha-seestar pruefen
+      - action: button.press
+        target:
+          entity_id: "button.{{ t.prefix }}_stop_imaging"
+        continue_on_error: true
+      - if: "{{ parken | default(false) }}"
+        then:
+          - action: switch.turn_on
+            target:
+              entity_id: "switch.{{ t.prefix }}_allow_power_actions"
+          - action: button.press
+            target:
+              entity_id: "button.{{ t.prefix }}_park"
+            continue_on_error: true
+      - action: logbook.log
+        data:
+          name: Astro
+          message: "{{ t.name }}: {{ 'gestoppt und geparkt' if parken | default(false) else 'gestoppt' }}"
+  astro_stopp_s50:
+    alias: Astro – S50 stoppen
+    icon: mdi:stop-circle
+    mode: single
+    sequence:
+      - action: script.astro_session_beenden
+        data: {teleskop: s50, parken: false}
+  astro_parken_s50:
+    alias: Astro – S50 parken
+    icon: mdi:home-import-outline
+    mode: single
+    sequence:
+      - action: script.astro_session_beenden
+        data: {teleskop: s50, parken: true}
+  astro_stopp_s30:
+    alias: Astro – S30 Pro stoppen
+    icon: mdi:stop-circle
+    mode: single
+    sequence:
+      - action: script.astro_session_beenden
+        data: {teleskop: s30, parken: false}
+  astro_parken_s30:
+    alias: Astro – S30 Pro parken
+    icon: mdi:home-import-outline
+    mode: single
+    sequence:
+      - action: script.astro_session_beenden
+        data: {teleskop: s30, parken: true}
+
 automation:
   # Audit jeden Abend kurz nach Sonnenuntergang
   - id: astro_audit_abends

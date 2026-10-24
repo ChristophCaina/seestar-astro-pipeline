@@ -182,6 +182,28 @@ views:
                 text: S50 jetzt starten (Deep-Sky)?
             features:
               - type: button
+          # Kein „Drücken“-Knopf: Kachel-Funktionen kennen (noch) keine Rückfrage
+          - type: tile
+            entity: script.astro_stopp_s50
+            name: Stoppen
+            icon: mdi:stop-circle
+            color: red
+            tap_action:
+              action: perform-action
+              perform_action: script.astro_stopp_s50
+              confirmation:
+                text: "S50: Aufnahme jetzt stoppen?"
+          # Kein „Drücken“-Knopf: Kachel-Funktionen kennen (noch) keine Rückfrage
+          - type: tile
+            entity: script.astro_parken_s50
+            name: Parken
+            icon: mdi:home-import-outline
+            color: red
+            tap_action:
+              action: perform-action
+              perform_action: script.astro_parken_s50
+              confirmation:
+                text: "S50: Aufnahme stoppen und parken?"
         column_span: 2
       # Zweites Seestar (S30 Pro) – erscheint nur, solange es verbunden ist.
       # seestar_s30 durch das Entity-Präfix ersetzen, das ha-seestar für das Gerät anlegt.
@@ -244,6 +266,28 @@ views:
                 text: S30 Pro jetzt starten (Deep-Sky)?
             features:
               - type: button
+          # Kein „Drücken“-Knopf: Kachel-Funktionen kennen (noch) keine Rückfrage
+          - type: tile
+            entity: script.astro_stopp_s30
+            name: Stoppen
+            icon: mdi:stop-circle
+            color: red
+            tap_action:
+              action: perform-action
+              perform_action: script.astro_stopp_s30
+              confirmation:
+                text: "S30 Pro: Aufnahme jetzt stoppen?"
+          # Kein „Drücken“-Knopf: Kachel-Funktionen kennen (noch) keine Rückfrage
+          - type: tile
+            entity: script.astro_parken_s30
+            name: Parken
+            icon: mdi:home-import-outline
+            color: red
+            tap_action:
+              action: perform-action
+              perform_action: script.astro_parken_s30
+              confirmation:
+                text: "S30 Pro: Aufnahme stoppen und parken?"
         column_span: 2
       - type: grid
         cards:
