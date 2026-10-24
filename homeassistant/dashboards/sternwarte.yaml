@@ -28,31 +28,47 @@ views:
             heading: Heute Nacht
             icon: mdi:weather-night
             heading_style: subtitle
+          # Tagsüber (Fenster der letzten Nacht vorbei) statt des alten Ergebnisses:
+          # Uhrzeit des nächsten Audits und das Ergebnis der letzten Nacht klein darunter.
           - type: markdown
-            content: >-
+            content: |-
+              {% set e = states('input_datetime.astro_fenster_ende') %}
+              {% set aktuell = e not in ['unknown', 'unavailable'] and as_timestamp(e, 0) > as_timestamp(now()) %}
+              {% if aktuell %}
               ## {{ states('input_text.astro_empfehlung') }}
 
-              {% set s = states('input_datetime.astro_fenster_start') %} {% set
-              e = states('input_datetime.astro_fenster_ende') %} {% if s not in
-              ['unknown', 'unavailable'] %} 🔭 Deep-Sky **{{
-              states('input_select.astro_stufe') }}** · {{ as_timestamp(s) |
-              timestamp_custom('%H:%M') }}–{{ as_timestamp(e) |
-              timestamp_custom('%H:%M') }} Uhr {% endif %}
+              {% set s = states('input_datetime.astro_fenster_start') %}
+              🔭 Deep-Sky **{{ states('input_select.astro_stufe') }}** · {{ as_timestamp(s) | timestamp_custom('%H:%M') }}–{{ as_timestamp(e) | timestamp_custom('%H:%M') }} Uhr
 
-              {% set m = states('input_select.astro_stufe_milchstrasse') %} {% set
-              ms = states('input_datetime.astro_mw_start') %} {% set me =
-              states('input_datetime.astro_mw_ende') %} {% if m in ['ideal',
-              'gut', 'bedingt', 'eingeschraenkt'] and ms not in ['unknown',
-              'unavailable'] %} 🌌 Milchstraße **{{ m }}** · {{ as_timestamp(ms)
-              | timestamp_custom('%H:%M') }}–{{ as_timestamp(me) |
-              timestamp_custom('%H:%M') }} Uhr {% endif %}
+              {% set m = states('input_select.astro_stufe_milchstrasse') %}
+              {% set ms = states('input_datetime.astro_mw_start') %}
+              {% set me = states('input_datetime.astro_mw_ende') %}
+              {% if m in ['ideal', 'gut', 'bedingt', 'eingeschraenkt'] and as_timestamp(me, 0) > as_timestamp(now()) %}
+              🌌 Milchstraße **{{ m }}** · {{ as_timestamp(ms) | timestamp_custom('%H:%M') }}–{{ as_timestamp(me) | timestamp_custom('%H:%M') }} Uhr
+              {% endif %}
+              {% else %}
+              {% set su = state_attr('sun.sun', 'next_setting') or states('sensor.sun_next_setting') %}
+              ## ☀️ Noch kein Audit für heute Nacht
+
+              {% if as_timestamp(su, 0) > 0 %}Audit um ca. **{{ (as_timestamp(su) + 1800) | timestamp_custom('%H:%M') }} Uhr** (30 min nach Sonnenuntergang) – oder jetzt per Knopf.{% endif %}
+
+              <small>Letzte Nacht: {{ states('input_text.astro_empfehlung') }}</small>
+              {% endif %}
           - type: tile
             entity: input_select.astro_stufe
             name: Deep-Sky
+            visibility:
+              - condition: state
+                entity: sun.sun
+                state: below_horizon
             icon: mdi:star-four-points
           - type: tile
             entity: input_select.astro_stufe_milchstrasse
             name: Milchstraße
+            visibility:
+              - condition: state
+                entity: sun.sun
+                state: below_horizon
             icon: mdi:star-shooting
           - type: tile
             entity: input_boolean.astro_schutz_parken

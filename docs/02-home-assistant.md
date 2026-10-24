@@ -103,7 +103,7 @@ homeassistant:
 
 [`homeassistant/dashboards/sternwarte.yaml`](../homeassistant/dashboards/sternwarte.yaml) ist ein Sections-Dashboard:
 
-- **Heute Nacht und Bedingungen** (eine Spalte): Empfehlung und Beobachtungsfenster aus dem Astro-Audit, Stufe und Fenster für Deep-Sky und Milchstraße, Schalter Schutz-Parken, Audit per Knopf. Darunter Taupunktabstand samt Quelle, Ecowitt, AstroWeather und Stundenvorhersage.
+- **Heute Nacht und Bedingungen** (eine Spalte): Empfehlung und Beobachtungsfenster aus dem Astro-Audit, Stufe und Fenster für Deep-Sky und Milchstraße, Schalter Schutz-Parken, Audit per Knopf. Ist das Fenster der letzten Nacht vorbei, zeigt die Karte stattdessen, wann das nächste Audit kommt, und das letzte Ergebnis klein darunter; die Stufen-Kacheln sind tagsüber ausgeblendet. Darunter Taupunktabstand samt Quelle, Ecowitt, AstroWeather und Stundenvorhersage.
 - **Seestar** (doppelt breit): Akku und Speicher als Badges, seestar-lovelace-card, wenn das Teleskop verbunden ist, sonst ein Warnhinweis; Steuerungsfreigabe, Tauheizung, Knopf **Session starten**
 - **Seestar S30 Pro**: gleicher Aufbau mit Knöpfen **Milchstraße starten** und **Deep-Sky starten**, nur sichtbar, solange das zweite Seestar verbunden ist
 - **Nachverarbeitung:** Siril-Status, letzter Stack mit Gerät und Vorschaubild aus der Galerie, Stacks dieser Nacht, Link zur Astro-Galerie
