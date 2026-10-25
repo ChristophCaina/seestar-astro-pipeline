@@ -143,6 +143,12 @@ views:
                 color: state
           - type: custom:seestar-card
             device: seestar_s50
+            # Goto-Knopf der Karte fährt das Ziel aus der Auswahl an (mit 15°-Prüfung)
+            actions:
+              goto:
+                service: script.turn_on
+                data:
+                  entity_id: script.astro_goto_s50
             visibility:
               - condition: state
                 entity: binary_sensor.seestar_s50_connected
@@ -249,6 +255,12 @@ views:
                 color: state
           - type: custom:seestar-card
             device: seestar_s30
+            # Goto-Knopf der Karte fährt das Ziel aus der Auswahl an (mit 15°-Prüfung)
+            actions:
+              goto:
+                service: script.turn_on
+                data:
+                  entity_id: script.astro_goto_s30
             grid_options:
               columns: full
           - type: tile
