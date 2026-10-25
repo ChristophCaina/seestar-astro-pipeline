@@ -539,9 +539,13 @@ script:
       #   Endpunkt laut seestar_alp-Doku pruefen, Geraet ueber t.id/t.prefix waehlen):
       # - action: rest_command.seestar_alp_schedule_start
       #   data: {device: "{{ t.id }}", plan: "{{ modus }}"}
-      # Beispiel B – Entities des HA-Add-ons (Namen auf der Geraeteseite pruefen):
+      # Beispiel B – Entities des HA-Add-ons: Stacking auf dem aktuellen Ziel (nach GoTo)
+      #   oder einen in seestar_alp gespeicherten Plan per Name starten:
       # - action: button.press
-      #   target: {entity_id: "button.{{ t.prefix }}_start_imaging"}
+      #   target: {entity_id: "button.{{ t.prefix }}_start_stacking"}
+      # - action: text.set_value
+      #   target: {entity_id: "text.{{ t.prefix }}_run_plan"}
+      #   data: {value: "{{ 'milchstrasse' if modus == 'weitfeld' else 'deepsky' }}"}
       - action: logbook.log
         data:
           name: Astro
@@ -573,6 +577,81 @@ script:
       - action: script.astro_session_starten
         data: {teleskop: s30, modus: deepsky}
 
+  # GoTo auf RA/Dec fuer EIN Teleskop – ueber ha-seestar (Goto target/RA/Dec + Goto).
+  # Aufruf per Knopf (script.astro_goto_<id> aus astro_goto.yaml). Verweigert Ziele unter 15°.
+  astro_goto:
+    alias: Astro – GoTo
+    icon: mdi:crosshairs-gps
+    mode: parallel
+    max: 4
+    fields:
+      teleskop:
+        description: id aus der Konfiguration (z. B. s50)
+        required: true
+        example: s50
+        selector:
+          text:
+      name:
+        description: Zielname (nur Beschriftung)
+        example: M 31
+        selector:
+          text:
+      ra:
+        description: Rektaszension J2000 in Stunden (z. B. 0.7123)
+        required: true
+        selector:
+          text:
+      dec:
+        description: Deklination J2000 in Grad (z. B. 41.269)
+        required: true
+        selector:
+          text:
+    variables:
+      teleskope: *astro_teleskope
+      t: "{{ (teleskope | selectattr('id', 'eq', teleskop) | list + [{}])[0] }}"
+      hoehe: >-
+        {% set lat = state_attr('zone.home', 'latitude') | float(48.7) * pi / 180 %}
+        {% set lon = state_attr('zone.home', 'longitude') | float(8.9) %}
+        {% set d = as_timestamp(now()) / 86400 + 2440587.5 - 2451545.0 %}
+        {% set lst = (280.46061837 + 360.98564736629 * d + lon) % 360 %}
+        {% set ha = ((lst - (ra | float(0)) * 15) % 360) * pi / 180 %}
+        {% set de = (dec | float(0)) * pi / 180 %}
+        {{ (asin(sin(lat) * sin(de) + cos(lat) * cos(de) * cos(ha)) * 180 / pi) | round(0) }}
+    sequence:
+      - if: "{{ t.prefix is not defined }}"
+        then:
+          - stop: "Unbekanntes Teleskop '{{ teleskop }}' – KONFIGURATION in astro_audit.yaml prüfen"
+            error: true
+      - if: "{{ hoehe | float < 15 }}"
+        then:
+          - stop: "{{ name | default('Ziel') }} steht zu tief ({{ hoehe | int }}°) – GoTo abgebrochen"
+            error: true
+      - action: switch.turn_on
+        target:
+          entity_id: "switch.{{ t.prefix }}_controls_enabled"
+      - action: text.set_value
+        target:
+          entity_id: "text.{{ t.prefix }}_goto_target"
+        data:
+          value: "{{ name | default('Ziel') }}"
+      - action: text.set_value
+        target:
+          entity_id: "text.{{ t.prefix }}_goto_ra"
+        data:
+          value: "{{ ra }}"
+      - action: text.set_value
+        target:
+          entity_id: "text.{{ t.prefix }}_goto_dec"
+        data:
+          value: "{{ dec }}"
+      - action: button.press
+        target:
+          entity_id: "button.{{ t.prefix }}_goto"
+      - action: logbook.log
+        data:
+          name: Astro
+          message: "{{ t.name }}: GoTo {{ name | default('') }} (Höhe {{ hoehe | int }}°)"
+
   # Stopp / Parken je Teleskop – nur per Knopf im Dashboard (Kachel mit Rueckfrage).
   astro_session_beenden:
     alias: Astro – Session beenden
@@ -600,10 +679,12 @@ script:
       - action: switch.turn_on
         target:
           entity_id: "switch.{{ t.prefix }}_controls_enabled"
-      # Aufnahme/Plan stoppen – Entity-Name auf der Geraeteseite von ha-seestar pruefen
+      # laufendes GoTo und Plan/Session stoppen (ha-seestar: "Stop goto", "Stop")
       - action: button.press
         target:
-          entity_id: "button.{{ t.prefix }}_stop_imaging"
+          entity_id:
+            - "button.{{ t.prefix }}_stop_goto"
+            - "button.{{ t.prefix }}_stop"
         continue_on_error: true
       - if: "{{ parken | default(false) }}"
         then:
