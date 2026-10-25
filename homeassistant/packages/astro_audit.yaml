@@ -118,13 +118,17 @@ script:
     fields:
       title:
         description: Überschrift
-        selector: {text: {}}
+        selector:
+          text:
       message:
         description: Text
-        selector: {text: {multiline: true}}
+        selector:
+          text:
+            multiline: true
       data:
         description: Zusatzdaten für die Companion-App (tag, actions, image …)
-        selector: {object: {}}
+        selector:
+          object:
     variables:
       teleskope: &astro_teleskope
         - {id: s50, name: Seestar S50, prefix: seestar_s50, weitwinkel: false}
@@ -512,7 +516,8 @@ script:
         description: id aus der Konfiguration (z. B. s50)
         required: true
         example: s50
-        selector: {text: {}}
+        selector:
+          text:
       modus:
         description: deepsky oder weitfeld
         default: deepsky
@@ -579,11 +584,13 @@ script:
         description: id aus der Konfiguration (z. B. s50)
         required: true
         example: s50
-        selector: {text: {}}
+        selector:
+          text:
       parken:
         description: nach dem Stoppen parken
         default: false
-        selector: {boolean: {}}
+        selector:
+          boolean:
     variables:
       teleskope: *astro_teleskope
       t: "{{ (teleskope | selectattr('id', 'eq', teleskop) | list + [{}])[0] }}"
