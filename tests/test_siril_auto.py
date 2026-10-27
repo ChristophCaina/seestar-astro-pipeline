@@ -311,6 +311,17 @@ GALLERY_OUT={self.astro}/web
         self.assertEqual(r2.returncode, 0)
         self.assertIn("früher fehlgeschlagen", r2.stdout)       # aber sichtbar im Log
 
+    def test_master_falls_back_to_all_frames(self):
+        """Nacht-Stacks lassen sich nicht registrieren -> Master aus allen Einzelframes."""
+        r = self.run_auto(FAKE_SIRIL_FAIL="master")          # trifft auch die Kombination (gleiches Script)
+        self.assertIn("neu aus allen Einzelframes", r.stdout)
+        st = self.astro / "stacks" / "M_31"
+        self.assertTrue((st / "M_31_master_IRCUT_siril.fit").exists())
+        self.assertTrue((self.astro / ".state" / "M_31_IRCUT_master.done").read_text().startswith("full|"))
+        self.assertFalse((self.astro / ".state" / "M_31_IRCUT_master.failed").exists())
+        fb = [c for c in self.calls_of("stack") if c["work"] == "M_31_master_IRCUT_siril"]
+        self.assertEqual(fb[0]["lights"], 67)       # 25 + 22 + 20 Frames der drei Naechte
+
     def test_solve_failure_keeps_stack(self):
         r = self.run_auto(FAKE_SIRIL_FAIL="solve")
         self.assertEqual(r.returncode, 0, r.stdout)

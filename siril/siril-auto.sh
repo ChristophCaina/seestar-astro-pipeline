@@ -527,6 +527,15 @@ process_device() {   # process_device <id>
       ok=0; run_stack master "$target" "$filter" master "$exp" "$spec" "${ts:-${last_night} 22:00:00}" "$frames" "$CUR_SCRIPT" "${subs[@]}" && ok=1
     else
       ok=0; run_stack master "$target" "$filter" master "$exp" "$spec" "${ts:-${last_night} 22:00:00}" "$frames" "$SIRIL_MASTER_SCRIPT" "${fits[@]}" && ok=1
+      # Nacht-Stacks lassen sich nicht immer gegeneinander registrieren (z. B. eine Nacht mit
+      # wenig Sternen). Dann alle Einzelframes gemeinsam stacken – dort fallen schlechte Frames
+      # einzeln heraus statt den ganzen Master zu kippen.
+      if (( ! ok )) && [[ "${MASTER_FALLBACK_FULL:-1}" == "1" ]]; then
+        log "MASTER ${DEVTAG}$target $filter: Nacht-Stacks passen nicht zusammen – neu aus allen Einzelframes"
+        mode="full"
+        mapfile -t subs < <(for n in "${nights[@]}"; do awk -F'\t' -v t="$target" -v fl="$filter" -v n="$n" '$1==t && $2==fl && $4==n {print $6}' "$INDEX"; done | sort)
+        run_stack master "$target" "$filter" master "$exp" "$spec" "${ts:-${last_night} 22:00:00}" "$frames" "$CUR_SCRIPT" "${subs[@]}" && ok=1
+      fi
     fi
     if (( ok )); then echo "$mode|$spec" > "$state_file"; rm -f "$fail_file"; processed=$((processed+1))
     else echo "$spec" > "$fail_file"; failed=$((failed+1)); status error "$target" "master" "$frames" "Master fehlgeschlagen"; fi
