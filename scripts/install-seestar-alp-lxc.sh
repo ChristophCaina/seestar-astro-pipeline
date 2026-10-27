@@ -7,7 +7,8 @@
 #
 # Aufruf als root im Container:
 #   bash install-seestar-alp-lxc.sh                 # komplette Installation
-#   bash install-seestar-alp-lxc.sh --fix-services  # nur systemd-Fix (z. B. nach update.sh)
+#   bash install-seestar-alp-lxc.sh --update        # seestar_alp aktualisieren (statt raspberry_pi/update.sh)
+#   bash install-seestar-alp-lxc.sh --fix-services  # nur systemd-Fix
 #
 set -euo pipefail
 
@@ -37,6 +38,23 @@ fix_services() {
 
 if [[ "${1:-}" == "--fix-services" ]]; then
   fix_services; systemctl restart seestar; exit 0
+fi
+
+# update.sh liest raspberry_pi/setup.sh aus dem Repo – dort steht wieder der aarch64-Check.
+# Darum: sauber pullen, setup.sh fuer den Lauf anpassen, update.sh --force, Aenderung zuruecknehmen.
+if [[ "${1:-}" == "--update" ]]; then
+  src="$(getent passwd "$SEESTAR_USER" | cut -d: -f6)/seestar_alp"
+  [[ -d "$src/.git" ]] || { echo "Kein seestar_alp unter $src"; exit 1; }
+  as_user() { su - "$SEESTAR_USER" -c "cd '$src' && $1"; }
+  log "seestar_alp: $(as_user 'git describe --tags --always') → aktualisieren"
+  as_user 'git checkout -- raspberry_pi/setup.sh && git pull --ff-only'
+  as_user "sed -i -e 's/!= \"aarch64\"/!= \"\$(arch)\"/' -e 's/sudo sysctl -p\$/sudo sysctl -p || true/' raspberry_pi/setup.sh"
+  rc=0; as_user 'raspberry_pi/update.sh --force' || rc=$?
+  as_user 'git checkout -- raspberry_pi/setup.sh'
+  fix_services; systemctl restart seestar
+  log "seestar_alp jetzt: $(as_user 'git describe --tags --always')"
+  (( rc == 0 )) || log "update.sh meldete Fehler ($rc) – Ausgabe oben pruefen"
+  exit "$rc"
 fi
 
 log "System aktualisieren und Pakete installieren"

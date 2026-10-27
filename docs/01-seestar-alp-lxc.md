@@ -41,7 +41,15 @@ Das Script macht im Einzelnen:
 | `libglib2.0-0t64` installieren | OpenCV braucht `libgthread-2.0.so.0`, im Minimal-Template fehlt es |
 | systemd: `WantedBy=multi-user.target` | Das Setup hängt die Services an `network-online.target`, das im LXC beim Boot nicht erreicht wird. Ohne die Änderung startet der Service nach einem Neustart nicht. |
 
-Nach einem `~/seestar_alp/raspberry_pi/update.sh` solltest du den systemd-Fix prüfen, weil das Update die Service-Dateien neu schreiben kann. Ein erneuter Aufruf mit `bash install-seestar-alp-lxc.sh --fix-services` korrigiert das.
+**Update:** nicht `~/seestar_alp/raspberry_pi/update.sh` direkt aufrufen – das liest das `setup.sh` aus dem Repo mit dem aarch64-Check und bricht mit „Unsupported architecture“ ab. Stattdessen als root im Container:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ChristophCaina/seestar-astro-pipeline/main/scripts/install-seestar-alp-lxc.sh | bash -s -- --update
+```
+
+Das passt `setup.sh` nur für den Lauf an, ruft `update.sh --force` auf, nimmt die Änderung wieder zurück (damit spätere `git pull` sauber bleiben) und setzt den systemd-Fix. Nur den systemd-Fix: `--fix-services`.
+
+**Firmware ab 9.75** braucht seestar_alp ≥ 3.3.0 und den Interop-Schlüssel (`interop_pem` in `config.toml`); ohne meldet sich der Seestar per Ansage „please update to the latest version of the application“.
 
 ## 3. Konfiguration
 
