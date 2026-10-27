@@ -13,6 +13,7 @@ Abhaengigkeit: Pillow  (Debian: apt install python3-pil)
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import shutil
@@ -208,9 +209,17 @@ def main() -> int:
     tmp.write_text(json.dumps(catalog, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     tmp.replace(out / "catalog.json")
 
-    for f in Path(a.site).iterdir():
-        if f.is_file():
+    site = Path(a.site)
+    for f in site.iterdir():
+        if f.is_file() and f.name != "index.html":
             shutil.copy2(f, out / f.name)
+    # Cache-Busting: app.js/styles.css mit Inhalts-Hash, damit Browser nach Updates neu laden
+    html = (site / "index.html").read_text(encoding="utf-8")
+    for asset in ("app.js", "styles.css"):
+        if (site / asset).exists():
+            v = hashlib.sha1((site / asset).read_bytes()).hexdigest()[:8]
+            html = html.replace(f'"{asset}"', f'"{asset}?v={v}"')
+    (out / "index.html").write_text(html, encoding="utf-8")
     print(f"{len(entries)} Stacks -> {out}  ({errors} Fehler)")
     return 1 if errors else 0
 

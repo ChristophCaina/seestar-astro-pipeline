@@ -26,10 +26,13 @@ stack r_stack @STACK_METHOD@ -norm=addscale -output_norm -rgb_equal @WEIGHT@ -ou
 
 cd ..
 load result_linear
-subsky 1
+# Hintergrund/Gradienten (SUBSKY_ARGS, Standard RBF – auch fuer ungleichmaessige Gradienten)
+subsky @SUBSKY@
 save result_linear
+# Farbrauschen glaetten (nur Vorschau, result_linear bleibt unveraendert)
+@DENOISE@
 rmgreen
-autostretch
+autostretch @STRETCH@
 savetif result_preview
 savejpg result_preview 95
 close

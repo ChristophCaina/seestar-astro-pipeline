@@ -89,6 +89,23 @@ GALLERY_OUT={self.astro}/web
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertFalse(xlog.exists())
 
+    def test_preview_settings_rendered(self):
+        r = self.run_auto()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        script = self.calls_of("stack")[0]["script"]
+        self.assertIn("subsky -rbf -samples=20", script)
+        self.assertIn("\ndenoise -mod=0.8\n", script)
+        self.assertIn("autostretch -linked -2.8 0.15", script)
+        self.assertNotIn("@", script)
+        cfg = Path(self.env["SIRIL_AUTO_CONFIG"])
+        cfg.write_text(cfg.read_text() + 'SUBSKY_ARGS="1"\nDENOISE=0\n')
+        shutil.rmtree(self.astro / ".state")
+        self.calls.unlink()
+        self.run_auto()
+        script = self.calls_of("stack")[0]["script"]
+        self.assertIn("subsky 1\n", script)
+        self.assertIn("# denoise (DENOISE=0)", script)
+
     def test_dry_run_publishes_nothing(self):
         cfg = Path(self.env["SIRIL_AUTO_CONFIG"])
         cfg.write_text(cfg.read_text() + "MQTT_ENABLED=1\nMQTT_HOST=localhost\nMQTT_TOPIC=seestar/siril\n")
