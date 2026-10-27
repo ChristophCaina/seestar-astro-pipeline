@@ -76,7 +76,8 @@ def field_objects(wcs: dict | None, width: int, height: int, catalog: Catalog, m
 
 
 def build_meta(*, wcs, width, height, target, catalog, jpg: Path, out: Path, stack="night", filter_="",
-               exposure=None, gain=None, nights=(), caption="", source="siril", device=None) -> dict:
+               exposure=None, gain=None, nights=(), caption="", source="siril", device=None,
+               mosaic=False) -> dict:
     wide = sky.is_wide(wcs, width, height, pixscale_arcsec)
     main_obj = None if wide else catalog.find(target)
     name_disp = main_obj["name"] if main_obj else target
@@ -96,6 +97,7 @@ def build_meta(*, wcs, width, height, target, catalog, jpg: Path, out: Path, sta
         "image": os.path.relpath(jpg.resolve(), out.resolve().parent), "width": width, "height": height,
         "wcs": wcs, "objects": field_objects(wcs, width, height, catalog, main_obj), "caption": caption,
         "versions": [],
+        **({"mosaic": True} if mosaic else {}),
         **({"wide": True, "constellations": sky.constellations(wcs, width, height, world_to_pixel)} if wide else {}),
     }
 
@@ -125,6 +127,9 @@ def main() -> int:
     ap.add_argument("--wcs-flip-y", action="store_true", help="--wcs-file ist bottom-up")
     ap.add_argument("--device-id", default="s50")
     ap.add_argument("--device-label", default="Seestar S50")
+    ap.add_argument("--source", choices=["siril", "seestar"], default="siril",
+                    help="seestar = Stack des Geraets (Stacked_*.fit), nur nachbearbeitet")
+    ap.add_argument("--mosaic", action="store_true", help="Mosaik des Seestar")
     a = ap.parse_args()
 
     hdr = read_header(a.fits)
@@ -146,7 +151,7 @@ def main() -> int:
         stack=a.stack, filter_=a.filter,
         exposure=a.exposure if a.exposure is not None else hdr.get("EXPTIME"), gain=hdr.get("GAIN"),
         nights=parse_nights(a.nights), caption=a.caption,
-        device={"id": a.device_id, "label": a.device_label})
+        device={"id": a.device_id, "label": a.device_label}, source=a.source, mosaic=a.mosaic)
     write_json(Path(a.out), meta)
     print(f"{a.out}: {len(meta['objects'])} Objekte, WCS {'ja' if wcs else 'nein'}, Ziel {display(meta['target']['name'])}")
     return 0

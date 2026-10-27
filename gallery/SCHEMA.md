@@ -7,7 +7,8 @@ Neben jedem fertigen Stack-JPG liegt eine `<name>.meta.json`. Der Builder (`buil
   "schema": 1,
   "id": "m_31_master_ircut_siril",          // eindeutig, wird Dateiname im Web-Ordner
   "sample": false,                          // true = simulierte Beispieldaten
-  "source": "siril",                        // "siril" oder "app" (nachgeholter App-Stack)
+  "source": "siril",                        // "siril", "seestar" (Stack des Geräts, nachbearbeitet) oder "app" (nachgeholter App-Stack)
+  "mosaic": true,                           // optional: Mosaik des Seestar
   "device": { "id": "s50", "label": "Seestar S50" },   // Aufnahmegerät, fehlt = Seestar S50
   "wide": false,                            // true ab 10° Bildbreite: dann zusätzlich "constellations"
   // "constellations": [ { "id": "Cyg", "name": "Schwan", "label": [ra, dec] | null,

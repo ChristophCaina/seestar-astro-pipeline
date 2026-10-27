@@ -107,7 +107,7 @@ def build_entry(meta_path: Path, out: Path, web_w: int, thumb_w: int) -> dict:
         "last": nights[-1]["date"] if nights else None,
         "image": {"web": f"img/{eid}.jpg", "thumb": f"img/{eid}_t.jpg", "w": w, "h": h},
         "caption": m.get("caption", ""), "versions": m.get("versions", []), "sample": bool(m.get("sample")),
-        "source": m.get("source", "siril"),
+        "source": m.get("source", "siril"), "mosaic": bool(m.get("mosaic")),
         "device": m.get("device") or {"id": "s50", "label": "Seestar S50"},
     }
     if not m.get("wcs"):            # Plate-Solving fehlgeschlagen: Bild ohne Annotationen

@@ -1,0 +1,26 @@
+############################################################
+# Seestar-eigener Stack (Stacked_*.fit aus dem Geraet) -> Vorschau
+#
+# Fuer Sessions unter MIN_FRAMES und fuer Mosaike: kein eigenes Stacking,
+# nur dieselbe Vorschau-Bearbeitung wie bei den Siril-Stacks, damit Look und
+# Bildausrichtung (fuer Plate-Solving und Beschriftung) einheitlich sind.
+# Erwartet light/device.fit (16 Bit RGB, linear, vom Seestar).
+############################################################
+
+requires 1.2.0
+set32bits
+setext fit
+
+cd light
+load device
+cd ..
+# Hintergrund/Gradienten (SUBSKY_ARGS)
+subsky @SUBSKY@
+save result_linear
+@DENOISE@
+@RMGREEN@
+autostretch @STRETCH@
+@SATU@
+savetif result_preview
+savejpg result_preview 95
+close
