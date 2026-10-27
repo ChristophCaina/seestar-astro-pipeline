@@ -1,0 +1,42 @@
+# Optionaler Abschnitt für das Dashboard „Sternwarte“: Astro-Pi
+#
+# Erst einfügen, wenn der Astro-Pi per MQTT gemeldet ist (docs/07) – sonst meldet z. B. Spook unbekannte Entities.
+# Einfügen: Raw-Konfigurationseditor → ans Ende der Liste unter `sections:` anhängen
+# (Einrückung so lassen, wie sie hier steht).
+      - type: grid
+        visibility:
+          - condition: state
+            entity: sensor.astro_pi_montierung
+            state_not: unavailable
+        cards:
+          - type: heading
+            heading: Astro-Pi
+            icon: mdi:raspberry-pi
+            heading_style: subtitle
+          - type: tile
+            entity: sensor.astro_pi_montierung
+            name: Montierung
+          - type: tile
+            entity: sensor.astro_pi_ziel
+            name: Ziel
+          - type: tile
+            entity: sensor.astro_pi_serie
+            name: Serie
+          - type: tile
+            entity: sensor.astro_pi_hfr
+            name: HFR
+          - type: tile
+            entity: sensor.astro_pi_speicher_frei
+            name: Speicher frei
+          - type: picture-entity
+            entity: image.astro_pi_letzte_aufnahme
+            name: Letzte Aufnahme
+            show_state: false
+            grid_options:
+              columns: full
+          - type: button
+            name: Astro-Pi-App öffnen
+            icon: mdi:tablet
+            tap_action:
+              action: url
+              url_path: http://astro-pi.lan:8080

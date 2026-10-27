@@ -126,7 +126,8 @@ container_mode() {
   local pkgs=(siril rclone libimage-exiftool-perl mosquitto-clients smbclient python3 python3-pil
               fonts-dejavu-core git curl ca-certificates)
   (( astrometry )) && pkgs+=(astrometry.net)
-  DEBIAN_FRONTEND=noninteractive apt-get install -y "${pkgs[@]}"
+  # ohne Recommends: sonst kommen u. a. udisks2/gvfs mit, die im unprivilegierten LXC nur Fehler melden
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${pkgs[@]}"
   siril-cli --version 2>/dev/null | head -1 || log "WARN: siril-cli --version schlug fehl"
 
   if [[ -d "$REPO_DIR/.git" ]]; then

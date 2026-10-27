@@ -18,7 +18,7 @@
 #     Teleskope (Entity-Praefix, Weitwinkel ja/nein) und die Handys fuer Meldungen
 #   weather.renningen_2, sensor.astroweather_backyard_* -> wie in deinem Script
 #   sensor.gw2000a_outdoor_temperature / _rain_rate / _wind_gust -> Namen deiner Ecowitt-Entities pruefen
-#   sensor.sternwarte_*  -> spaeterer Sensor am Teleskop (darf fehlen)
+#   Sensor am Teleskop (spaeter) -> siehe Kommentar beim Taupunktabstand
 # =============================================================================
 
 input_boolean:
@@ -78,12 +78,13 @@ template:
         device_class: temperature
         state_class: measurement
         icon: mdi:water-thermometer
+        # Spaeter ein Sensor am Teleskop (z. B. ESPHome mit SHT45)? Dann in BEIDEN Listen unten
+        # als erste Zeile einfuegen:  ['Sternwarte', 'sensor.<temperatur>', 'sensor.<taupunkt>'],
         state: >-
           {% set ns = namespace(t=none, d=none) %}
           {% set quellen = [
-               ['sensor.sternwarte_temperatur', 'sensor.sternwarte_taupunkt'],
-               ['sensor.gw2000a_outdoor_temperature', 'sensor.gw2000a_dewpoint'] ] %}
-          {% for t_id, d_id in quellen if ns.t is none %}
+               ['Ecowitt Garten', 'sensor.gw2000a_outdoor_temperature', 'sensor.gw2000a_dewpoint'] ] %}
+          {% for name, t_id, d_id in quellen if ns.t is none %}
             {% set t = states(t_id) | float(none) %}
             {% set d = states(d_id) | float(none) %}
             {% if t is not none and d is not none %}{% set ns.t, ns.d = t, d %}{% endif %}
@@ -95,9 +96,12 @@ template:
           {{ (ns.t - ns.d) | round(1) if ns.t is not none and ns.d is not none else none }}
         attributes:
           quelle: >-
-            {% if states('sensor.sternwarte_temperatur') | is_number and states('sensor.sternwarte_taupunkt') | is_number %}Sternwarte
-            {% elif states('sensor.gw2000a_outdoor_temperature') | is_number and states('sensor.gw2000a_dewpoint') | is_number %}Ecowitt Garten
-            {% else %}Wettermodell (AstroWeather){% endif %}
+            {% set quellen = [
+                 ['Ecowitt Garten', 'sensor.gw2000a_outdoor_temperature', 'sensor.gw2000a_dewpoint'] ] %}
+            {% set ns = namespace(q='Wettermodell (AstroWeather)') %}
+            {% for name, t_id, d_id in quellen | reverse %}
+              {% if states(t_id) | is_number and states(d_id) | is_number %}{% set ns.q = name %}{% endif %}
+            {% endfor %}{{ ns.q }}
 
 script:
   # ===========================================================================
