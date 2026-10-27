@@ -13,9 +13,9 @@
 # Ersetzt die fruehere Beispiel-Automation automation-siril-ergebnis.yaml.
 #
 # VOR DEM EINSATZ ANPASSEN (Suchen/Ersetzen):
-#   http://astro.lan        -> Adresse deiner Galerie (nginx-vhost, docs/06). Damit das
-#                              Vorschaubild unterwegs laedt, muss das Handy sie erreichen
-#                              (Heimnetz oder Tailscale).
+#   http://astro.lan -> Adresse der Galerie (nginx-vhost, docs/06). Bilder unter
+#                              /img/ sind ohne Passwort erreichbar, damit Vorschau in Push und
+#                              Dashboard auch unterwegs laedt.
 #   Empfaenger: in astro_audit.yaml (script astro_benachrichtigen) – dieses Package braucht es
 #   seestar/siril           -> MQTT_TOPIC aus /etc/siril-auto.env, falls geaendert
 # =============================================================================
