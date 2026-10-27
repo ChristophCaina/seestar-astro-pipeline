@@ -90,6 +90,18 @@ runuser -u siril -- /opt/seestar-astro-pipeline/siril/siril-auto.sh --master-ful
 
 Vom Proxmox-Host aus: `pct exec <ctid> -- runuser -u siril -- …` (im LXC gibt es kein `sudo`). Längere Läufe nicht mit `&` aus `pct exec` starten – der Prozess endet mit der Shell. Stattdessen den Dienst nutzen: `pct exec <ctid> -- systemctl start --no-block siril-auto.service` und `journalctl -u siril-auto -f`.
 
+**Vorschau einstellen:** Das Vorschau-JPG (Immich, Galerie) entsteht aus dem linearen Stack mit Gradientenentfernung, Entrauschen und Streckung. Einstellbar in `/etc/siril-auto.env`:
+
+| Variable | Standard | Wirkung |
+|---|---|---|
+| `SUBSKY_ARGS` | `-rbf -samples=20 -tolerance=1.0 -smooth=0.5` | Hintergrund/Gradienten (RBF, auch ungleichmäßige Lichtverschmutzung). `1` = einfache Ebene. Wirkt auch auf das gespeicherte lineare FIT. |
+| `DENOISE` / `DENOISE_ARGS` | `1` / `-mod=0.8` | Rauschen glätten (NL-Bayes), nur Vorschau. `-mod` = Anteil des entrauschten Bilds. |
+| `STRETCH_ARGS` | `-linked -2.8 0.15` | Streckung: verknüpft (Farben bleiben), Ziel-Hintergrund 0,15 – dunkler zeigt weniger Rauschen. |
+
+Ausprobieren ohne neu zu stacken: `siril/tools/repreview.sh <stack.fit> [out.jpg]`, Werte auf der Kommandozeile überschreibbar, z. B.
+`pct exec <ctid> -- env STRETCH_ARGS="-linked -3 0.10" runuser -u siril -- /opt/seestar-astro-pipeline/siril/tools/repreview.sh /data/astro/stacks/M_101/M_101_kombi_IRCUT+LP_siril.fit /data/astro/work/test.jpg`.
+Was gefällt, in die env-Datei übernehmen und mit `--force` (bzw. `.done` löschen) neu rechnen.
+
 **Ohne Bildschirm:** `siril-cli` aus Debian 1.2.x initialisiert GTK und bricht ohne Display mit „cannot open display“ ab. siril-auto startet es deshalb automatisch über `xvfb-run` (Paket `xvfb`, installiert der Installer mit).
 
 **Am ersten echten Datensatz prüfen:**
