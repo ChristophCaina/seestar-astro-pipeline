@@ -94,25 +94,39 @@
     const dates = all.map((n) => n.date).sort();
     const s0 = d12(dates[0]), s1 = d12(dates.at(-1));
     const start = new Date(s0.getFullYear(), s0.getMonth(), 1, 12), end = new Date(s1.getFullYear(), s1.getMonth() + 1, 0, 12);
-    const days = Math.round((end - start) / 864e5) + 1, x0 = 20, step = 860 / Math.max(days - 1, 1), x1 = x0 + step * (days - 1);
+    const days = Math.round((end - start) / 864e5) + 1;
+    // Kurzer Zeitraum: auf 900 Einheiten verteilen. Langer Zeitraum: fester Tagesabstand und
+    // waagerecht scrollen – das SVG wird dann 1:1 gezeichnet statt hochskaliert.
+    const long = days > 100, step = long ? 6 : 860 / Math.max(days - 1, 1), x0 = 20, x1 = x0 + step * (days - 1);
+    const W = Math.ceil(x1 + 20);
     const X = (d) => x0 + Math.round((d - start) / 864e5) * step;
-    const svg = $("cal"); svg.innerHTML = ""; svg.setAttribute("viewBox", "0 -6 900 64");
-    svg.style.minWidth = Math.max(620, days * 9) + "px";
+    const per = {};
+    all.forEach((n) => (per[n.date] ||= []).push(n));
+    const maxPer = Math.max(...Object.values(per).map((l) => l.length));
+    const moonY = 24 - (maxPer - 1) * 9 - 14, top = moonY - 6;
+    const svg = $("cal"); svg.innerHTML = ""; svg.setAttribute("viewBox", `0 ${top} ${W} ${58 - top}`);
+    svg.style.width = long ? W + "px" : "100%";
+    svg.style.minWidth = long ? W + "px" : "";
     for (let i = 0; i < days; i++) {
       const d = new Date(start.getTime() + i * 864e5), x = x0 + i * step, first = d.getDate() === 1;
+      if (long) {
+        if (!first) continue;
+        el("line", { x1: x, y1: 26, x2: x, y2: 36, class: "tick" }, svg);
+        el("text", { x: x + 3, y: 50 }, svg).textContent = `${MONTH[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
+        continue;
+      }
       el("line", { x1: x, y1: 30, x2: x, y2: first ? 20 : 34, class: "tick" }, svg);
       if (first || (d.getDate() % 5 === 0 && d.getDate() < 30)) el("text", { x, y: 52, "text-anchor": "middle" }, svg).textContent = first ? `1. ${MONTH[d.getMonth()]}` : d.getDate();
     }
     el("line", { x1: x0, y1: 32, x2: x1, y2: 32, class: "tick" }, svg);
-    moonPhases(start, end).forEach(([d, t]) => el("circle", { cx: X(d), cy: 10, r: 4, class: t === "full" ? "moonfull" : "moonnew" }, svg));
-    const per = {};
-    all.forEach((n) => (per[n.date] ||= []).push(n));
+    moonPhases(start, end).forEach(([d, t]) => el("circle", { cx: X(d), cy: moonY, r: long ? 3 : 4, class: t === "full" ? "moonfull" : "moonnew" }, svg));
     Object.entries(per).forEach(([d, list]) => list.forEach((n, i) => {
       const c = el("circle", { cx: X(d12(d)), cy: 24 - i * 9, r: 4, class: "night" + (n.g.filter === "LP" ? " lp" : "") }, svg);
       el("title", {}, c).textContent = `${fmtDay(d)} – ${n.g.target.name}, ${n.frames} Frames`;
     }));
-    const m0 = MONTH[start.getMonth()], m1 = MONTH[end.getMonth()];
-    $("cal-title").textContent = `Beobachtungsnächte · ${m0 === m1 && start.getFullYear() === end.getFullYear() ? m0 : m0 + " – " + m1} ${end.getFullYear()}`;
+    if (long) svg.parentElement.scrollLeft = svg.parentElement.scrollWidth;   // neueste Naechte zuerst sichtbar
+    const m0 = MONTH[start.getMonth()], m1 = MONTH[end.getMonth()], y0 = start.getFullYear(), y1 = end.getFullYear();
+    $("cal-title").textContent = `Beobachtungsnächte · ${y0 !== y1 ? `${m0} ${y0} – ${m1} ${y1}` : m0 === m1 ? `${m0} ${y1}` : `${m0} – ${m1} ${y1}`}`;
   }
 
   function renderChips() {
@@ -142,7 +156,7 @@
       b.innerHTML = `<div class="thumb"><img loading="lazy" src="${esc(e.image.thumb)}" alt=""></div>
         <div class="tile-t"><h3>${esc(g.target.name)} <em>${esc(g.target.common || "")}</em></h3>${g.filter ? `<span class="badge${g.filter === "LP" ? " lp" : ""}">${esc(g.filter)}</span>` : ""}</div>
         <div class="tile-m">${g.seconds ? `<span><b>${fmtInt(g.seconds)}</b> Belichtung</span>` : `<span>App-Stack</span>`}<span><b>${g.nights.length}</b> ${g.nights.length === 1 ? "Nacht" : "Nächte"}</span><span>zuletzt <b>${fmtDate(g.last)}</b></span></div>`;
-      const svg = annotationSvg(e, true); svg.classList.add("dso"); b.querySelector(".thumb").appendChild(svg);
+      const svg = annotationSvg(e, true); svg.setAttribute("preserveAspectRatio", "xMidYMid slice"); svg.classList.add("dso"); b.querySelector(".thumb").appendChild(svg);
       b.onclick = () => openGroup(g.key);
       grid.appendChild(b);
     }
@@ -276,6 +290,7 @@
     const { w, h } = e.image, img = $("d-img");
     img.src = e.image.web; img.alt = `${g.target.name} ${g.target.common || ""}`;
     frame.style.aspectRatio = `${w} / ${h}`;
+    frame.style.width = `min(100%, calc(78vh * ${(w / h).toFixed(4)}))`;   // Hochformat nicht hoeher als der Bildschirm
     svgD.setAttribute("viewBox", `0 0 ${w} ${h}`);
     ovg.innerHTML = ""; hideCard(); setPin(false);
     if (e.wcs) drawGrid(ovg, e);

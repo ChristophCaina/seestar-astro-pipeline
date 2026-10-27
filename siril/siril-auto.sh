@@ -196,7 +196,7 @@ render_script() {   # render_script <vorlage> <ziel>
   [[ -n "${SATU_ARGS-0.6}" ]] && satu="satu ${SATU_ARGS-0.6}"
   sed -e "s|@SUBSKY@|${SUBSKY_ARGS:--rbf -samples=20 -tolerance=1.0 -smooth=0.5}|g" \
       -e "s|@DENOISE@|${denoise}|g" -e "s|@RMGREEN@|${rmgreen}|g" -e "s|@SATU@|${satu}|g" -e "s|@STRETCH@|${STRETCH_ARGS:--linked -2.8 0.15}|g" \
-      -e "s|@STACK_METHOD@|${MASTER_STACK_METHOD}|g" -e "s|@WEIGHT@|${WEIGHT_OPT:-}|g" \
+      -e "s|@FRAMING@|${FRAMING:-cog}|g" -e "s|@STACK_METHOD@|${MASTER_STACK_METHOD}|g" -e "s|@WEIGHT@|${WEIGHT_OPT:-}|g" \
       -e "s|@SOLVE_ARGS@|${SOLVE_ARGS}|g" -e "s|@CALIBRATE@|${CALIBRATE:-calibrate light -cfa -debayer}|g" \
       -e "s|@PRE@|${CAL_PRE:-}|g" -e "s|@SEQ@|${CAL_SEQ:-frame}|g" -e "s|@NORM@|${CAL_NORM:--nonorm}|g" \
       -e "s|^@FG@|${FG_PREFIX-# }|" "$1" > "$2"

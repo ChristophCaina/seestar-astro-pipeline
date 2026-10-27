@@ -20,7 +20,7 @@ cd ../process
 
 # Naechte haben unterschiedliche Bildausschnitte/Drehung (Alt/Az)
 register stack -2pass
-seqapplyreg stack -framing=min
+seqapplyreg stack -framing=@FRAMING@
 
 stack r_stack @STACK_METHOD@ -norm=addscale -output_norm -rgb_equal @WEIGHT@ -out=../result_linear
 
