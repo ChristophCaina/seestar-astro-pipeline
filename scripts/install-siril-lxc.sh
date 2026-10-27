@@ -162,7 +162,7 @@ container_mode() {
       su -s /bin/bash "$SIRIL_USER" -c "rclone config create seestar smb host=$seestar_ip user=guest" >/dev/null
     fi
     log "Freigaben auf dem Seestar:"
-    smbclient -L "//$seestar_ip" -N 2>/dev/null | awk '/Disk/ {print "    " $1}' || log "Seestar nicht erreichbar"
+    smbclient -L "//$seestar_ip" -N 2>/dev/null | awk -F'  +' '/ Disk / {sub(/^[ \t]+/, "", $1); print "    " $1}' || log "Seestar nicht erreichbar"
   fi
 
   if [[ -d "$ASTRO_ROOT" ]]; then
@@ -195,7 +195,7 @@ container_mode() {
 
 Fertig. Nächste Schritte:
   1. /etc/siril-auto.env anpassen (SEESTAR_IP, RCLONE_SRC_PATH, MQTT_*, ggf. IMMICH_*)
-  2. Testlauf:   sudo -u $SIRIL_USER $REPO_DIR/siril/siril-auto.sh --dry-run
+  2. Testlauf:   runuser -u $SIRIL_USER -- $REPO_DIR/siril/siril-auto.sh --dry-run
   3. Timer an:   systemctl enable --now siril-auto.timer
 Update später: bash $0 update
 TXT
