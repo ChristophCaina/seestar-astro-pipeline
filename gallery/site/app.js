@@ -57,19 +57,22 @@
 
   // ---------------- Daten ----------------
   let groups = [], kindFilter = "all", sortBy = "recent", sample = false;
+  const isCombined = (e) => (e.filter || "").includes("+");
 
   function groupEntries(entries) {
     const m = new Map();
     for (const e of entries) {
-      const key = `${slug(e.target.name)}-${slug(e.filter || "na")}`;
-      if (!m.has(key)) m.set(key, { key, target: e.target, filter: e.filter, entries: [] });
+      // ein Eintrag je Objekt; Filter, Naechte und Kombination sind Versionen darin
+      const key = slug(e.target.name);
+      if (!m.has(key)) m.set(key, { key, target: e.target, entries: [] });
       m.get(key).entries.push(e);
     }
     for (const g of m.values()) {
-      // Titelbild: Master mit der laengsten Belichtung (mehrere Geraete), sonst die neueste Nacht
-      g.entries.sort((a, b) => (a.stack === "master") !== (b.stack === "master") ? (a.stack === "master" ? -1 : 1)
-        : a.stack === "master" ? b.seconds - a.seconds : (b.last || "").localeCompare(a.last || ""));
+      // Titelbild: Kombination aller Filter, dann Master mit der laengsten Belichtung, sonst die neueste Nacht
+      const rank = (e) => (isCombined(e) ? 0 : e.stack === "master" ? 1 : 2);
+      g.entries.sort((a, b) => rank(a) - rank(b) || (rank(a) < 2 ? b.seconds - a.seconds : (b.last || "").localeCompare(a.last || "")));
       g.primary = g.entries[0];
+      g.filter = g.primary.filter;
       g.nights = [...new Map(g.entries.flatMap((e) => e.nights).map((n) => [n.date, n])).values()].sort((a, b) => a.date.localeCompare(b.date));
       g.seconds = g.primary.seconds; g.last = g.nights.at(-1)?.date || "";
       g.kind = KIND[g.target.kind] ? g.target.kind : "other";
@@ -245,7 +248,7 @@
     if (location.hash.slice(1) !== key) history.pushState(null, "", "#" + key);
     window.scrollTo(0, 0);
     const nN = e.nights.length;
-    $("d-eyebrow").textContent = `${KIND1[g.kind]} · ${e.stack === "master" ? `Master aus ${nN} Nächten` : "Einzelnacht"} · ${e.device?.label || "Seestar S50"}`;
+    $("d-eyebrow").textContent = `${KIND1[g.kind]} · ${isCombined(e) ? `Alle Filter (${e.filter.replaceAll("+", " + ")})` : e.stack === "master" ? `Master aus ${nN} Nächten` : "Einzelnacht"} · ${e.device?.label || "Seestar S50"}`;
     $("d-title").innerHTML = `${esc(g.target.name)} <em>${esc(g.target.common || "")}</em>`;
     $("d-caption").textContent = e.caption || "";
     $("d-integ").innerHTML = e.seconds ? `${fmtInt(e.seconds)} <small>gesamt</small>` : `– <small>Belichtung unbekannt</small>`;
@@ -258,7 +261,9 @@
     g.entries.forEach((x) => {
       const li = document.createElement("li"); if (x.id === e.id) li.className = "cur";
       const multi = new Set(g.entries.map((y) => y.device?.id || "s50")).size > 1;
-      const label = (x.source === "app" ? "Seestar-App-Stack" : x.stack === "master" ? "Master · Siril" : "Einzelnacht · Siril")
+      const filters = new Set(g.entries.map((y) => y.filter || "")).size > 1;
+      const label = (x.source === "app" ? "Seestar-App-Stack" : isCombined(x) ? "Alle Filter · Siril" : x.stack === "master" ? "Master · Siril" : "Einzelnacht · Siril")
+        + (filters && !isCombined(x) && x.filter ? ` · ${esc(x.filter)}` : "")
         + (multi ? ` · ${esc(x.device?.label || "Seestar S50")}` : "");
       const info = x.stack === "master" ? `${x.nights.length} Nächte` : fmtDate(x.last);
       li.innerHTML = x.id === e.id ? `<span>${label}</span><span>${info}</span>` : `<button type="button">${label}</button><span>${info}</span>`;

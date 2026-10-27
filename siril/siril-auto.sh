@@ -370,7 +370,7 @@ run_stack() {
     gname="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["target"]["name"])' \
       "$STACK_DIR/$slug/$base.meta.json" 2>/dev/null || echo "$target")"
   fi
-  local group; group="$(printf '%s-%s' "$gname" "${filter:-na}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g')"
+  local group; group="$(printf '%s' "$gname" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g')"
   # erst nach dem Galerie-Build senden (Abschnitt 5), damit das Vorschaubild schon existiert
   PENDING_LAST+=("$(printf '{"target":"%s","night":"%s","filter":"%s","stack":"%s","frames":%s,"id":"%s","group":"%s","device":"%s","device_label":"%s","jpg":"%s","fit":"%s","timestamp":"%s"}' \
     "$(json_escape "$target")" "$label" "$filter" "$kind" "$frames" "$gid" "$group" "$CUR_DEVICE" "$(json_escape "$CUR_LABEL")" "$(json_escape "$jpg")" \
@@ -508,6 +508,55 @@ process_device() {   # process_device <id>
     if (( ok )); then echo "$mode|$spec" > "$state_file"; rm -f "$fail_file"; processed=$((processed+1))
     else echo "$spec" > "$fail_file"; failed=$((failed+1)); status error "$target" "master" "$frames" "Master fehlgeschlagen"; fi
   done < "$INDEX.targets"
+
+  # 5) Kombination ueber alle Filter je Ziel (COMBINE_FILTERS=1) -------------
+  # Je Filter das beste Ergebnis (Master, sonst die juengste Nacht), registriert und
+  # gewichtet zusammengefuehrt – z. B. IRCUT (Sterne/Farbe) + LP (Nebel-Signal).
+  [[ "${COMBINE_FILTERS:-1}" == "1" ]] || return 0
+  while read -r target; do
+    slug="$(slugify "$target")"
+    local cfits=() cfilters=() cspec="" nspecs="" cframes=0 last=""
+    while read -r filter; do
+      is_wide_filter "$filter" && continue
+      local mstate="$STATE_DIR/${slug}_${filter}${DEV_SUFFIX}_master.done"
+      local mfit="$STACK_DIR/$slug/${slug}_master_${filter}${DEV_SUFFIX}_siril.fit" fspec=""
+      if [[ -f "$mstate" && ( -f "$mfit" || $DRY_RUN -eq 1 ) ]]; then
+        fspec="$(cut -d'|' -f2- "$mstate")"; cfits+=("$mfit")
+      else
+        local sf newest=""
+        for sf in "$STATE_DIR/${slug}_${filter}${DEV_SUFFIX}"_20*.done; do [[ -f "$sf" ]] && newest="$sf"; done
+        [[ -n "$newest" ]] || continue
+        n="$(basename "$newest" .done)"; n="${n##*_}"
+        local nfit="$STACK_DIR/$slug/${slug}_${n}_${filter}${DEV_SUFFIX}_siril.fit"
+        [[ -f "$nfit" || $DRY_RUN -eq 1 ]] || continue
+        fspec="$n:$(cat "$newest")"; cfits+=("$nfit")
+      fi
+      cfilters+=("$filter"); cspec+="${cspec:+;}$filter=$fspec"; nspecs+="${nspecs:+,}$fspec"
+    done < <(awk -F'\t' -v t="$target" '$1==t {print $2}' "$INDEX.targets" | sort -u)
+    (( ${#cfilters[@]} >= 2 )) || continue
+
+    # Naechte aller Filter zusammenfassen (gleiche Nacht -> Frames addieren)
+    local nights_spec
+    nights_spec="$(tr ',' '\n' <<< "$nspecs" | awk -F: '{s[$1]+=$2} END {for (d in s) print d":"s[d]}' | sort | paste -sd, -)"
+    cframes="$(tr ',' '\n' <<< "$nights_spec" | awk -F: '{s+=$2} END {print s+0}')"
+    last="$(tr ',' '\n' <<< "$nights_spec" | tail -1 | cut -d: -f1)"
+    local fstr; fstr="$(IFS=+; echo "${cfilters[*]}")"
+    local ckey="${slug}${DEV_SUFFIX}_combined" 
+    state_file="$STATE_DIR/$ckey.done"; fail_file="$STATE_DIR/$ckey.failed"
+    [[ $FORCE -eq 0 && "$(cat "$state_file" 2>/dev/null || true)" == "$cspec" ]] && continue
+    if [[ $FORCE -eq 0 && "$(cat "$fail_file" 2>/dev/null || true)" == "$cspec" ]]; then
+      log "SKIP Kombination $target: früher fehlgeschlagen – $fail_file löschen oder --force"; continue
+    fi
+    exp="$(awk -F'\t' -v t="$target" '$1==t {print $3}' "$INDEX" | sort | uniq -c | sort -rn | awk 'NR==1{print $2}')"
+    log "KOMBI ${DEVTAG}$target $fstr: $cframes Frames"
+    if [[ $DRY_RUN -eq 1 ]]; then processed=$((processed+1)); continue; fi
+    status processing "$target" "kombi" "$cframes"
+    if run_stack master "$target" "$fstr" kombi "${exp:-$DEFAULT_EXPOSURE}" "$nights_spec" "$last 22:00:00" "$cframes" "$SIRIL_MASTER_SCRIPT" "${cfits[@]}"; then
+      echo "$cspec" > "$state_file"; rm -f "$fail_file"; processed=$((processed+1))
+    else
+      echo "$cspec" > "$fail_file"; failed=$((failed+1)); status error "$target" "kombi" "$cframes" "Kombination fehlgeschlagen"
+    fi
+  done < <(cut -f1 "$INDEX.targets" | sort -u)
 }
 
 processed=0; failed=0; INDEXES=()

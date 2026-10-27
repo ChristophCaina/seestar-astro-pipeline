@@ -22,13 +22,13 @@ cd /tmp/astro-web && python3 -m http.server 8080      # → http://localhost:808
 
 ## Funktionen
 
-- **Übersicht** mit Kennzahlen, Beobachtungskalender (Filter und berechnete Mondphasen), Filter nach Objekttyp und Sortierung. Pro Ziel und Filter gibt es eine Kachel, gezeigt wird der Master, falls vorhanden.
+- **Übersicht** mit Kennzahlen, Beobachtungskalender (Filter und berechnete Mondphasen), Filter nach Objekttyp und Sortierung. Pro Objekt gibt es eine Kachel. Titelbild ist die Kombination aller Filter, sonst der Master mit der längsten Belichtung, sonst die neueste Nacht.
 - **Detailseite** mit Bild und SVG-Overlay, das beim Mouseover oder Tippen erscheint:
   - Infokarten zu den Objekten
   - RA/Dec-Gitter, berechnet aus der WCS
   - Kompass und Maßstab
   - Randhinweise für Objekte außerhalb des Bildfelds
-- **Versionen:** zwischen Master und Einzelnächten umschalten
+- **Versionen:** zwischen Kombination, Master je Filter und Einzelnächten umschalten
 - **Rotlicht-Modus** für die Nachtsicht
 
 Hosting: [`docs/06-galerie-hosting.md`](../docs/06-galerie-hosting.md)

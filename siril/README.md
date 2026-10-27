@@ -3,10 +3,11 @@
 Läuft im Siril-LXC. Ablauf:
 1. Die Einzelframes vom Seestar abholen.
 2. Pro **Ziel, Filter und Nacht** stacken.
-3. Für jedes Ziel mit mehreren Nächten einen **Master** bilden.
-4. Jeden Stack **plate-solven**.
-5. Ergebnisse auf dem NAS ablegen, ein JPG mit Aufnahmedatum für Immich schreiben, eine beschriftete Version und eine `meta.json` für die Galerie.
-6. Optional: Immich-Library scannen und alle Versionen eines Ziels zu einem Immich-Stack gruppieren.
+3. Für jedes Ziel und jeden Filter mit mehreren Nächten einen **Master** bilden.
+4. Gibt es ein Ziel mit **mehreren Filtern** (z. B. IRCUT und LP), zusätzlich eine **Kombination über alle Filter**.
+5. Jeden Stack **plate-solven**.
+6. Ergebnisse auf dem NAS ablegen, ein JPG mit Aufnahmedatum für Immich schreiben, eine beschriftete Version und eine `meta.json` für die Galerie.
+7. Optional: Immich-Library scannen und alle Versionen eines Ziels zu einem Immich-Stack gruppieren.
 
 ```
 Seestar (SMB) ──rclone──> /data/astro/raw/seestar/            1:1-Archiv, nie löschen
@@ -16,6 +17,9 @@ Seestar (SMB) ──rclone──> /data/astro/raw/seestar/            1:1-Archiv
                                  │  ≥ 2 Nächte
                                  ▼
          Master        <ziel>_master_<filter>_siril    (seestar_master.ssf, gewichtet nach Frames)
+                                 │  ≥ 2 Filter
+                                 ▼
+         Kombination   <ziel>_kombi_<f1+f2>_siril      (je Filter Master bzw. jüngste Nacht, gewichtet)
                                  │  jeder Stack: seestar_solve.ssf (platesolve) + write_meta.py
                                  ▼
    /data/astro/stacks/<ziel>/  *.fit  *.tif  *.log  *.meta.json
@@ -26,7 +30,7 @@ Seestar (SMB) ──rclone──> /data/astro/raw/seestar/            1:1-Archiv
 ## Regeln
 
 - **Nacht** = 12 bis 12 Uhr. Frames nach Mitternacht zählen zur Nacht davor.
-- **Filter und Belichtung** kommen aus dem Dateinamen (`Light_M 31_10.0s_IRCUT_20261018-213045.fit`). IRCUT und LP werden nie gemischt.
+- **Filter und Belichtung** kommen aus dem Dateinamen (`Light_M 31_10.0s_IRCUT_20261018-213045.fit`). Nacht-Stacks und Master bleiben je Filter getrennt. Die **Kombination** führt danach die Ergebnisse aller Filter zusammen: je Filter der Master, sonst die jüngste Nacht, registriert und nach Frames gewichtet (`COMBINE_FILTERS=1`, Standard). Typisch für das Seestar: IRCUT liefert Sterne und Farben, LP das Nebel-Signal (Hα/OIII). Die Farben der Kombination sind ein Kompromiss, für eine gezielte Mischung (z. B. LP nur für den Nebel) bleibt die manuelle Bearbeitung.
 - **Alias-Liste** (`/etc/siril-auto.aliases`): Bekommt dasselbe Objekt in der App mal unterschiedliche Namen, z. B. „Andromeda Galaxy“ und „M 31“, landet es mit Alias trotzdem in einer Gruppe.
 - **Neu gestackt** wird eine Nacht, sobald neue Frames dazukommen. Danach wird auch der Master neu berechnet.
 - **Fehlschläge** werden nicht bei jedem Lauf wiederholt. Ein neuer Versuch startet erst, wenn neue Frames dazukommen oder du `--force` aufrufst.
