@@ -275,6 +275,7 @@ GALLERY_OUT={self.astro}/web
         r2 = self.run_auto(FAKE_SIRIL_FAIL="stack")
         self.assertEqual(len(self.calls_of("stack")), n)          # nicht erneut versucht
         self.assertEqual(r2.returncode, 0)
+        self.assertIn("früher fehlgeschlagen", r2.stdout)       # aber sichtbar im Log
 
     def test_solve_failure_keeps_stack(self):
         r = self.run_auto(FAKE_SIRIL_FAIL="solve")
