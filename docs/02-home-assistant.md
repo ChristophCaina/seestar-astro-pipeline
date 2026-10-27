@@ -48,7 +48,7 @@ Die Meldung „Letztes Ergebnis“ enthält auch `id` und `group`. Daraus entste
 | Zusammenfassung am Morgen | um `input_datetime.astro_zusammenfassung_zeit`, nur wenn es Stacks gab; mit Hinweis, falls siril-auto einen Fehler meldet |
 | Fehler-Push | wenn siril-auto länger als 1 min `error` meldet |
 
-Vorher `http://astro.lan` (Galerie-Adresse) ersetzen. Die Empfänger kommen aus der KONFIGURATION in `astro_audit.yaml` – beide Packages gehören zusammen. Das Vorschaubild lädt nur, wenn das Handy die Galerie erreicht, also im Heimnetz oder über Tailscale ([04](04-remote-access.md)). Uhrzeit und Push-Schalter einmal im UI setzen. Helfer ohne Startwert stehen nach dem ersten Laden auf aus bzw. 00:00.
+Galerie-Adresse ist `https://astrogal.caina.family` – bei anderer Domain ersetzen. Die Empfänger kommen aus der KONFIGURATION in `astro_audit.yaml` – beide Packages gehören zusammen. Das Vorschaubild kommt aus `/img/` der Galerie, das ohne Passwort erreichbar ist ([06](06-galerie-hosting.md)). Uhrzeit und Push-Schalter einmal im UI setzen. Helfer ohne Startwert stehen nach dem ersten Laden auf aus bzw. 00:00.
 
 ## Astro-Audit (KI-Empfehlung → Automationen)
 

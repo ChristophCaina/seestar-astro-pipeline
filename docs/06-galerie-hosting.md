@@ -41,7 +41,16 @@ ln -s ../sites-available/astro-gallery /etc/nginx/sites-enabled/
 nginx -t && systemctl reload nginx
 ```
 
-Den `server_name` (z. B. `astro.lan`) trägst du als DNS-Eintrag im Router ein. Bei der Fritzbox geht das nur über den Gerätenamen, alternativ über einen lokalen DNS wie Pi-hole oder AdGuard. Die `allow`-Regeln lassen nur das Heimnetz und Tailscale zu.
+Die Galerie läuft unter `astrogal.caina.family` (A-Eintrag bei regfish, Portweiterleitung 80/443 auf den nginx-LXC). Passwort anlegen und Zertifikat holen:
+
+```bash
+apt install -y apache2-utils
+htpasswd -c /etc/nginx/.htpasswd-astro <name>        # weitere Benutzer ohne -c
+nginx -t && systemctl reload nginx
+certbot --nginx -d astrogal.caina.family
+```
+
+Heimnetz und Tailscale kommen ohne Passwort rein, von außen nur mit. Ruft man die eigene Domain aus dem Heimnetz auf, schickt die Fritzbox das über die öffentliche IP zurück (NAT-Loopback) – dann fragt nginx ebenfalls nach dem Passwort; der Browser merkt es sich. `/img/` ist ohne Passwort erreichbar, damit die Vorschaubilder im HA-Dashboard und in Push-Nachrichten laden.
 
 ## Optional: HTTPS
 

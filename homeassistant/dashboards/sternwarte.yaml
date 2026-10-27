@@ -9,7 +9,7 @@
 #   seestar_s50                 → Entity-Präfix deines Seestar
 #   script.astro_start_*        → Start-Scripts je Gerät aus astro_audit.yaml
 #   input_select.astro_ziel_* / script.astro_goto_* → GoTo je Gerät aus astro_goto.yaml
-#   http://astro.lan            → Adresse der Astro-Galerie
+#   https://astrogal.caina.family → Adresse der Astro-Galerie
 #   sensor.gw2000a_*            → Ecowitt-Entities
 #
 # Weitere Geräte: optional/seestar_s30.yaml und optional/astro_pi.yaml als Abschnitte anhängen,
@@ -255,8 +255,8 @@ views:
               'device_label') %} · {{ state_attr(e, 'device_label') }}{% endif
               %}
 
-              {% if state_attr(e, 'id') %}<a href="http://astro.lan/#{{
-              state_attr(e, 'group') }}"><img src="http://astro.lan/img/{{
+              {% if state_attr(e, 'id') %}<a href="https://astrogal.caina.family/#{{
+              state_attr(e, 'group') }}"><img src="https://astrogal.caina.family/img/{{
               state_attr(e, 'id') }}_t.jpg" width="100%"></a>{% endif %} {% else
               %} <ha-alert alert-type="info">Noch kein Stack.</ha-alert> {%
               endif %}
@@ -270,7 +270,7 @@ views:
               **Diese Nacht:** {% for s in
               state_attr('sensor.astro_stacks_dieser_nacht', 'stacks') or [] %}
               [{{ s.target }} {{ s.filter }} · {{ 'Master' if s.stack ==
-              'master' else s.frames ~ ' Frames' }}](http://astro.lan/#{{
+              'master' else s.frames ~ ' Frames' }}](https://astrogal.caina.family/#{{
               s.group }}){{ ',' if not loop.last }} {%- endfor %}
           - type: tile
             entity: input_boolean.astro_push_pro_stack
@@ -280,4 +280,4 @@ views:
             icon: mdi:image-multiple
             tap_action:
               action: url
-              url_path: http://astro.lan
+              url_path: https://astrogal.caina.family

@@ -12,7 +12,7 @@ bash install-tailscale-lxc.sh host 140 --create --hostname heimnetz
 
 - Ohne `--auth-key` gibt `tailscale up` einen Anmeldelink aus. Den öffnest du im Browser.
 - Danach in der [Adminkonsole](https://login.tailscale.com/admin/machines) die **Route freigeben**, z. B. `192.168.52.0/24`, und optional **Key expiry** abschalten.
-- Auf Handy und Laptop die Tailscale-App installieren und mit demselben Konto anmelden. Dann sind HA, Galerie (`astro.lan`), Immich und seestar_alp von unterwegs erreichbar.
+- Auf Handy und Laptop die Tailscale-App installieren und mit demselben Konto anmelden. Dann sind HA, Galerie (`astrogal.caina.family`), Immich und seestar_alp von unterwegs erreichbar.
 - Für die Galerie lässt der nginx-vhost den Tailscale-Bereich `100.64.0.0/10` bereits zu. Erreichst du sie über die geroutete LAN-IP, greift ohnehin die Regel für `192.168.0.0/16`.
 - Das Heimnetz erkennt das Script automatisch über die Route von `eth0`, andernfalls gibst du es mit `--routes` an.
 
