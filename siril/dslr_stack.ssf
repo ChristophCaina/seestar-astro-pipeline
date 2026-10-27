@@ -37,8 +37,11 @@ subsky @SUBSKY@
 save result_linear
 # Farbrauschen glaetten (nur Vorschau, result_linear bleibt unveraendert)
 @DENOISE@
-rmgreen
+# Gruenstich entfernen – bei Dualband-Filtern (LP: Hα + OIII) aus, sonst wird OIII grau
+@RMGREEN@
 autostretch @STRETCH@
+# Farbsaettigung (SATU_ARGS)
+@SATU@
 savetif result_preview
 savejpg result_preview 95
 

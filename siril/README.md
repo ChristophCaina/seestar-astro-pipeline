@@ -97,6 +97,8 @@ Vom Proxmox-Host aus: `pct exec <ctid> -- runuser -u siril -- …` (im LXC gibt 
 | `SUBSKY_ARGS` | `-rbf -samples=20 -tolerance=1.0 -smooth=0.5` | Hintergrund/Gradienten (RBF, auch ungleichmäßige Lichtverschmutzung). `1` = einfache Ebene. Wirkt auch auf das gespeicherte lineare FIT. |
 | `DENOISE` / `DENOISE_ARGS` | `1` / `-mod=0.8` | Rauschen glätten (NL-Bayes), nur Vorschau. `-mod` = Anteil des entrauschten Bilds. |
 | `STRETCH_ARGS` | `-linked -2.8 0.15` | Streckung: verknüpft (Farben bleiben), Ziel-Hintergrund 0,15 – dunkler zeigt weniger Rauschen. |
+| `RMGREEN` / `DUALBAND_FILTERS` | `1` / `LP` | Grünstich entfernen (SCNR). Bei Dualband-Filtern (Hα + OIII) automatisch aus – OIII ist türkis und würde sonst grau. |
+| `SATU_ARGS` | `0.6` | Farbsättigung nach dem Strecken; leer = aus. |
 
 Ausprobieren ohne neu zu stacken: `siril/tools/repreview.sh <stack.fit> [out.jpg]`, Werte auf der Kommandozeile überschreibbar, z. B.
 `pct exec <ctid> -- env STRETCH_ARGS="-linked -3 0.10" runuser -u siril -- /opt/seestar-astro-pipeline/siril/tools/repreview.sh /data/astro/stacks/M_101/M_101_kombi_IRCUT+LP_siril.fit /data/astro/work/test.jpg`.
