@@ -454,7 +454,9 @@ process_device() {   # process_device <id>
     fi
     state_file="$STATE_DIR/$key.done"; fail_file="$STATE_DIR/$key.failed"
     [[ $FORCE -eq 0 && -f "$state_file" && "$(cat "$state_file")" == "$count" ]] && continue
-    [[ $FORCE -eq 0 && -f "$fail_file" && "$(cat "$fail_file")" == "$count" ]] && continue
+    if [[ $FORCE -eq 0 && -f "$fail_file" && "$(cat "$fail_file")" == "$count" ]]; then
+      log "SKIP $target $filter $night: früher fehlgeschlagen – $fail_file löschen oder --force"; continue
+    fi
 
     log "STACK ${DEVTAG}$target $filter $night: $count Frames à ${exp}s (Start $first_ts)"
     if [[ $DRY_RUN -eq 1 ]]; then processed=$((processed+1)); continue; fi
@@ -486,7 +488,9 @@ process_device() {   # process_device <id>
     old="$(cat "$state_file" 2>/dev/null || true)"
     # Neu rechnen, wenn sich die Naechte geaendert haben – oder --master-full / --force
     if [[ $FORCE -eq 0 && $MASTER_FULL -eq 0 && "${old#*|}" == "$spec" ]]; then continue; fi
-    [[ $FORCE -eq 0 && $MASTER_FULL -eq 0 && "$(cat "$fail_file" 2>/dev/null || true)" == "$spec" ]] && continue
+    if [[ $FORCE -eq 0 && $MASTER_FULL -eq 0 && "$(cat "$fail_file" 2>/dev/null || true)" == "$spec" ]]; then
+      log "SKIP Master $target $filter: früher fehlgeschlagen – $fail_file löschen oder --force"; continue
+    fi
 
     last_night="${nights[-1]}"
     ts="$(awk -F'\t' -v t="$target" -v fl="$filter" -v n="$last_night" '$1==t && $2==fl && $4==n {print $5}' "$INDEX" | sort | head -1)"
