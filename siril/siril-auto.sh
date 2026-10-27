@@ -364,10 +364,11 @@ run_stack() {
     [[ -f "$CATALOG" ]] && cat_args+=(--catalog "$CATALOG")
     [[ -f "${CATALOG%/*}/addendum.csv" ]] && cat_args+=(--catalog "${CATALOG%/*}/addendum.csv")
     [[ "${NO_FLIP_Y:-0}" == "1" ]] && cat_args+=(--no-flip-y)
+    local meta_extra=(--source "$src"); [[ "${CUR_MOSAIC:-0}" == "1" ]] && meta_extra+=(--mosaic)
     python3 "$LIB_DIR/write_meta.py" --fits "$STACK_DIR/$slug/$base.fit" --jpg "$jpg" \
       --out "$STACK_DIR/$slug/$base.meta.json" --target "$target" --filter "$filter" \
       --exposure "$exp" --stack "$([[ $kind == seestar ]] && echo night || echo "$kind")" --nights "$spec" "${cat_args[@]}" \
-      --source "$src" $([[ "${CUR_MOSAIC:-0}" == "1" ]] && echo --mosaic) \
+      "${meta_extra[@]}" \
       --device-id "$CUR_DEVICE" --device-label "$CUR_LABEL" "${wcs_args[@]}" \
       || log "      WARN: meta.json konnte nicht geschrieben werden"
     if [[ "$ANNOTATE" == "1" && -f "$STACK_DIR/$slug/$base.meta.json" ]]; then
@@ -605,7 +606,7 @@ process_device() {   # process_device <id>
 }
 
 process_seestar_stacks() {
-  local f b n mos tgt filter exp night ts best key slug label sf done_n
+  local f b n mos tgt filter exp night ts key slug label sf done_n
   declare -A pick=() pickn=()
   while IFS= read -r -d '' f; do
     b="$(basename "$f")"
