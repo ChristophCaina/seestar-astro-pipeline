@@ -328,6 +328,20 @@ GALLERY_OUT={self.astro}/web
         r = self.run_auto(FAKE_SIRIL_VERSION="1.4.0")
         self.assertIn("-weight=nbstack", self.calls_of("master")[0]["script"])
 
+    def test_old_folder_names_mosaic_and_duplicates(self):
+        """Aeltere Firmware: "<Ziel>-sub"; Mosaike ueberspringen; gleiche Datei doppelt zaehlt einmal."""
+        mirror = self.astro / "raw" / "seestar"
+        frames(mirror / "M 33-sub", "M 33", "LP", "20241027", "2010", 30)
+        frames(mirror / "M 33_sub", "M 33", "LP", "20241027", "2010", 30)          # dieselben Dateien nochmal
+        frames(mirror / "M 31_mosaic_sub", "M 31_mosaic", "IRCUT", "20261018", "2300", 40)
+        r = self.run_auto("--dry-run")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("STACK M 33 LP 2024-10-27: 30 Frames", r.stdout)
+        self.assertIn("30 doppelte Frames", r.stdout)
+        self.assertIn("40 Mosaik-Frames übersprungen", r.stdout)
+        self.assertIn("STACK M 31 IRCUT 2026-10-18: 25 Frames", r.stdout)   # Mosaik nicht dazugezaehlt
+        self.assertNotIn("mosaic", r.stdout.replace("Mosaik-Frames übersprungen (*_mosaic_sub)", ""))
+
 
 if __name__ == "__main__":
     unittest.main()

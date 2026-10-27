@@ -5,7 +5,7 @@
 # fuer Immich exportieren und die Galerie fuettern.
 #
 #   1. Seestar erreichbar?  -> rclone copy (SMB) nach MIRROR_DIR  (nur ergaenzen, nie loeschen)
-#   2. Alle *_sub/*.fit nach Ziel + Filter + Nacht gruppieren (Alias-Liste fuer Zielnamen)
+#   2. Alle *_sub/*.fit (auch *-sub, ohne *_mosaic_sub) nach Ziel + Filter + Nacht gruppieren (Alias-Liste fuer Zielnamen)
 #   3. Neue / gewachsene Naechte stacken            -> <ziel>_<nacht>_<filter>_siril
 #   4. Ziele mit >= 2 Naechten: Master-Stack        -> <ziel>_master_<filter>_siril
 #   5. Je Stack: platesolve, JPG mit Aufnahmedatum (Immich), meta.json (Galerie),
@@ -439,12 +439,23 @@ process_device() {   # process_device <id>
   local INDEX
   [[ "$CUR_TYPE" == "dslr" ]] && build_calibration
   # 2) Index: Ziel <TAB> Filter <TAB> Belichtung <TAB> Nacht <TAB> Zeit <TAB> Pfad ----
+  # Ordner "<Ziel>_sub" (aeltere Firmware: "<Ziel>-sub"). Mosaike ("<Ziel>_mosaic_sub") haben je
+  # Kachel ein anderes Bildfeld – ein normaler Stack wuerde sie verschmieren, daher uebersprungen.
   INDEX="$(mktemp)"; INDEXES+=("$INDEX")
+  local raw_index mosaic=0; raw_index="$(mktemp)"
   while IFS= read -r -d '' f; do
     dir="$(basename "$(dirname "$f")")"
-    target="$(canon_target "${dir%_sub}")"
-    printf '%s\t%s\t%s\n' "$target" "$(frame_info "$f")" "$f" >> "$INDEX"
-  done < <(find "$MIRROR_DIR" -type f -path '*_sub/*' \( -iname '*.fit' -o -iname '*.fits' \) -print0)
+    dir="${dir%_sub}"; dir="${dir%-sub}"
+    if [[ "${dir,,}" == *_mosaic ]]; then mosaic=$((mosaic + 1)); continue; fi
+    target="$(canon_target "$dir")"
+    printf '%s\t%s\t%s\n' "$target" "$(frame_info "$f")" "$f" >> "$raw_index"
+  done < <(find "$MIRROR_DIR" -type f \( -path '*_sub/*' -o -path '*-sub/*' \) \( -iname '*.fit' -o -iname '*.fits' \) -print0)
+  (( mosaic > 0 )) && log "${DEVTAG}$mosaic Mosaik-Frames übersprungen (*_mosaic_sub)"
+  # Gleicher Dateiname an zwei Stellen (z. B. "-sub" und "_sub", oder doppelt kopiert) zaehlt nur einmal
+  sort -t$'\t' -k6,6 "$raw_index" | awk -F'\t' '{n=split($6,a,"/")} !seen[a[n]]++' > "$INDEX"
+  local dup=$(( $(wc -l < "$raw_index") - $(wc -l < "$INDEX") ))
+  (( dup > 0 )) && log "${DEVTAG}$dup doppelte Frames (gleicher Dateiname) ignoriert"
+  rm -f "$raw_index"
 
   if [[ ! -s "$INDEX" ]]; then
     log "[$CUR_DEVICE] keine Einzelframes gefunden."; return 0
