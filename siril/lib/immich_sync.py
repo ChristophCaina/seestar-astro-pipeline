@@ -70,6 +70,13 @@ def collect_groups(stacks: Path) -> dict[str, dict]:
     return groups
 
 
+def sync_album(im, album: str, members: list[str]) -> None:
+    """Nur das Titelbild ins Album – die anderen Versionen haengen im Stack dahinter.
+    Raeumt zugleich Versionen weg, die aeltere Laeufe noch einzeln ins Album gelegt haben."""
+    im.add_to_album(album, members[:1])
+    im.remove_from_album(album, members[1:])
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--stacks", required=True)
@@ -127,7 +134,7 @@ def main() -> int:
                 app.append(x["id"])
         members = [ids[g["primary"]]] + [v for k, v in ids.items() if k != g["primary"]] + sorted(set(app))
         prev = state.get(key, {})
-        if prev.get("assets") == members:
+        if prev.get("assets") == members and prev.get("album") == members[:1]:
             continue
         print(f"stack   {key}: {len(members)} Assets ({len(app)} App-Stacks), Titelbild {g['primary']}")
         changed += 1
@@ -136,10 +143,9 @@ def main() -> int:
         if prev.get("stack_id"):
             im.delete_stack(prev["stack_id"])
         stack_id = im.create_stack(members) if len(members) > 1 else None
-        if album is None:
-            album = im.album_id(album_name)
-        im.add_to_album(album, members)
-        state[key] = {"stack_id": stack_id, "assets": members}
+        album = album or im.album_id(album_name)
+        sync_album(im, album, members)
+        state[key] = {"stack_id": stack_id, "assets": members, "album": members[:1]}
 
     # Nachgeholte App-Stacks (backfill.py): Original vom Handy + beschriftete Version
     for mp in sorted(stacks.rglob("*.meta.json")):
@@ -154,7 +160,7 @@ def main() -> int:
         if not orig or not ann:
             continue
         members = [orig[0]["id"], ann[0]["id"]]
-        if state.get(key, {}).get("assets") == members:
+        if state.get(key, {}).get("assets") == members and state[key].get("album") == members[:1]:
             continue
         print(f"stack   {key}: Original + beschriftet")
         changed += 1
@@ -162,10 +168,9 @@ def main() -> int:
             continue
         if state.get(key, {}).get("stack_id"):
             im.delete_stack(state[key]["stack_id"])
-        if album is None:
-            album = im.album_id(album_name)
-        state[key] = {"stack_id": im.create_stack(members), "assets": members}
-        im.add_to_album(album, members)
+        album = album or im.album_id(album_name)
+        state[key] = {"stack_id": im.create_stack(members), "assets": members, "album": members[:1]}
+        sync_album(im, album, members)
 
     if not a.dry_run:
         state_path.parent.mkdir(parents=True, exist_ok=True)
