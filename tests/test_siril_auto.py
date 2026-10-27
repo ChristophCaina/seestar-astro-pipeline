@@ -113,11 +113,20 @@ GALLERY_OUT={self.astro}/web
         # Mitternacht: Frames von 01:15 gehoeren zur Nacht 18.10.
         self.assertEqual((self.astro / ".state" / "M_31_IRCUT_2026-10-18.done").read_text().strip(), "25")
         # Master: 3 Naechte, Gewichtung fuer Siril 1.2
-        master_calls = self.calls_of("master")
+        master_calls = [c for c in self.calls_of("master") if "_master_" in c["work"]]
         self.assertEqual(len(master_calls), 1)
         self.assertEqual(master_calls[0]["lights"], 3)
         self.assertIn("-weight_from_nbstack", master_calls[0]["script"])
         self.assertIn("rej n", master_calls[0]["script"])
+        # Kombination ueber alle Filter: IRCUT-Master + LP-Nacht
+        kombi = [c for c in self.calls_of("master") if "_kombi_" in c["work"]]
+        self.assertEqual(len(kombi), 1)
+        self.assertEqual(kombi[0]["lights"], 2)
+        k = json.loads((st / "M_31_kombi_IRCUT+LP_siril.meta.json").read_text())
+        self.assertEqual(k["filter"], "IRCUT+LP")
+        self.assertEqual([(n["date"], n["frames"]) for n in k["nights"]],
+                         [("2026-10-18", 25), ("2026-10-19", 43), ("2026-10-21", 20)])
+        self.assertIn("KOMBI M 31 IRCUT+LP: 88 Frames", r.stdout)
         m = json.loads((st / "M_31_master_IRCUT_siril.meta.json").read_text())
         self.assertEqual(m["stack"], "master")
         self.assertEqual([n["date"] for n in m["nights"]], ["2026-10-18", "2026-10-19", "2026-10-21"])
@@ -128,7 +137,7 @@ GALLERY_OUT={self.astro}/web
         self.assertIn("platesolve -noflip", self.calls_of("solve")[0]["script"])
         # Galerie gebaut
         cat = json.loads((self.astro / "web" / "catalog.json").read_text())
-        self.assertEqual(len(cat["entries"]), 5)
+        self.assertEqual(len(cat["entries"]), 6)                                    # 4 Naechte + Master + Kombination
 
         # zweiter Lauf: nichts zu tun
         n_calls = len(self.calls.read_text().splitlines())
@@ -160,9 +169,9 @@ GALLERY_OUT={self.astro}/web
         self.assertIn("homeassistant/sensor/siril_auto_last/config", topics)
         last = [json.loads(m["payload"]) for m in msgs if m["topic"] == "seestar/siril/last"]
         self.assertTrue(all(m["retain"] for m in msgs if m["topic"] == "seestar/siril/last"))
-        master = next(p for p in last if p["stack"] == "master")
+        master = next(p for p in last if p["night"] == "master")
         self.assertEqual(master["id"], "m_31_master_ircut_siril")
-        self.assertEqual(master["group"], "m-31-ircut")
+        self.assertEqual(master["group"], "m-31")                                   # ein Galerie-Eintrag je Objekt
         self.assertRegex(master["timestamp"], r"^20\d\d-\d\d-\d\dT")
         # id muss zum Galerie-Eintrag passen, group zum Schluessel im Frontend
         cat = json.loads((self.astro / "web" / "catalog.json").read_text())
@@ -189,8 +198,10 @@ GALLERY_OUT={self.astro}/web
         main = json.loads((st / "M_31_master_IRCUT_siril.meta.json").read_text())
         self.assertEqual(main["device"]["id"], "s50")
         self.assertEqual(sum(n["frames"] for n in main["nights"]), 25 + 22 + 20)
-        masters = [c for c in self.calls_of("master")]
+        masters = [c for c in self.calls_of("master") if "_master_" in c["work"]]
         self.assertEqual(len(masters), 2)
+        kombi = [c["work"] for c in self.calls_of("master") if "_kombi_" in c["work"]]
+        self.assertEqual(kombi, ["M_31_kombi_IRCUT+LP_siril"])                      # S30 hat nur IRCUT
         cat = json.loads((self.astro / "web" / "catalog.json").read_text())
         self.assertEqual({e["device"]["id"] for e in cat["entries"]}, {"s50", "s30"})
 

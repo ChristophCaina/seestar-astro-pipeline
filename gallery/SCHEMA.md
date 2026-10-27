@@ -14,7 +14,7 @@ Neben jedem fertigen Stack-JPG liegt eine `<name>.meta.json`. Der Builder (`buil
   //                       "lines": [ [ [ra, dec], … ], … ] } ]   (Grad, als Großkreise verdichtet)
   "target": { "name": "M 31", "common": "Andromeda-Galaxie", "kind": "galaxy", "sort": 1031 },
   "stack": "master",                        // "master" (mehrere Nächte) oder "night"
-  "filter": "IRCUT",                        // IRCUT | LP
+  "filter": "IRCUT",                        // IRCUT | LP | IRCUT+LP (Kombination aller Filter, stack "master")
   "exposure_s": 10, "gain": 80,
   "nights": [ { "date": "2026-10-18", "frames": 212 } ],
   "image": "M_31_master_IRCUT_siril.jpg",   // relativ zur meta.json
