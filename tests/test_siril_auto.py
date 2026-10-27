@@ -96,6 +96,12 @@ GALLERY_OUT={self.astro}/web
         self.assertIn("subsky -rbf -samples=20", script)
         self.assertIn("\ndenoise -mod=0.8\n", script)
         self.assertIn("autostretch -linked -2.8 0.15", script)
+        self.assertIn("\nsatu 0.6\n", script)
+        by_work = {c["work"]: c["script"] for c in self.calls_of("stack")}
+        self.assertIn("\nrmgreen\n", by_work["M_31_2026-10-18_IRCUT_siril"])
+        self.assertIn("# rmgreen (Dualband-Filter LP)", by_work["M_31_2026-10-19_LP_siril"])
+        kombi = next(c["script"] for c in self.calls_of("master") if "_kombi_" in c["work"])
+        self.assertIn("# rmgreen (Dualband-Filter LP)", kombi)
         self.assertNotIn("@", script)
         cfg = Path(self.env["SIRIL_AUTO_CONFIG"])
         cfg.write_text(cfg.read_text() + 'SUBSKY_ARGS="1"\nDENOISE=0\n')

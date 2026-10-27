@@ -37,8 +37,11 @@ stack r_pp_light rej 3 3 -norm=addscale -output_norm -rgb_equal -out=../result_l
 cd ..
 load result_linear
 @DENOISE@
-rmgreen
+# Gruenstich entfernen – bei Dualband-Filtern (LP: Hα + OIII) aus, sonst wird OIII grau
+@RMGREEN@
 autostretch @STRETCH@
+# Farbsaettigung (SATU_ARGS)
+@SATU@
 savetif result_preview
 savejpg result_preview 95
 @FG@load result_foreground
