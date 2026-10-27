@@ -103,13 +103,12 @@ homeassistant:
 
 ## Dashboard „Sternwarte“
 
-[`homeassistant/dashboards/sternwarte.yaml`](../homeassistant/dashboards/sternwarte.yaml) ist ein Sections-Dashboard:
+[`homeassistant/dashboards/sternwarte.yaml`](../homeassistant/dashboards/sternwarte.yaml) ist ein Sections-Dashboard. `sensor.siril_auto_stacking_status` und das letzte Ergebnis erscheinen erst, wenn siril-auto mit `MQTT_ENABLED=1` gelaufen ist:
 
 - **Heute Nacht und Bedingungen** (eine Spalte): Empfehlung und Beobachtungsfenster aus dem Astro-Audit, Stufe und Fenster für Deep-Sky und Milchstraße, Schalter Schutz-Parken, Audit per Knopf. Ist das Fenster der letzten Nacht vorbei, zeigt die Karte stattdessen, wann das nächste Audit kommt, und das letzte Ergebnis klein darunter; die Stufen-Kacheln sind tagsüber ausgeblendet. Darunter Taupunktabstand samt Quelle, Ecowitt, AstroWeather und Stundenvorhersage.
 - **Seestar** (doppelt breit): Akku und Speicher als Badges, seestar-lovelace-card, wenn das Teleskop verbunden ist, sonst ein Warnhinweis; Steuerungsfreigabe, Tauheizung, Knopf **Session starten**
-- **Seestar S30 Pro**: gleicher Aufbau mit Knöpfen **Milchstraße starten** und **Deep-Sky starten**, nur sichtbar, solange das zweite Seestar verbunden ist
+- **Seestar S30 Pro** und **Astro-Pi** sind optionale Abschnitte in [`homeassistant/dashboards/optional/`](../homeassistant/dashboards/optional): erst anhängen, wenn es die Geräte in HA gibt – sonst meldet z. B. Spook unbekannte Entities. Aufbau wie beim S50 (S30 Pro mit Knöpfen **Milchstraße starten** und **Deep-Sky starten**) bzw. nur Anzeige (Astro-Pi).
 - **Nachverarbeitung:** Siril-Status, letzter Stack mit Gerät und Vorschaubild aus der Galerie, Stacks dieser Nacht, Link zur Astro-Galerie
-- **Astro-Pi** (iEXOS-100 bzw. NexStar GT mit EOS 6D; nur sichtbar, wenn der Pi per MQTT gemeldet ist): Montierung, Ziel, Serie, HFR, Speicher, letzte Aufnahme und Link zur Web-App – nur Anzeige, gesteuert wird in der App
 
 Einfügen über den Raw-Konfigurationseditor eines neuen Dashboards. Vorher `seestar_s50`, die Galerie-Adresse und die Adresse des Astro-Pi anpassen.
 

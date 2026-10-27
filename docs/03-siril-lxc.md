@@ -29,6 +29,8 @@ bash install-siril-lxc.sh host 132 --create --astro /<host-pfad>/astro --chown \
 | astrometry.net (`--astrometry`) | Paket + Indexdateien 4107–4110 für den Nachhol-Job ([05](05-immich-galerie.md)) |
 | systemd | Service + Timer installiert, **nicht aktiviert** (erst nach dem Testlauf, oder `--enable-timer`) |
 
+Meldungen wie `sdX: Failed to write 'change' to '/sys/devices/…/uevent': Permission denied` beim Paket `udisks2` sind im unprivilegierten LXC harmlos (älterer Installer-Stand hat Recommends mitinstalliert; entfernen mit `apt purge udisks2`).
+
 Das Script ist wiederholbar. Updates im Container: `bash /root/install-siril-lxc.sh update` (git pull, Units neu).
 
 > **Rechte auf dem NAS-Ordner:** `--chown` setzt nur den Wurzelordner `astro/` auf UID 101500 und `chmod 2775`. Greift auch der Samba-LXC darauf zu, braucht dessen User Schreibrechte über die Gruppe oder ACLs. Ohne `--chown` zeigt das Script nur die benötigte Host-UID an.

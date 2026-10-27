@@ -7,12 +7,13 @@
 # siril-auto mit MQTT_ENABLED=1.
 # Anpassen (Suchen/Ersetzen):
 #   seestar_s50                 → Entity-Präfix deines Seestar
-#   seestar_s30                 → Entity-Präfix des zweiten Seestar (Abschnitt nur sichtbar, wenn verbunden)
 #   script.astro_start_*        → Start-Scripts je Gerät aus astro_audit.yaml
 #   input_select.astro_ziel_* / script.astro_goto_* → GoTo je Gerät aus astro_goto.yaml
 #   http://astro.lan            → Adresse der Astro-Galerie
 #   sensor.gw2000a_*            → Ecowitt-Entities
-#   http://astro-pi.lan:8080    → Web-App des Astro-Pi (Abschnitt blendet sich aus, solange der Pi fehlt)
+#
+# Weitere Geräte: optional/seestar_s30.yaml und optional/astro_pi.yaml als Abschnitte anhängen,
+# sobald es die Geräte in HA gibt.
 #
 # Bedienung: Starten nur per Knopf je Gerät – automatisch passiert nur das Schutz-Parken in der Nacht.
 title: Sternwarte
@@ -230,114 +231,6 @@ views:
               confirmation:
                 text: "S50: Aufnahme stoppen und parken?"
         column_span: 2
-      # Zweites Seestar (S30 Pro) – erscheint nur, solange es verbunden ist.
-      # seestar_s30 durch das Entity-Präfix ersetzen, das ha-seestar für das Gerät anlegt.
-      - type: grid
-        visibility:
-          - condition: state
-            entity: binary_sensor.seestar_s30_connected
-            state: 'on'
-        cards:
-          - type: heading
-            heading: Seestar S30 Pro
-            icon: mdi:telescope
-            heading_style: subtitle
-            badges:
-              - type: entity
-                show_state: true
-                show_icon: true
-                entity: sensor.seestar_s30_storage_used
-                color: state
-              - type: entity
-                show_state: true
-                show_icon: true
-                entity: sensor.seestar_s30_battery
-                color: state
-          - type: custom:seestar-card
-            device: seestar_s30
-            # Goto-Knopf der Karte fährt das Ziel aus der Auswahl an (mit 15°-Prüfung)
-            actions:
-              goto:
-                service: script.turn_on
-                data:
-                  entity_id: script.astro_goto_s30
-            grid_options:
-              columns: full
-          - type: tile
-            entity: switch.seestar_s30_controls_enabled
-            name: Steuerung freigegeben
-            features_position: inline
-            features:
-              - type: toggle
-          - type: tile
-            entity: switch.seestar_s30_dew_heater
-            name: Tauheizung
-            features_position: inline
-            features:
-              - type: toggle
-          - type: tile
-            entity: input_select.astro_ziel_s30
-            name: Ziel
-            icon: mdi:target
-            features_position: bottom
-            features:
-              - type: select-options
-            grid_options:
-              columns: full
-          - type: tile
-            entity: script.astro_goto_s30
-            name: GoTo starten
-            icon: mdi:crosshairs-gps
-            tap_action:
-              action: perform-action
-              perform_action: script.astro_goto_s30
-            features:
-              - type: button
-          - type: tile
-            entity: script.astro_start_s30_milchstrasse
-            name: Milchstraße starten
-            icon: mdi:star-shooting
-            tap_action:
-              action: perform-action
-              perform_action: script.astro_start_s30_milchstrasse
-              confirmation:
-                text: S30 Pro jetzt starten (Milchstraße)?
-            features:
-              - type: button
-          - type: tile
-            entity: script.astro_start_s30_deepsky
-            name: Deep-Sky starten
-            icon: mdi:play-circle
-            tap_action:
-              action: perform-action
-              perform_action: script.astro_start_s30_deepsky
-              confirmation:
-                text: S30 Pro jetzt starten (Deep-Sky)?
-            features:
-              - type: button
-          # Kein „Drücken“-Knopf: Kachel-Funktionen kennen (noch) keine Rückfrage
-          - type: tile
-            entity: script.astro_stopp_s30
-            name: Stoppen
-            icon: mdi:stop-circle
-            color: red
-            tap_action:
-              action: perform-action
-              perform_action: script.astro_stopp_s30
-              confirmation:
-                text: "S30 Pro: Aufnahme jetzt stoppen?"
-          # Kein „Drücken“-Knopf: Kachel-Funktionen kennen (noch) keine Rückfrage
-          - type: tile
-            entity: script.astro_parken_s30
-            name: Parken
-            icon: mdi:home-import-outline
-            color: red
-            tap_action:
-              action: perform-action
-              perform_action: script.astro_parken_s30
-              confirmation:
-                text: "S30 Pro: Aufnahme stoppen und parken?"
-        column_span: 2
       - type: grid
         cards:
           - type: heading
@@ -388,40 +281,3 @@ views:
             tap_action:
               action: url
               url_path: http://astro.lan
-      - type: grid
-        visibility:
-          - condition: state
-            entity: sensor.astro_pi_montierung
-            state_not: unavailable
-        cards:
-          - type: heading
-            heading: Astro-Pi
-            icon: mdi:raspberry-pi
-            heading_style: subtitle
-          - type: tile
-            entity: sensor.astro_pi_montierung
-            name: Montierung
-          - type: tile
-            entity: sensor.astro_pi_ziel
-            name: Ziel
-          - type: tile
-            entity: sensor.astro_pi_serie
-            name: Serie
-          - type: tile
-            entity: sensor.astro_pi_hfr
-            name: HFR
-          - type: tile
-            entity: sensor.astro_pi_speicher_frei
-            name: Speicher frei
-          - type: picture-entity
-            entity: image.astro_pi_letzte_aufnahme
-            name: Letzte Aufnahme
-            show_state: false
-            grid_options:
-              columns: full
-          - type: button
-            name: Astro-Pi-App öffnen
-            icon: mdi:tablet
-            tap_action:
-              action: url
-              url_path: http://astro-pi.lan:8080
