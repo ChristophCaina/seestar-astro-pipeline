@@ -9,6 +9,7 @@ Genutzte Endpunkte (Immich >= 1.122):
   GET    /api/albums                 Alben auflisten
   POST   /api/albums                 Album anlegen
   PUT    /api/albums/{id}/assets     Assets zum Album hinzufuegen
+  DELETE /api/albums/{id}/assets     Assets aus dem Album nehmen (bleiben in der Bibliothek)
 """
 from __future__ import annotations
 
@@ -97,6 +98,10 @@ class Immich:
     def add_to_album(self, album_id: str, asset_ids: list[str]) -> None:
         if asset_ids:
             self._req("PUT", f"/albums/{album_id}/assets", {"ids": asset_ids})
+
+    def remove_from_album(self, album_id: str, asset_ids: list[str]) -> None:
+        if asset_ids:
+            self._req("DELETE", f"/albums/{album_id}/assets", {"ids": asset_ids})
 
 
 def from_env() -> Immich:

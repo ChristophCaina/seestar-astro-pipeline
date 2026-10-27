@@ -11,7 +11,7 @@
 
 - `export/` wird **read-only** in den Immich-LXC eingebunden und als **External Library** angelegt. Es entstehen keine Kopien.
 - Das Aufnahmedatum setzt exiftool ins JPG, damit Immich das Bild in die richtige Nacht einsortiert. Die beschriftete Version übernimmt die EXIF-Daten.
-- `immich_sync.py` gruppiert alle Versionen eines Ziels zu einem **Immich-Stack** (Titelbild: Siril-Master, sonst die neueste Nacht) und legt sie ins Album „Astro“.
+- `immich_sync.py` gruppiert alle Versionen eines Ziels zu einem **Immich-Stack** (Titelbild: Siril-Master, sonst die neueste Nacht) und legt das **Titelbild** ins Album „Astro“ – die übrigen Versionen (Nächte, `_beschriftet`, App-Stack) sieht man beim Öffnen des Stacks.
 
 ## Einrichtung
 
@@ -35,7 +35,7 @@ In Immich: **Administration → External Libraries → Create** (Besitzer: dein 
 
 ### 2. API-Schlüssel
 
-**Kontoeinstellungen → API-Schlüssel → Neuer API-Schlüssel**. Berechtigungen, falls du den Schlüssel einschränken willst: `asset.read`, `asset.download`, `library.update` (Scan), `stack.create`, `stack.delete`, `album.read`, `album.create`, `albumAsset.create`.
+**Kontoeinstellungen → API-Schlüssel → Neuer API-Schlüssel**. Berechtigungen, falls du den Schlüssel einschränken willst: `asset.read`, `asset.download`, `library.update` (Scan), `stack.create`, `stack.delete`, `album.read`, `album.create`, `albumAsset.create`, `albumAsset.delete`.
 
 In `/etc/siril-auto.env`:
 
@@ -59,7 +59,7 @@ Nach jedem siril-auto-Lauf mit neuen Stacks (bei `IMMICH_SYNC=1`):
 
 1. Library-Scan anstoßen, damit neue Exporte in Immich auftauchen. Was beim ersten Lauf noch fehlt („wartet …“), wird beim nächsten Lauf nachgezogen.
 2. Je Ziel + Filter einen Stack bilden: Master, Einzelnächte, beschriftete Versionen und die **App-Stacks vom Handy** aus denselben Nächten.
-3. Alles ins Album `IMMICH_ALBUM` legen.
+3. Das Titelbild ins Album `IMMICH_ALBUM` legen (weitere Versionen, die ältere Läufe dort einzeln abgelegt haben, werden wieder herausgenommen – sie bleiben in der Bibliothek).
 
 App-Stacks werden über Aufnahmezeit (Nacht = 12–12 Uhr, `TZ_LOCAL`) und Dateiname erkannt (`IMMICH_APP_PATTERN`, Default `seestar|stack`). Nennt der Dateiname ein Objekt (`M 31`, `NGC7000`, `IC_434`), muss es zum Ziel passen. Ohne Objekt im Namen wird ein App-Stack nur zugeordnet, wenn in dieser Nacht nur ein Ziel aufgenommen wurde.
 

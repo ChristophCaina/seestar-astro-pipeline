@@ -98,6 +98,11 @@ class FakeImmich:
 
             def do_DELETE(self):
                 fake.calls.append(("DELETE", self.path))
+                if self.path.startswith("/api/albums/"):
+                    b = self._body()
+                    aid = self.path.split("/")[3]
+                    fake.albums[aid]["assets"] = [i for i in fake.albums[aid]["assets"] if i not in b["ids"]]
+                    return self._send(200, [])
                 fake.stacks.pop(self.path.split("/")[3], None)
                 self._send(204)
 
@@ -195,12 +200,31 @@ class TestImmichSync(ImmichCase):
         self.assertEqual(set(members), {master, night, ann, app})
         (album,) = self.im.albums.values()
         self.assertEqual(album["name"], "Astro")
-        self.assertEqual(set(album["assets"]), set(members))
+        self.assertEqual(album["assets"], [master], "nur das Titelbild gehoert ins Album")
 
         # zweiter Lauf: nichts geaendert -> kein neuer Stack
         out = run("immich_sync.py", "--stacks", str(self.stacks), env_extra=self.env)
         self.assertIn("0 Gruppe(n) aktualisiert", out)
         self.assertEqual(len(self.im.stacks), 1)
+
+    def test_album_cleanup_from_older_runs(self):
+        """Aeltere Laeufe haben alle Versionen ins Album gelegt – die werden wieder herausgenommen."""
+        self._stack("M_31_master_IRCUT", "master", [{"date": "2026-10-18", "frames": 212}])
+        (self.stacks / "M_31" / "M_31_master_IRCUT_beschriftet.jpg").write_bytes(b"x")
+        master = self.im.add("M_31_master_IRCUT.jpg", LIB_ID)
+        ann = self.im.add("M_31_master_IRCUT_beschriftet.jpg", LIB_ID)
+        run("immich_sync.py", "--stacks", str(self.stacks), env_extra=self.env)
+        # Zustand wie nach einem alten Lauf: beide Versionen im Album, kein "album" im State
+        (aid, album), = self.im.albums.items()
+        album["assets"] = [master, ann]
+        sp = self.stacks.parent / ".state" / "immich.json"
+        st = json.loads(sp.read_text())
+        for v in st.values():
+            v.pop("album", None)
+        sp.write_text(json.dumps(st))
+        out = run("immich_sync.py", "--stacks", str(self.stacks), env_extra=self.env)
+        self.assertIn("1 Gruppe(n) aktualisiert", out)
+        self.assertEqual(self.im.albums[aid]["assets"], [master])
 
     def test_waits_until_scanned(self):
         self._stack("M_31_master_IRCUT", "master", [{"date": "2026-10-18", "frames": 212}])
