@@ -13,7 +13,9 @@
   const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const fmtInt = (s) => { const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60); return h ? `${h} h ${String(m).padStart(2, "0")} min` : `${m} min`; };
   const d12 = (iso) => new Date(iso + "T12:00:00");
-  const fmtDate = (iso) => { const [, m, d] = iso.split("-"); return `${d}.${m}.`; };
+  const THIS_YEAR = String(new Date().getFullYear());
+  // Jahr nur anzeigen, wenn es nicht das aktuelle ist (27.10. bzw. 27.10.2024)
+  const fmtDate = (iso) => { const [y, m, d] = iso.split("-"); return `${d}.${m}.${y === THIS_YEAR ? "" : y}`; };
   const fmtDay = (iso) => `${DAY[d12(iso).getDay()]} ${fmtDate(iso)}`;
   const slug = (s) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
