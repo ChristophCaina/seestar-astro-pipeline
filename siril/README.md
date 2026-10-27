@@ -78,11 +78,15 @@ Danach `SEESTAR_IP` und `RCLONE_SRC_PATH` in `/etc/siril-auto.env` eintragen.
 ## Test
 
 ```bash
-sudo -u siril /opt/seestar-astro-pipeline/siril/siril-auto.sh --dry-run    # zeigt nur, was gestackt würde
-sudo -u siril /opt/seestar-astro-pipeline/siril/siril-auto.sh --no-fetch   # nur vorhandenes Archiv
-sudo -u siril /opt/seestar-astro-pipeline/siril/siril-auto.sh --force      # alles neu
-sudo -u siril /opt/seestar-astro-pipeline/siril/siril-auto.sh --master-full   # Master aus allen Subs
+runuser -u siril -- /opt/seestar-astro-pipeline/siril/siril-auto.sh --dry-run    # zeigt nur, was gestackt würde (meldet nichts per MQTT)
+runuser -u siril -- /opt/seestar-astro-pipeline/siril/siril-auto.sh --no-fetch   # nur vorhandenes Archiv
+runuser -u siril -- /opt/seestar-astro-pipeline/siril/siril-auto.sh --force      # alles neu
+runuser -u siril -- /opt/seestar-astro-pipeline/siril/siril-auto.sh --master-full   # Master aus allen Subs
 ```
+
+Vom Proxmox-Host aus: `pct exec <ctid> -- runuser -u siril -- …` (im LXC gibt es kein `sudo`). Längere Läufe nicht mit `&` aus `pct exec` starten – der Prozess endet mit der Shell. Stattdessen den Dienst nutzen: `pct exec <ctid> -- systemctl start --no-block siril-auto.service` und `journalctl -u siril-auto -f`.
+
+**Ohne Bildschirm:** `siril-cli` aus Debian 1.2.x initialisiert GTK und bricht ohne Display mit „cannot open display“ ab. siril-auto startet es deshalb automatisch über `xvfb-run` (Paket `xvfb`, installiert der Installer mit).
 
 **Am ersten echten Datensatz prüfen:**
 

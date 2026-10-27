@@ -77,6 +77,7 @@ mqtt_args() { MQ=(-h "$MQTT_HOST" -p "${MQTT_PORT:-1883}"); [[ -n "${MQTT_USER:-
 
 mqtt_pub() {   # mqtt_pub <subtopic> <payload> [retain]
   [[ "${MQTT_ENABLED:-0}" == "1" ]] || return 0
+  [[ "${DRY_RUN:-0}" == "1" ]] && return 0     # Probelauf meldet nichts an Home Assistant
   command -v mosquitto_pub >/dev/null || return 0
   mqtt_args; local args=("${MQ[@]}" -t "${MQTT_TOPIC}/$1" -m "$2")
   [[ "${3:-}" == "retain" ]] && args+=(-r)
@@ -214,7 +215,7 @@ build_master() {   # build_master <name> <pre> <seq> <norm> <dateien…>
   for f in "$@"; do ln "$f" "$work/raw/" 2>/dev/null || cp "$f" "$work/raw/"; done
   [[ -f "$CAL_DIR/bias.fit" ]] && cp "$CAL_DIR/bias.fit" "$work/bias.fit"
   CAL_PRE="$pre" CAL_SEQ="$seq" CAL_NORM="$norm" render_script "$SIRIL_CALIB_SCRIPT" "$work/run.ssf"
-  if "$SIRIL_BIN" -d "$work" -s "$work/run.ssf" > "$work/siril.log" 2>&1 && [[ -f "$work/master.fit" ]]; then
+  if "${SIRIL_PREFIX[@]}" "$SIRIL_BIN" -d "$work" -s "$work/run.ssf" > "$work/siril.log" 2>&1 && [[ -f "$work/master.fit" ]]; then
     cp "$work/master.fit" "$CAL_DIR/$name.fit"; cp "$work/siril.log" "$CAL_DIR/$name.log"
     echo "$cnt" > "$sf"; rm -rf "$work"
   else
@@ -295,7 +296,7 @@ run_stack() {
   fi
   render_script "$tmpl" "$work/run.ssf"
 
-  if ! "$SIRIL_BIN" -d "$work" -s "$work/run.ssf" > "$work/siril.log" 2>&1 \
+  if ! "${SIRIL_PREFIX[@]}" "$SIRIL_BIN" -d "$work" -s "$work/run.ssf" > "$work/siril.log" 2>&1 \
      || [[ ! -f "$work/result_linear.fit" || ! -f "$work/result_preview.jpg" ]]; then
     log "FEHLER $target $label $filter – siehe $work/siril.log"
     [[ "${KEEP_WORK_ON_ERROR:-1}" == "1" ]] || rm -rf "$work"
@@ -313,7 +314,7 @@ run_stack() {
     fi
   elif [[ "$PLATESOLVE" == "1" ]]; then
     render_script "$SIRIL_SOLVE_SCRIPT" "$work/solve.ssf"
-    if "$SIRIL_BIN" -d "$work" -s "$work/solve.ssf" >> "$work/siril.log" 2>&1; then
+    if "${SIRIL_PREFIX[@]}" "$SIRIL_BIN" -d "$work" -s "$work/solve.ssf" >> "$work/siril.log" 2>&1; then
       log "      Plate-Solving ok"
     else
       log "      WARN: Plate-Solving fehlgeschlagen – Bild ohne Annotationen"
@@ -381,6 +382,13 @@ run_stack() {
 SIRIL_BIN="${SIRIL_BIN:-$(command -v siril-cli || true)}"
 if [[ -z "$SIRIL_BIN" && $DRY_RUN -eq 0 ]]; then
   log "FEHLER: siril-cli nicht gefunden"; status error "" "" 0 "siril-cli fehlt"; exit 1
+fi
+# siril-cli (Debian 1.2.x) initialisiert GTK und bricht ohne Bildschirm ab ("cannot open
+# display") – ohne DISPLAY daher ueber einen virtuellen X-Server (Paket xvfb) starten.
+SIRIL_PREFIX=()
+if [[ -z "${DISPLAY:-}" && $DRY_RUN -eq 0 ]]; then
+  if command -v xvfb-run >/dev/null; then SIRIL_PREFIX=(xvfb-run -a)
+  else log "WARN: kein DISPLAY und kein xvfb-run – siril-cli bricht evtl. ab (apt install xvfb xauth)"; fi
 fi
 [[ $DRY_RUN -eq 0 ]] && WEIGHT_OPT="$(weight_option)"
 

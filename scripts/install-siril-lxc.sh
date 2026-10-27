@@ -124,10 +124,12 @@ container_mode() {
   log "Pakete installieren"
   apt-get update
   local pkgs=(siril rclone libimage-exiftool-perl mosquitto-clients smbclient python3 python3-pil
-              fonts-dejavu-core git curl ca-certificates)
+              fonts-dejavu-core git curl ca-certificates xvfb xauth locales)
   (( astrometry )) && pkgs+=(astrometry.net)
   # ohne Recommends: sonst kommen u. a. udisks2/gvfs mit, die im unprivilegierten LXC nur Fehler melden
   DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${pkgs[@]}"
+  # Locales, die pct exec vom Host mitbringt (sonst Warnungen von GTK/perl)
+  sed -i -E 's/^# *((en_US|de_DE)\.UTF-8 UTF-8)/\1/' /etc/locale.gen && locale-gen >/dev/null || true
   siril-cli --version 2>/dev/null | head -1 || log "WARN: siril-cli --version schlug fehl"
 
   if [[ -d "$REPO_DIR/.git" ]]; then
