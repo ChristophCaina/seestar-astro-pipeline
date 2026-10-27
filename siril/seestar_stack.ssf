@@ -31,10 +31,12 @@ cd ../process
 register light -2pass
 
 # 3) Registrierte Frames erzeugen, schlechte Frames verwerfen
-#    (Rundheit / FWHM schlechter als 2,5 Sigma). -framing=min schneidet auf den
-#    Bereich zu, den alle Frames abdecken – sonst bleibt durch die Feldrotation
-#    der Alt/Az-Montierung ein verrauschter Rand mit nur wenigen Frames.
-seqapplyreg light -framing=min -filter-round=2.5k -filter-wfwhm=2.5k
+#    (Rundheit / FWHM schlechter als 2,5 Sigma).
+#    @FRAMING@ (FRAMING, Standard cog): volles Seestar-Bildfeld, zentriert auf die mittlere
+#    Lage aller Frames. Durch die Feldrotation der Alt/Az-Montierung sind die Ecken etwas
+#    verrauschter (dort tragen weniger Frames bei). "min" schneidet auf den Bereich, den
+#    ALLE Frames abdecken – bei langen Sessions bleibt davon nur ein schmaler Streifen.
+seqapplyreg light -framing=@FRAMING@ -filter-round=2.5k -filter-wfwhm=2.5k
 
 # 4) Stacken: Sigma-Clipping, Normalisierung, Ergebnis in 32 Bit
 set32bits
