@@ -69,6 +69,35 @@ GALLERY_OUT={self.astro}/web
             return []
         return [c for c in map(json.loads, self.calls.read_text().splitlines()) if c["kind"] == kind]
 
+    def test_headless_uses_xvfb(self):
+        """Ohne DISPLAY laeuft siril-cli ueber xvfb-run (Debian-siril-cli braucht GTK)."""
+        xdir = self.tmp / "xbin"
+        xdir.mkdir()
+        xlog = self.tmp / "xvfb.log"
+        (xdir / "xvfb-run").write_text('#!/bin/sh\n[ "$1" = "-a" ] && shift\necho "$*" >> "$XVFB_LOG"\nexec "$@"\n')
+        (xdir / "xvfb-run").chmod(0o755)
+        env = {k: v for k, v in self.env.items() if k != "DISPLAY"}
+        env.update(PATH=f"{xdir}:{os.environ['PATH']}", XVFB_LOG=str(xlog))
+        r = subprocess.run(["bash", str(SCRIPT), "--no-fetch"], env=env, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn(str(FAKE), xlog.read_text())
+        # mit DISPLAY direkt
+        xlog.unlink()
+        shutil.rmtree(self.astro / "stacks")
+        shutil.rmtree(self.astro / ".state")
+        r = subprocess.run(["bash", str(SCRIPT), "--no-fetch"], env={**env, "DISPLAY": ":0"}, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertFalse(xlog.exists())
+
+    def test_dry_run_publishes_nothing(self):
+        cfg = Path(self.env["SIRIL_AUTO_CONFIG"])
+        cfg.write_text(cfg.read_text() + "MQTT_ENABLED=1\nMQTT_HOST=localhost\nMQTT_TOPIC=seestar/siril\n")
+        log = self.tmp / "mqtt.log"
+        r = self.run_auto("--dry-run", PATH=f"{ROOT / 'tests' / 'bin'}:{os.environ['PATH']}", FAKE_MQTT_LOG=str(log))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        topics = [json.loads(line)["topic"] for line in log.read_text().splitlines()] if log.exists() else []
+        self.assertFalse([t for t in topics if t.startswith("seestar/siril/")], topics)
+
     def test_full_flow(self):
         r = self.run_auto()
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
