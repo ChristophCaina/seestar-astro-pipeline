@@ -88,6 +88,8 @@ runuser -u siril -- /opt/seestar-astro-pipeline/siril/siril-auto.sh --force     
 runuser -u siril -- /opt/seestar-astro-pipeline/siril/siril-auto.sh --master-full   # Master aus allen Subs
 ```
 
+**Stacks des Seestar:** Sessions unter `MIN_FRAMES` und Mosaike (`<Ziel>_mosaic_sub`) stackt Siril nicht. Stattdessen nimmt siril-auto den Stack, den der Seestar selbst gespeichert hat (`<Ziel>/Stacked_<n>_…fit` bzw. `<Ziel>_mosaic/Stacked_<n>_mosaic_…fit`, je Session der mit den meisten Frames), bearbeitet ihn wie die eigenen Vorschauen (`seestar_device.ssf`: Gradienten, Entrauschen, Streckung), löst ihn per Plate-Solving und beschriftet ihn. In der Galerie erscheint er als „Seestar-Stack“ bzw. „Mosaik“; gibt es einen Siril-Stack desselben Objekts, bleibt der das Titelbild. Abschalten mit `SEESTAR_STACKS=0`. Dateien: `<ziel>_<nacht>_<filter>_seestar.*`, Mosaik `<ziel>_mosaik_<nacht>_<filter>_seestar.*`.
+
 Lassen sich die Nacht-Stacks eines Ziels nicht gegeneinander registrieren (Log: `Cannot perform star matching`, `identity matrices … aborting`, z. B. eine Nacht mit wenig Sternen), rechnet siril-auto den Master automatisch aus allen Einzelframes neu (`MASTER_FALLBACK_FULL=1`). Ein früher fehlgeschlagener Master wird erst wieder versucht, wenn sich seine Nächte ändern – oder nach `rm /data/astro/.state/<ZIEL>_<FILTER>_master.failed`.
 
 Vom Proxmox-Host aus: `pct exec <ctid> -- runuser -u siril -- …` (im LXC gibt es kein `sudo`). Längere Läufe nicht mit `&` aus `pct exec` starten – der Prozess endet mit der Shell. Stattdessen den Dienst nutzen: `pct exec <ctid> -- systemctl start --no-block siril-auto.service` und `journalctl -u siril-auto -f`.

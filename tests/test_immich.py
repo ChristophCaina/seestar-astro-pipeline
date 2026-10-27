@@ -207,6 +207,32 @@ class TestImmichSync(ImmichCase):
         self.assertIn("0 Gruppe(n) aktualisiert", out)
         self.assertEqual(len(self.im.stacks), 1)
 
+    def test_one_stack_per_object_incl_seestar(self):
+        """Filter, Kombination und Seestar-Mosaik eines Objekts -> ein Stack; alte Ziel|Filter-Stacks aufgeloest."""
+        self._stack("M_31_master_IRCUT", "master", [{"date": "2026-10-18", "frames": 212}])
+        self._stack("M_31_2026-10-19_LP", "night", [{"date": "2026-10-19", "frames": 50}])
+        self._stack("M_31_kombi_IRCUT+LP", "master", [{"date": "2026-10-18", "frames": 262}])
+        self._stack("M_31_mosaik_2026-10-20_IRCUT_seestar", "night", [{"date": "2026-10-20", "frames": 12}])
+        d = self.stacks / "M_31"
+        for name, extra in (("M_31_2026-10-19_LP", {"filter": "LP"}), ("M_31_kombi_IRCUT+LP", {"filter": "IRCUT+LP"}),
+                            ("M_31_mosaik_2026-10-20_IRCUT_seestar", {"source": "seestar", "mosaic": True})):
+            mp = d / f"{name}.meta.json"
+            m = json.loads(mp.read_text()); m.update(extra); mp.write_text(json.dumps(m))
+        ids = {n: self.im.add(f"{n}.jpg", LIB_ID) for n in
+               ("M_31_master_IRCUT", "M_31_2026-10-19_LP", "M_31_kombi_IRCUT+LP", "M_31_mosaik_2026-10-20_IRCUT_seestar")}
+        sp = self.stacks.parent / ".state" / "immich.json"
+        sp.parent.mkdir(parents=True, exist_ok=True)
+        old = self.im.stacks.setdefault("stack-old", [ids["M_31_master_IRCUT"]])
+        sp.write_text(json.dumps({"M 31|IRCUT": {"stack_id": "stack-old", "assets": old}}))
+        out = run("immich_sync.py", "--stacks", str(self.stacks), env_extra=self.env)
+        self.assertIn("aufgelöst M 31|IRCUT", out)
+        self.assertNotIn("stack-old", self.im.stacks)
+        (members,) = self.im.stacks.values()
+        self.assertEqual(members[0], ids["M_31_kombi_IRCUT+LP"], "Kombination ist Titelbild")
+        self.assertEqual(set(members), set(ids.values()))
+        (album,) = self.im.albums.values()
+        self.assertEqual(album["assets"], [ids["M_31_kombi_IRCUT+LP"]])
+
     def test_album_cleanup_from_older_runs(self):
         """Aeltere Laeufe haben alle Versionen ins Album gelegt – die werden wieder herausgenommen."""
         self._stack("M_31_master_IRCUT", "master", [{"date": "2026-10-18", "frames": 212}])

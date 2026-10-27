@@ -353,6 +353,36 @@ GALLERY_OUT={self.astro}/web
         self.assertIn("STACK M 31 IRCUT 2026-10-18: 25 Frames", r.stdout)   # Mosaik nicht dazugezaehlt
         self.assertNotIn("mosaic", r.stdout.replace("Mosaik-Frames übersprungen (*_mosaic_sub)", ""))
 
+    def test_seestar_device_stacks(self):
+        """Zu kurze Session und Mosaik: Stack des Seestar; Naechte mit Siril-Stack bleiben unberuehrt."""
+        mirror = self.astro / "raw" / "seestar"
+        d42, mos, d31 = mirror / "M 42", mirror / "M 31_mosaic", mirror / "M 31"
+        for d in (d42, mos, d31):
+            d.mkdir(parents=True, exist_ok=True)
+        for n in (3, 5):                                    # Zwischenstaende: der mit 5 Frames gewinnt
+            (d42 / f"Stacked_{n}_M 42_10.0s_IRCUT_20261022-00{n}000.fit").write_bytes(b"x")
+            (d42 / f"Stacked_{n}_M 42_10.0s_IRCUT_20261022-00{n}000.jpg").write_bytes(b"x")
+        (mos / "Stacked_12_mosaic_M 31_20.0s_IRCUT_20261018-233000.fit").write_bytes(b"x")
+        (d31 / "Stacked_25_M 31_10.0s_IRCUT_20261018-235900.fit").write_bytes(b"x")   # Siril-Nacht existiert
+        r = self.run_auto()
+        self.assertIn("SEESTAR M 42 IRCUT 2026-10-21: Stack des Geräts mit 5 Frames", r.stdout)
+        self.assertIn("SEESTAR M 31 IRCUT mosaik_2026-10-18: Stack des Geräts mit 12 Frames (Mosaik)", r.stdout)
+        self.assertNotIn("SEESTAR M 31 IRCUT 2026-10-18", r.stdout)
+        m42 = json.loads((self.astro / "stacks" / "M_42" / "M_42_2026-10-21_IRCUT_seestar.meta.json").read_text())
+        self.assertEqual(m42["source"], "seestar")
+        self.assertEqual(m42["nights"], [{"date": "2026-10-21", "frames": 5}])
+        mm = json.loads((self.astro / "stacks" / "M_31" / "M_31_mosaik_2026-10-18_IRCUT_seestar.meta.json").read_text())
+        self.assertTrue(mm["mosaic"])
+        self.assertTrue((self.astro / "export" / "M_42" / "M_42_2026-10-21_IRCUT_seestar.jpg").exists())
+        dev = [c for c in self.calls_of("stack") if c["work"].endswith("_seestar")]
+        self.assertEqual(len(dev), 2)
+        self.assertIn("load device", dev[0]["script"])
+        cat = json.loads((self.astro / "web" / "catalog.json").read_text())
+        self.assertTrue(any(e["source"] == "seestar" and e["mosaic"] for e in cat["entries"]))
+        # zweiter Lauf: nichts Neues
+        r2 = self.run_auto()
+        self.assertNotIn("SEESTAR", r2.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

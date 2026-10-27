@@ -32,6 +32,7 @@ LIB_DIR="${LIB_DIR:-$HERE/lib}"
 SIRIL_SCRIPT="${SIRIL_SCRIPT:-$HERE/seestar_stack.ssf}"
 SIRIL_MASTER_SCRIPT="${SIRIL_MASTER_SCRIPT:-$HERE/seestar_master.ssf}"
 SIRIL_SOLVE_SCRIPT="${SIRIL_SOLVE_SCRIPT:-$HERE/seestar_solve.ssf}"
+SIRIL_DEVICE_SCRIPT="${SIRIL_DEVICE_SCRIPT:-$HERE/seestar_device.ssf}"
 SIRIL_CALIB_SCRIPT="${SIRIL_CALIB_SCRIPT:-$HERE/dslr_calib.ssf}"
 SIRIL_WIDE_SCRIPT="${SIRIL_WIDE_SCRIPT:-$HERE/wide_stack.ssf}"
 WIDE_FILTERS="${WIDE_FILTERS:-WIDE}"          # Filter-Kuerzel im Dateinamen, die als Weitwinkel gelten
@@ -289,13 +290,15 @@ run_stack() {
   local kind="$1" target="$2" filter="$3" label="$4" exp="$5" spec="$6" ts="$7" frames="$8" tmpl="$9"; shift 9
   local slug work base jpg
   slug="$(slugify "$target")"
-  base="${slug}_${label}_${filter}${DEV_SUFFIX}_siril"
+  local src="siril"; [[ "$kind" == "seestar" ]] && src="seestar"
+  base="${slug}_${label}_${filter}${DEV_SUFFIX}_${src}"
   work="$WORK_DIR/$base"
   rm -rf "$work"; mkdir -p "$work/light"
   local i=0
   for f in "$@"; do
     i=$((i+1))
-    if [[ "$kind" == "master" ]]; then cp "$f" "$work/light/stack_$(printf '%03d' $i).fit"
+    if [[ "$kind" == "seestar" ]]; then cp "$f" "$work/light/device.fit"
+    elif [[ "$kind" == "master" ]]; then cp "$f" "$work/light/stack_$(printf '%03d' $i).fit"
     else ln "$f" "$work/light/" 2>/dev/null || cp "$f" "$work/light/"; fi
   done
   CALIBRATE=""; FG_PREFIX="# "
@@ -344,13 +347,15 @@ run_stack() {
   if command -v exiftool >/dev/null; then
     exiftool -q -overwrite_original \
       "-DateTimeOriginal=${ts//-/:}" "-CreateDate=${ts//-/:}" \
-      "-ImageDescription=${target} – ${frames} Frames – ${filter} – Siril" \
+      "-ImageDescription=${target} – ${frames} Frames – ${filter} – $([[ $src == seestar ]] && echo Seestar-Stack || echo Siril)" \
       "-Software=Siril (siril-auto)" "$jpg" || true
+  else
+    touch -d "$ts" "$jpg"   # ohne exiftool: Aufnahmedatum wenigstens als Dateidatum
   fi
-  touch -d "$ts" "$jpg"
+  # Sonst bleibt das Dateidatum "jetzt": Immich erkennt neu gerechnete Bilder (gleicher Name)
+  # nur an einem geaenderten Aenderungsdatum. Das Aufnahmedatum steht in den EXIF-Daten.
   if (( wide )) && [[ -f "$work/result_foreground.jpg" ]]; then
     cp "$work/result_foreground.jpg" "$EXPORT_DIR/$slug/${base}_vordergrund.jpg"
-    touch -d "$ts" "$EXPORT_DIR/$slug/${base}_vordergrund.jpg"
     log "      Vordergrund-Stack: ${base}_vordergrund.jpg (zum Zusammenfügen mit dem Himmel)"
   fi
 
@@ -359,15 +364,17 @@ run_stack() {
     [[ -f "$CATALOG" ]] && cat_args+=(--catalog "$CATALOG")
     [[ -f "${CATALOG%/*}/addendum.csv" ]] && cat_args+=(--catalog "${CATALOG%/*}/addendum.csv")
     [[ "${NO_FLIP_Y:-0}" == "1" ]] && cat_args+=(--no-flip-y)
+    local meta_extra=(--source "$src"); [[ "${CUR_MOSAIC:-0}" == "1" ]] && meta_extra+=(--mosaic)
     python3 "$LIB_DIR/write_meta.py" --fits "$STACK_DIR/$slug/$base.fit" --jpg "$jpg" \
       --out "$STACK_DIR/$slug/$base.meta.json" --target "$target" --filter "$filter" \
-      --exposure "$exp" --stack "$kind" --nights "$spec" "${cat_args[@]}" \
+      --exposure "$exp" --stack "$([[ $kind == seestar ]] && echo night || echo "$kind")" --nights "$spec" "${cat_args[@]}" \
+      "${meta_extra[@]}" \
       --device-id "$CUR_DEVICE" --device-label "$CUR_LABEL" "${wcs_args[@]}" \
       || log "      WARN: meta.json konnte nicht geschrieben werden"
     if [[ "$ANNOTATE" == "1" && -f "$STACK_DIR/$slug/$base.meta.json" ]]; then
       if python3 "$LIB_DIR/annotate.py" --meta "$STACK_DIR/$slug/$base.meta.json" \
            --out "$EXPORT_DIR/$slug/${base}_beschriftet.jpg" >/dev/null; then
-        touch -d "$ts" "$EXPORT_DIR/$slug/${base}_beschriftet.jpg"
+        :
       else
         log "      WARN: Beschriftung fehlgeschlagen"
       fi
@@ -541,6 +548,13 @@ process_device() {   # process_device <id>
     else echo "$spec" > "$fail_file"; failed=$((failed+1)); status error "$target" "master" "$frames" "Master fehlgeschlagen"; fi
   done < "$INDEX.targets"
 
+  # 4b) Seestar-eigene Stacks (SEESTAR_STACKS=1) ---------------------------
+  # Sessions unter MIN_FRAMES und Mosaike stackt Siril nicht – dafuer gibt es den Stack,
+  # den der Seestar selbst gespeichert hat (Stacked_<n>_[mosaic_]<ziel>_<s>s_<filter>_<zeit>.fit).
+  # Je Ziel/Filter/Nacht der mit den meisten Frames; nur wenn es fuer diese Nacht keinen Siril-Stack gibt
+  # (Mosaike immer). In der Galerie als "Seestar-Stack" bzw. "Mosaik", Siril-Stacks bleiben Titelbild.
+  [[ "${SEESTAR_STACKS:-1}" == "1" && "$CUR_TYPE" != "dslr" ]] && process_seestar_stacks
+
   # 5) Kombination ueber alle Filter je Ziel (COMBINE_FILTERS=1) -------------
   # Je Filter das beste Ergebnis (Master, sonst die juengste Nacht), registriert und
   # gewichtet zusammengefuehrt – z. B. IRCUT (Sterne/Farbe) + LP (Nebel-Signal).
@@ -589,6 +603,45 @@ process_device() {   # process_device <id>
       echo "$cspec" > "$fail_file"; failed=$((failed+1)); status error "$target" "kombi" "$cframes" "Kombination fehlgeschlagen"
     fi
   done < <(cut -f1 "$INDEX.targets" | sort -u)
+}
+
+process_seestar_stacks() {
+  local f b n mos tgt filter exp night ts key slug label sf done_n
+  declare -A pick=() pickn=()
+  while IFS= read -r -d '' f; do
+    b="$(basename "$f")"
+    [[ "$b" =~ ^Stacked_([0-9]+)_(mosaic_)?(.+)_[0-9]+(\.[0-9]+)?s_[A-Za-z0-9]+_20[0-9]{6}-[0-9]{6}\.fits?$ ]] || continue
+    n="${BASH_REMATCH[1]}"; mos="${BASH_REMATCH[2]:+1}"; tgt="$(canon_target "${BASH_REMATCH[3]}")"
+    IFS=$'\t' read -r filter exp night ts <<< "$(frame_info "$f")"
+    key="$tgt"$'\t'"$filter"$'\t'"$night"$'\t'"${mos:-0}"
+    # mehrere Zwischenstaende je Session: der mit den meisten Frames, bei Gleichstand der juengste
+    if [[ -z "${pick[$key]:-}" ]] || (( n > ${pickn[$key]} )) || { (( n == ${pickn[$key]} )) && [[ "$b" > "$(basename "${pick[$key]}")" ]]; }; then
+      pick[$key]="$f"; pickn[$key]="$n"
+    fi
+  done < <(find "$MIRROR_DIR" -mindepth 2 -maxdepth 2 -type f -name 'Stacked_*' \( -iname '*.fit' -o -iname '*.fits' \) \
+             -not -path '*_sub/*' -not -path '*-sub/*' -print0)
+
+  for key in "${!pick[@]}"; do
+    IFS=$'\t' read -r tgt filter night mos <<< "$key"
+    f="${pick[$key]}"; n="${pickn[$key]}"; slug="$(slugify "$tgt")"
+    if [[ "$mos" == "0" && -f "$STATE_DIR/${slug}_${filter}${DEV_SUFFIX}_${night}.done" ]]; then continue; fi
+    label="$night"; [[ "$mos" == "1" ]] && label="mosaik_$night"
+    sf="$STATE_DIR/${slug}_${filter}${DEV_SUFFIX}_${label}_seestar.done"
+    done_n="$(cat "$sf" 2>/dev/null || true)"
+    [[ $FORCE -eq 0 && "$done_n" == "$n" ]] && continue
+    if [[ $FORCE -eq 0 && "$(cat "${sf%.done}.failed" 2>/dev/null || true)" == "$n" ]]; then
+      log "SKIP Seestar-Stack $tgt $filter $label: früher fehlgeschlagen"; continue
+    fi
+    IFS=$'\t' read -r filter exp night ts <<< "$(frame_info "$f")"
+    log "SEESTAR ${DEVTAG}$tgt $filter $label: Stack des Geräts mit $n Frames$([[ $mos == 1 ]] && echo ' (Mosaik)')"
+    if [[ $DRY_RUN -eq 1 ]]; then processed=$((processed+1)); continue; fi
+    status processing "$tgt" "$night" "$n"
+    if CUR_MOSAIC="$mos" run_stack seestar "$tgt" "$filter" "$label" "$exp" "$night:$n" "$ts" "$n" "$SIRIL_DEVICE_SCRIPT" "$f"; then
+      echo "$n" > "$sf"; rm -f "${sf%.done}.failed"; processed=$((processed+1))
+    else
+      echo "$n" > "${sf%.done}.failed"; failed=$((failed+1)); status error "$tgt" "$night" "$n" "Seestar-Stack fehlgeschlagen"
+    fi
+  done
 }
 
 processed=0; failed=0; INDEXES=()

@@ -3,10 +3,12 @@
 
     immich_sync.py --stacks /data/astro/stacks [--dry-run]
 
-Je Ziel + Filter entsteht EIN Immich-Stack:
-  Titelbild  = Siril-Master (falls vorhanden), sonst die neueste Siril-Nacht
-  dahinter   = uebrige Siril-Naechte, beschriftete Versionen (*_beschriftet.jpg)
-               und die Seestar-App-Stacks vom Handy aus denselben Naechten
+Je Objekt entsteht EIN Immich-Stack (wie ein Eintrag in der Galerie):
+  Titelbild  = Kombination aller Filter, sonst Siril-Master, sonst die neueste Siril-Nacht,
+               sonst Mosaik bzw. Session-Stack des Seestar
+  dahinter   = alle uebrigen Versionen (Filter, Naechte, Stacks des Seestar), beschriftete
+               Versionen (*_beschriftet.jpg) und die Seestar-App-Stacks vom Handy
+Ins Album kommt nur das Titelbild.
 
 App-Stacks werden ueber Aufnahmezeit (Nacht = 12–12 Uhr) und Dateiname erkannt
 (IMMICH_APP_PATTERN, Default: "seestar|stack", ohne Gross-/Kleinschreibung).
@@ -52,10 +54,11 @@ def collect_groups(stacks: Path) -> dict[str, dict]:
     groups: dict[str, dict] = {}
     for mp in sorted(stacks.rglob("*.meta.json")):
         m = json.loads(mp.read_text(encoding="utf-8"))
-        if m.get("sample") or m.get("source", "siril") != "siril":
+        src = m.get("source", "siril")
+        if m.get("sample") or src not in ("siril", "seestar"):
             continue
-        key = f'{m["target"]["name"]}|{m.get("filter", "")}'
-        g = groups.setdefault(key, {"target": m["target"]["name"], "filter": m.get("filter", ""),
+        key = m["target"]["name"]
+        g = groups.setdefault(key, {"target": m["target"]["name"],
                                     "files": [], "nights": set(), "primary": None, "primary_rank": None})
         jpg = (mp.parent / m["image"]).resolve()
         g["files"].append(jpg.name)
@@ -64,7 +67,11 @@ def collect_groups(stacks: Path) -> dict[str, dict]:
             g["files"].append(ann.name)
         g["nights"].update(n["date"] for n in m.get("nights", []))
         last = max((n["date"] for n in m.get("nights", [])), default="")
-        rank = (1 if m.get("stack") == "master" else 0, last)
+        if src == "seestar":
+            level = 1 if m.get("mosaic") else 0
+        else:
+            level = 4 if "+" in m.get("filter", "") else 3 if m.get("stack") == "master" else 2
+        rank = (level, last)
         if g["primary_rank"] is None or rank > g["primary_rank"]:
             g["primary"], g["primary_rank"] = jpg.name, rank
     return groups
@@ -101,6 +108,14 @@ def main() -> int:
             print(f"WARN: Library-Scan fehlgeschlagen: {e}")
 
     groups = collect_groups(stacks)
+    # Fruehere Gruppierung (je Ziel + Filter, Schluessel "Ziel|Filter"): diese Stacks aufloesen,
+    # bevor die Assets in die neuen Objekt-Stacks wandern
+    for key in [k for k in state if not k.startswith("app|") and k not in groups]:
+        print(f"aufgelöst {key}: alte Gruppierung")
+        if not a.dry_run:
+            if state[key].get("stack_id"):
+                im.delete_stack(state[key]["stack_id"])
+            del state[key]
     targets_per_night: dict[str, set[str]] = {}
     for g in groups.values():
         for n in g["nights"]:

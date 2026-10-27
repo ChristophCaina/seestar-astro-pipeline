@@ -69,7 +69,8 @@
     }
     for (const g of m.values()) {
       // Titelbild: Kombination aller Filter, dann Master mit der laengsten Belichtung, sonst die neueste Nacht
-      const rank = (e) => (isCombined(e) ? 0 : e.stack === "master" ? 1 : 2);
+      // Stacks des Geraets (Seestar, App) nur, wenn es nichts aus Siril gibt; Mosaik vor Einzelsession
+      const rank = (e) => (e.source !== "siril" ? (e.mosaic ? 3 : 4) : isCombined(e) ? 0 : e.stack === "master" ? 1 : 2);
       g.entries.sort((a, b) => rank(a) - rank(b) || (rank(a) < 2 ? b.seconds - a.seconds : (b.last || "").localeCompare(a.last || "")));
       g.primary = g.entries[0];
       g.filter = g.primary.filter;
@@ -262,7 +263,7 @@
     if (location.hash.slice(1) !== key) history.pushState(null, "", "#" + key);
     window.scrollTo(0, 0);
     const nN = e.nights.length;
-    $("d-eyebrow").textContent = `${KIND1[g.kind]} · ${isCombined(e) ? `Alle Filter (${e.filter.replaceAll("+", " + ")})` : e.stack === "master" ? `Master aus ${nN} Nächten` : "Einzelnacht"} · ${e.device?.label || "Seestar S50"}`;
+    $("d-eyebrow").textContent = `${KIND1[g.kind]} · ${e.source === "seestar" ? (e.mosaic ? "Mosaik · Stack des Seestar" : "Stack des Seestar") : isCombined(e) ? `Alle Filter (${e.filter.replaceAll("+", " + ")})` : e.stack === "master" ? `Master aus ${nN} Nächten` : "Einzelnacht"} · ${e.device?.label || "Seestar S50"}`;
     $("d-title").innerHTML = `${esc(g.target.name)} <em>${esc(g.target.common || "")}</em>`;
     $("d-caption").textContent = e.caption || "";
     $("d-integ").innerHTML = e.seconds ? `${fmtInt(e.seconds)} <small>gesamt</small>` : `– <small>Belichtung unbekannt</small>`;
@@ -276,7 +277,7 @@
       const li = document.createElement("li"); if (x.id === e.id) li.className = "cur";
       const multi = new Set(g.entries.map((y) => y.device?.id || "s50")).size > 1;
       const filters = new Set(g.entries.map((y) => y.filter || "")).size > 1;
-      const label = (x.source === "app" ? "Seestar-App-Stack" : isCombined(x) ? "Alle Filter · Siril" : x.stack === "master" ? "Master · Siril" : "Einzelnacht · Siril")
+      const label = (x.source === "app" ? "Seestar-App-Stack" : x.source === "seestar" ? (x.mosaic ? "Mosaik · Seestar" : "Seestar-Stack") : isCombined(x) ? "Alle Filter · Siril" : x.stack === "master" ? "Master · Siril" : "Einzelnacht · Siril")
         + (filters && !isCombined(x) && x.filter ? ` · ${esc(x.filter)}` : "")
         + (multi ? ` · ${esc(x.device?.label || "Seestar S50")}` : "");
       const info = x.stack === "master" ? `${x.nights.length} Nächte` : fmtDate(x.last);
