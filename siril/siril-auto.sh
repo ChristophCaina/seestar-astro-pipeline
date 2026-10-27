@@ -349,11 +349,13 @@ run_stack() {
       "-DateTimeOriginal=${ts//-/:}" "-CreateDate=${ts//-/:}" \
       "-ImageDescription=${target} – ${frames} Frames – ${filter} – $([[ $src == seestar ]] && echo Seestar-Stack || echo Siril)" \
       "-Software=Siril (siril-auto)" "$jpg" || true
+  else
+    touch -d "$ts" "$jpg"   # ohne exiftool: Aufnahmedatum wenigstens als Dateidatum
   fi
-  touch -d "$ts" "$jpg"
+  # Sonst bleibt das Dateidatum "jetzt": Immich erkennt neu gerechnete Bilder (gleicher Name)
+  # nur an einem geaenderten Aenderungsdatum. Das Aufnahmedatum steht in den EXIF-Daten.
   if (( wide )) && [[ -f "$work/result_foreground.jpg" ]]; then
     cp "$work/result_foreground.jpg" "$EXPORT_DIR/$slug/${base}_vordergrund.jpg"
-    touch -d "$ts" "$EXPORT_DIR/$slug/${base}_vordergrund.jpg"
     log "      Vordergrund-Stack: ${base}_vordergrund.jpg (zum Zusammenfügen mit dem Himmel)"
   fi
 
@@ -371,7 +373,7 @@ run_stack() {
     if [[ "$ANNOTATE" == "1" && -f "$STACK_DIR/$slug/$base.meta.json" ]]; then
       if python3 "$LIB_DIR/annotate.py" --meta "$STACK_DIR/$slug/$base.meta.json" \
            --out "$EXPORT_DIR/$slug/${base}_beschriftet.jpg" >/dev/null; then
-        touch -d "$ts" "$EXPORT_DIR/$slug/${base}_beschriftet.jpg"
+        :
       else
         log "      WARN: Beschriftung fehlgeschlagen"
       fi

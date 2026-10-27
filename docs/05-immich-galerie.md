@@ -11,7 +11,7 @@
 
 - `export/` wird **read-only** in den Immich-LXC eingebunden und als **External Library** angelegt. Es entstehen keine Kopien.
 - Das Aufnahmedatum setzt exiftool ins JPG, damit Immich das Bild in die richtige Nacht einsortiert. Die beschriftete Version übernimmt die EXIF-Daten.
-- `immich_sync.py` gruppiert alle Versionen eines Ziels zu einem **Immich-Stack** (Titelbild: Siril-Master, sonst die neueste Nacht) und legt das **Titelbild** ins Album „Astro“ – die übrigen Versionen (Nächte, `_beschriftet`, App-Stack) sieht man beim Öffnen des Stacks.
+- `immich_sync.py` gruppiert alle Versionen eines Objekts – alle Filter, Nächte, Kombination, Mosaik und Stacks des Seestar – zu einem **Immich-Stack**, wie ein Eintrag in der Galerie (Titelbild: Kombination, sonst Siril-Master, sonst die neueste Nacht, sonst der Stack des Seestar) und legt das **Titelbild** ins Album „Astro“ – die übrigen Versionen (Nächte, `_beschriftet`, App-Stack) sieht man beim Öffnen des Stacks.
 
 ## Einrichtung
 
@@ -103,3 +103,9 @@ python3 annotate.py --meta /data/astro/stacks/_app/<ziel>/<datei>.meta.json --ou
 - Danach stapelt `immich_sync.py` Original und beschriftete Version zusammen.
 - Liegen die Beschriftungen vertikal gespiegelt, mit `--flip-y` neu laufen lassen (vorher `.state/backfill.json` löschen bzw. betroffene IDs entfernen).
 - Bilder, die sich nicht lösen lassen, merkt sich der Job ebenfalls und versucht sie nicht erneut.
+
+**Neu gerechnete Bilder:** Immich erkennt eine geänderte Datei mit gleichem Namen nur an einem neuen Änderungsdatum. siril-auto setzt das Aufnahmedatum deshalb nur in die EXIF-Daten und lässt das Dateidatum auf „jetzt“. Bilder aus älteren Läufen (Dateidatum = Aufnahmenacht) einmalig anfassen und neu scannen:
+
+```bash
+find /data/astro/export -name '*.jpg' -exec touch {} +
+```
