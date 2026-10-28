@@ -1,0 +1,481 @@
+# Lovelace-Dashboard „Sternwarte“ – Variante 2 (Kacheln, mit Tabs)
+#
+# Wie sternwarte.yaml, aber fast nur mit Tile-Cards (mit Features) und Bildkarten statt
+# seestar-card und Markdown – und mit den zusätzlichen Entities von ha-seestar
+# (Session, Montierung, Gerät, Live-Vorschau). Braucht keine Karten aus HACS.
+#
+# Einrichten: Einstellungen → Dashboards → Dashboard hinzufügen → „Neues Dashboard von Grund auf“,
+# dann ⋮ → Bearbeiten → ⋮ → Raw-Konfigurationseditor → diesen Inhalt einfügen.
+#
+# Voraussetzungen: Packages astro_audit.yaml, astro_goto.yaml, astro_stacks.yaml; HA-Add-on ha-seestar;
+# siril-auto mit MQTT_ENABLED=1. Galerie-Adresse: in astro_stacks.yaml (Bild „Letzter Stack“).
+# Anpassen (Suchen/Ersetzen):
+#   seestar_s50                 → Entity-Präfix deines Seestar (ha-seestar: Gerätename klein, _ statt Leerzeichen)
+#   http://astro.lan            → Adresse der Astro-Galerie
+#   sensor.gw2000a_*            → Ecowitt-Entities
+#   /sternwarte/                → URL deines Dashboards (Kacheln unter „Geräte“ springen in die Tabs)
+#
+# Tabs: Heute Nacht · S50 · Siril. Zweites Seestar: optional/seestar_s30_view.yaml als weiteren Tab
+# (Eintrag unter views:) anhängen, sobald es in HA existiert – und auf „Heute Nacht“ die Geräte-Kachel ergänzen.
+# Bedienung: Starten nur per Knopf je Gerät – automatisch passiert nur das Schutz-Parken in der Nacht.
+title: Sternwarte
+views:
+- title: Heute Nacht
+  path: heute
+  icon: mdi:weather-night
+  type: sections
+  max_columns: 3
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Heute Nacht
+      icon: mdi:weather-night
+      heading_style: subtitle
+    - type: tile
+      entity: input_text.astro_empfehlung
+      name: Empfehlung
+      icon: mdi:robot
+      grid_options:
+        columns: full
+    - type: tile
+      entity: input_select.astro_stufe
+      name: Deep-Sky
+      icon: mdi:star-four-points
+    - type: tile
+      entity: input_select.astro_stufe_milchstrasse
+      name: Milchstraße
+      icon: mdi:star-shooting
+    - type: tile
+      entity: input_datetime.astro_fenster_start
+      name: Deep-Sky ab
+    - type: tile
+      entity: input_datetime.astro_fenster_ende
+      name: Deep-Sky bis
+    - type: tile
+      entity: input_datetime.astro_mw_start
+      name: Milchstraße ab
+    - type: tile
+      entity: input_datetime.astro_mw_ende
+      name: Milchstraße bis
+    - type: tile
+      entity: binary_sensor.astro_seestar_prufen
+      name: Seestar prüfen
+      icon: mdi:alert
+      color: amber
+      state_content: probleme
+      visibility:
+      - condition: state
+        entity: binary_sensor.astro_seestar_prufen
+        state: 'on'
+      grid_options:
+        columns: full
+    - type: tile
+      entity: binary_sensor.astro_wenig_sterne
+      name: Kaum Sterne – Wolken?
+      icon: mdi:weather-cloudy-alert
+      color: amber
+      state_content: geraete
+      visibility:
+      - condition: state
+        entity: binary_sensor.astro_wenig_sterne
+        state: 'on'
+      grid_options:
+        columns: full
+    - type: tile
+      entity: input_boolean.astro_schutz_parken
+      name: Schutz-Parken
+      vertical: false
+      features:
+      - type: toggle
+      features_position: bottom
+    - type: tile
+      entity: script.astro_audit
+      name: Audit jetzt
+      icon: mdi:robot
+      tap_action:
+        action: perform-action
+        perform_action: script.astro_audit
+        confirmation:
+          text: KI-Audit jetzt ausführen?
+      features:
+      - type: button
+  - type: grid
+    cards:
+    - type: heading
+      heading: Bedingungen
+      icon: mdi:weather-partly-cloudy
+      heading_style: subtitle
+    - type: tile
+      entity: sensor.astro_taupunktabstand
+      name: Taupunktabstand
+      state_content:
+      - state
+      - quelle
+      features_position: bottom
+      features:
+      - type: trend-graph
+        hours_to_show: 12
+      grid_options:
+        columns: full
+    - type: tile
+      entity: sensor.gw2000a_outdoor_temperature
+      name: Temperatur
+    - type: tile
+      entity: sensor.gw2000a_humidity
+      name: Luftfeuchte
+    - type: tile
+      entity: sensor.gw2000a_rain_rate
+      name: Regenrate
+    - type: tile
+      entity: sensor.gw2000a_wind_gust
+      name: Böen
+    - type: tile
+      entity: sensor.astroweather_backyard_deepsky_forecast_today
+      name: Deep-Sky heute
+    - type: tile
+      entity: sensor.astroweather_backyard_seeing
+      name: Seeing
+    - type: tile
+      entity: sensor.astroweather_backyard_transparency
+      name: Transparenz
+    - type: tile
+      entity: sensor.astroweather_backyard_cloud_cover
+      name: Wolken
+    - type: weather-forecast
+      entity: weather.renningen_2
+      forecast_type: hourly
+      show_current: false
+      grid_options:
+        columns: full
+  - type: grid
+    cards:
+    - type: heading
+      heading: Geräte
+      icon: mdi:devices
+      heading_style: subtitle
+    - type: tile
+      entity: binary_sensor.seestar_s50_connected
+      name: Seestar S50
+      tap_action:
+        action: navigate
+        navigation_path: /sternwarte/s50
+      icon: mdi:telescope
+    - type: tile
+      entity: sensor.siril_auto_stacking_status
+      name: Siril
+      tap_action:
+        action: navigate
+        navigation_path: /sternwarte/siril
+      icon: mdi:image-filter-hdr
+      state_content:
+      - state
+      - target
+- title: S50
+  path: s50
+  icon: mdi:telescope
+  type: sections
+  max_columns: 3
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Seestar S50
+      icon: mdi:telescope
+      heading_style: subtitle
+      badges:
+      - type: entity
+        entity: binary_sensor.seestar_s50_connected
+        show_state: true
+        show_icon: true
+        color: state
+      - type: entity
+        entity: sensor.seestar_s50_battery
+        show_state: true
+        show_icon: true
+        color: state
+      - type: entity
+        entity: sensor.seestar_s50_storage_used
+        show_state: true
+        show_icon: true
+      - type: entity
+        entity: sensor.seestar_s50_sensor_temperature
+        show_state: true
+        show_icon: true
+    - type: tile
+      visibility:
+      - condition: state
+        entity: binary_sensor.seestar_s50_connected
+        state_not: 'on'
+      entity: binary_sensor.seestar_s50_connected
+      name: Nicht verbunden – Station-Modus und WLAN prüfen
+      vertical: false
+      features_position: bottom
+      grid_options:
+        columns: 12
+        rows: 1
+    - type: tile
+      entity: sensor.seestar_s50_last_alert
+      name: Letzte Warnung
+      icon: mdi:alert-circle
+      color: amber
+      visibility:
+      - condition: state
+        entity: sensor.seestar_s50_last_alert
+        state_not: unknown
+      - condition: state
+        entity: sensor.seestar_s50_last_alert
+        state_not: unavailable
+    - type: tile
+      entity: binary_sensor.seestar_s50_telephoto_lp_filter
+      name: LP-Filter
+      visibility:
+      - condition: state
+        entity: sensor.seestar_s50_stack_state
+        state:
+        - working
+        - start
+    - type: picture-entity
+      entity: camera.seestar_s50_live_stacked_preview
+      camera_view: auto
+      show_name: false
+      show_state: false
+      visibility:
+      - condition: state
+        entity: binary_sensor.seestar_s50_connected
+        state: 'on'
+      grid_options:
+        columns: full
+  - type: grid
+    cards:
+    - type: heading
+      heading: Session
+      icon: mdi:layers
+      heading_style: subtitle
+      visibility:
+      - condition: state
+        entity: sensor.seestar_s50_stack_state
+        state:
+        - working
+        - start
+    - type: tile
+      entity: sensor.seestar_s50_telephoto_target
+      name: Ziel
+      icon: mdi:image-filter-center-focus
+      visibility:
+      - condition: state
+        entity: sensor.seestar_s50_stack_state
+        state:
+        - working
+        - start
+    - type: tile
+      entity: sensor.seestar_s50_integration_time
+      name: Belichtung gesamt
+      visibility:
+      - condition: state
+        entity: sensor.seestar_s50_stack_state
+        state:
+        - working
+        - start
+    - type: tile
+      entity: sensor.seestar_s50_stacked_frames
+      name: Gestackt
+      visibility:
+      - condition: state
+        entity: sensor.seestar_s50_stack_state
+        state:
+        - working
+        - start
+    - type: tile
+      entity: sensor.seestar_s50_dropped_frames
+      name: Verworfen
+      visibility:
+      - condition: state
+        entity: sensor.seestar_s50_stack_state
+        state:
+        - working
+        - start
+    - type: tile
+      entity: sensor.seestar_s50_stars_detected
+      name: Sterne erkannt
+      visibility:
+      - condition: state
+        entity: sensor.seestar_s50_stack_state
+        state:
+        - working
+        - start
+      features_position: bottom
+  - type: grid
+    cards:
+    - type: heading
+      heading: Steuerung
+      icon: mdi:gamepad-variant
+      heading_style: subtitle
+    - type: tile
+      entity: switch.seestar_s50_controls_enabled
+      name: Steuerung freigegeben
+      features_position: inline
+      features:
+      - type: toggle
+    - type: tile
+      grid_options:
+        columns: 12
+        rows: 2
+      entity: input_select.astro_ziel_s50
+      name: Ziel
+      icon: mdi:target
+      hide_state: true
+      vertical: false
+      features:
+      - type: select-options
+      features_position: bottom
+    - type: tile
+      entity: script.astro_start_s50
+      name: Session starten
+      icon: mdi:play-circle
+      vertical: false
+      tap_action:
+        action: perform-action
+        perform_action: script.astro_start_s50
+        confirmation:
+          text: S50 jetzt starten (Deep-Sky)?
+      features:
+      - type: button
+      features_position: inline
+    - type: tile
+      entity: switch.seestar_s50_dew_heater
+      name: Tauheizung
+      vertical: false
+      features:
+      - type: toggle
+      features_position: bottom
+    - type: tile
+      entity: script.astro_goto_s50
+      name: GoTo starten
+      icon: mdi:crosshairs-gps
+      tap_action:
+        action: perform-action
+        perform_action: script.astro_goto_s50
+      features:
+      - type: button
+    - type: tile
+      entity: script.astro_stopp_s50
+      name: Stoppen
+      icon: mdi:stop-circle
+      color: red
+      tap_action:
+        action: perform-action
+        perform_action: script.astro_stopp_s50
+        confirmation:
+          text: 'S50: Aufnahme jetzt stoppen?'
+      features:
+      - type: button
+    - type: tile
+      entity: script.astro_parken_s50
+      name: Parken
+      icon: mdi:home-import-outline
+      color: red
+      tap_action:
+        action: perform-action
+        perform_action: script.astro_parken_s50
+        confirmation:
+          text: 'S50: Aufnahme stoppen und parken?'
+      features:
+      - type: button
+  - type: grid
+    cards:
+    - type: heading
+      heading: Montierung
+      icon: mdi:axis-arrow
+      heading_style: subtitle
+      badges:
+      - type: entity
+        show_state: true
+        show_icon: true
+        entity: sensor.seestar_s50_azimuth
+      - type: entity
+        show_state: true
+        show_icon: true
+        entity: sensor.seestar_s50_altitude
+    - type: tile
+      entity: sensor.seestar_s50_goto_state
+      name: GoTo
+    - type: tile
+      entity: binary_sensor.seestar_s50_parked
+      name: Geparkt
+    - type: tile
+      entity: binary_sensor.seestar_s50_tracking
+      name: Nachführung
+    - type: tile
+      entity: binary_sensor.seestar_s50_slewing
+      name: Fährt
+  - type: grid
+    cards:
+    - type: heading
+      heading: Gerät
+      icon: mdi:battery-heart-variant
+      heading_style: subtitle
+    - type: tile
+      entity: sensor.seestar_s50_charger
+      name: Ladegerät
+      icon: mdi:power-plug
+    - type: tile
+      entity: binary_sensor.seestar_s50_dew_heater
+      name: Tauheizung (Gerät)
+    - type: tile
+      entity: sensor.seestar_s50_firmware
+      name: Firmware
+- title: Siril
+  path: siril
+  icon: mdi:image-filter-hdr
+  type: sections
+  max_columns: 2
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Nachverarbeitung
+      icon: mdi:image-filter-hdr
+      heading_style: subtitle
+      badges:
+      - type: entity
+        show_state: true
+        show_icon: true
+        entity: sensor.siril_auto_stacking_status
+    - type: tile
+      entity: sensor.astro_stacks_dieser_nacht
+      name: Stacks diese Nacht
+      icon: mdi:image-multiple
+    - type: tile
+      entity: sensor.siril_auto_stacking_letztes_ergebnis
+      name: Letztes Ergebnis
+      state_content:
+      - target
+      - filter
+      - frames
+    - type: tile
+      entity: input_boolean.astro_push_pro_stack
+      name: Push je Stack
+      features_position: inline
+      features:
+      - type: toggle
+    - type: picture-entity
+      entity: image.astro_letzter_stack
+      show_state: false
+      show_name: true
+      name: Zuletzt gestackt
+      tap_action:
+        action: url
+        url_path: http://astro.lan
+      grid_options:
+        columns: full
+    - type: tile
+      entity: image.astro_letzter_stack
+      name: Astro-Galerie öffnen
+      icon: mdi:open-in-new
+      hide_state: true
+      tap_action:
+        action: url
+        url_path: http://astro.lan
+      grid_options:
+        columns: full

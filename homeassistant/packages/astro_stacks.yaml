@@ -9,6 +9,7 @@
 #   * Push je fertigem Stack: Vorschaubild aus der Galerie, Tippen oeffnet die Detailseite
 #   * Morgen-Zusammenfassung: alle Stacks der Nacht in einer Nachricht
 #   * Helfer: Push je Stack an/aus, Uhrzeit der Zusammenfassung
+#   * Bild "Astro – Letzter Stack" (image-Entity) fuer Bildkarten im Dashboard
 #
 # Ersetzt die fruehere Beispiel-Automation automation-siril-ergebnis.yaml.
 #
@@ -65,6 +66,14 @@ template:
         state: "{{ liste | count }}"
         attributes:
           stacks: "{{ liste }}"
+
+  # Vorschaubild des letzten Stacks aus der Galerie – fuer eine Bildkarte im Dashboard
+  # (picture-entity, sternwarte_v2.yaml). HA laedt das Bild selbst; /img/ braucht kein Passwort.
+  - image:
+      - name: Astro – Letzter Stack
+        unique_id: astro_letzter_stack
+        availability: "{{ state_attr('sensor.siril_auto_stacking_letztes_ergebnis', 'id') not in [none, ''] }}"
+        url: "http://astro.lan/img/{{ state_attr('sensor.siril_auto_stacking_letztes_ergebnis', 'id') }}.jpg"
 
 automation:
   - id: astro_push_stack_fertig
