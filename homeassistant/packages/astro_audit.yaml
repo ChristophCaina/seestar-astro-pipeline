@@ -702,6 +702,10 @@ script:
       - action: switch.turn_on
         target:
           entity_id: "switch.{{ t.prefix }}_controls_enabled"
+      # ha-seestar mit gate_availability: Knoepfe sind erst nach der Freigabe verfuegbar
+      - wait_template: "{{ not is_state('button.' ~ t.prefix ~ '_goto', 'unavailable') }}"
+        timeout: "00:00:10"
+        continue_on_timeout: true
       - action: text.set_value
         target:
           entity_id: "text.{{ t.prefix }}_goto_target"
@@ -752,6 +756,10 @@ script:
       - action: switch.turn_on
         target:
           entity_id: "switch.{{ t.prefix }}_controls_enabled"
+      # ha-seestar mit gate_availability: Knoepfe sind erst nach der Freigabe verfuegbar
+      - wait_template: "{{ not is_state('button.' ~ t.prefix ~ '_stop', 'unavailable') }}"
+        timeout: "00:00:10"
+        continue_on_timeout: true
       # laufendes GoTo und Plan/Session stoppen (ha-seestar: "Stop goto", "Stop")
       - action: button.press
         target:
@@ -764,6 +772,10 @@ script:
           - action: switch.turn_on
             target:
               entity_id: "switch.{{ t.prefix }}_allow_power_actions"
+          # ha-seestar mit gate_availability: Knoepfe sind erst nach der Freigabe verfuegbar
+          - wait_template: "{{ not is_state('button.' ~ t.prefix ~ '_park', 'unavailable') }}"
+            timeout: "00:00:10"
+            continue_on_timeout: true
           - action: button.press
             target:
               entity_id: "button.{{ t.prefix }}_park"
@@ -938,6 +950,10 @@ automation:
                 {% for p in zu_parken %}
                   {% set ns.l = ns.l + ['switch.' ~ p ~ '_controls_enabled', 'switch.' ~ p ~ '_allow_power_actions'] %}
                 {% endfor %}{{ ns.l }}
+          # ha-seestar mit gate_availability: Knoepfe sind erst nach der Freigabe verfuegbar
+          - wait_template: "{{ zu_parken | map('regex_replace', '^(.*)$', 'button.\\\\1_park') | select('is_state', 'unavailable') | list | count == 0 }}"
+            timeout: "00:00:10"
+            continue_on_timeout: true
           - action: button.press
             target:
               entity_id: >-
