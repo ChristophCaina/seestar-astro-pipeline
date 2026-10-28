@@ -24,7 +24,6 @@ views:
     type: sections
     max_columns: 3
     sections:
-      # ---------------------------------------------------------------- Heute Nacht
       - type: grid
         cards:
           - type: heading
@@ -57,7 +56,6 @@ views:
           - type: tile
             entity: input_datetime.astro_mw_ende
             name: Milchstraße bis
-          # Hinweise aus den Seestar-Entities (nur sichtbar, wenn etwas ist)
           - type: tile
             entity: binary_sensor.astro_seestar_prufen
             name: Seestar prüfen
@@ -67,7 +65,7 @@ views:
             visibility:
               - condition: state
                 entity: binary_sensor.astro_seestar_prufen
-                state: "on"
+                state: 'on'
             grid_options:
               columns: full
           - type: tile
@@ -79,15 +77,16 @@ views:
             visibility:
               - condition: state
                 entity: binary_sensor.astro_wenig_sterne
-                state: "on"
+                state: 'on'
             grid_options:
               columns: full
           - type: tile
             entity: input_boolean.astro_schutz_parken
             name: Schutz-Parken
-            features_position: inline
+            vertical: false
             features:
               - type: toggle
+            features_position: bottom
           - type: tile
             entity: script.astro_audit
             name: Audit jetzt
@@ -99,7 +98,6 @@ views:
                 text: KI-Audit jetzt ausführen?
             features:
               - type: button
-          # ---------------------------------------------------------------- Bedingungen
           - type: heading
             heading: Bedingungen
             icon: mdi:weather-partly-cloudy
@@ -146,7 +144,52 @@ views:
             show_current: false
             grid_options:
               columns: full
-      # ---------------------------------------------------------------- Seestar S50
+          - type: heading
+            heading: Nachverarbeitung
+            icon: mdi:image-filter-hdr
+            heading_style: subtitle
+            badges:
+              - type: entity
+                show_state: true
+                show_icon: true
+                entity: sensor.siril_auto_stacking_status
+          - type: tile
+            entity: sensor.astro_stacks_dieser_nacht
+            name: Stacks diese Nacht
+            icon: mdi:image-multiple
+          - type: tile
+            entity: sensor.siril_auto_stacking_letztes_ergebnis
+            name: Letztes Ergebnis
+            state_content:
+              - target
+              - filter
+              - frames
+          - type: tile
+            entity: input_boolean.astro_push_pro_stack
+            name: Push je Stack
+            features_position: inline
+            features:
+              - type: toggle
+          - type: picture-entity
+            entity: image.astro_letzter_stack
+            show_state: false
+            show_name: true
+            name: Zuletzt gestackt
+            tap_action:
+              action: url
+              url_path: http://astro.lan
+            grid_options:
+              columns: full
+          - type: tile
+            entity: image.astro_letzter_stack
+            name: Astro-Galerie öffnen
+            icon: mdi:open-in-new
+            hide_state: true
+            tap_action:
+              action: url
+              url_path: http://astro.lan
+            grid_options:
+              columns: full
       - type: grid
         column_span: 2
         cards:
@@ -173,17 +216,18 @@ views:
                 entity: sensor.seestar_s50_sensor_temperature
                 show_state: true
                 show_icon: true
-          # Hinweise (nur sichtbar, wenn etwas ist)
           - type: tile
-            entity: binary_sensor.seestar_s50_connected
-            name: Nicht verbunden – Station-Modus und WLAN prüfen
-            color: red
             visibility:
               - condition: state
                 entity: binary_sensor.seestar_s50_connected
-                state_not: "on"
+                state_not: 'on'
+            entity: binary_sensor.seestar_s50_connected
+            name: Nicht verbunden – Station-Modus und WLAN prüfen
+            vertical: false
+            features_position: bottom
             grid_options:
-              columns: full
+              columns: 12
+              rows: 1
           - type: tile
             entity: sensor.seestar_s50_last_alert
             name: Letzte Warnung
@@ -196,9 +240,15 @@ views:
               - condition: state
                 entity: sensor.seestar_s50_last_alert
                 state_not: unavailable
-            grid_options:
-              columns: full
-          # Live-Vorschau (gestapeltes Bild) – nur bei verbundenem Gerät
+          - type: tile
+            entity: binary_sensor.seestar_s50_telephoto_lp_filter
+            name: LP-Filter
+            visibility:
+              - condition: state
+                entity: sensor.seestar_s50_stack_state
+                state:
+                  - working
+                  - start
           - type: picture-entity
             entity: camera.seestar_s50_live_stacked_preview
             camera_view: auto
@@ -207,48 +257,66 @@ views:
             visibility:
               - condition: state
                 entity: binary_sensor.seestar_s50_connected
-                state: "on"
+                state: 'on'
             grid_options:
               columns: full
-          # ---- Session (nur während gestackt wird)
           - type: heading
             heading: Session
             icon: mdi:layers
             heading_style: subtitle
-            visibility: &session_s50
+            visibility:
               - condition: state
                 entity: sensor.seestar_s50_stack_state
-                state: [working, start]
+                state:
+                  - working
+                  - start
           - type: tile
             entity: sensor.seestar_s50_telephoto_target
             name: Ziel
             icon: mdi:image-filter-center-focus
-            visibility: *session_s50
+            visibility:
+              - condition: state
+                entity: sensor.seestar_s50_stack_state
+                state:
+                  - working
+                  - start
           - type: tile
             entity: sensor.seestar_s50_integration_time
             name: Belichtung gesamt
-            visibility: *session_s50
+            visibility:
+              - condition: state
+                entity: sensor.seestar_s50_stack_state
+                state:
+                  - working
+                  - start
           - type: tile
             entity: sensor.seestar_s50_stacked_frames
             name: Gestackt
-            visibility: *session_s50
+            visibility:
+              - condition: state
+                entity: sensor.seestar_s50_stack_state
+                state:
+                  - working
+                  - start
           - type: tile
             entity: sensor.seestar_s50_dropped_frames
             name: Verworfen
-            visibility: *session_s50
+            visibility:
+              - condition: state
+                entity: sensor.seestar_s50_stack_state
+                state:
+                  - working
+                  - start
           - type: tile
             entity: sensor.seestar_s50_stars_detected
             name: Sterne erkannt
-            visibility: *session_s50
+            visibility:
+              - condition: state
+                entity: sensor.seestar_s50_stack_state
+                state:
+                  - working
+                  - start
             features_position: bottom
-            features:
-              - type: trend-graph
-                hours_to_show: 2
-          - type: tile
-            entity: binary_sensor.seestar_s50_telephoto_lp_filter
-            name: LP-Filter
-            visibility: *session_s50
-          # ---- Steuerung
           - type: heading
             heading: Steuerung
             icon: mdi:gamepad-variant
@@ -260,20 +328,37 @@ views:
             features:
               - type: toggle
           - type: tile
-            entity: switch.seestar_s50_dew_heater
-            name: Tauheizung
-            features_position: inline
-            features:
-              - type: toggle
-          - type: tile
+            grid_options:
+              columns: 12
+              rows: 2
             entity: input_select.astro_ziel_s50
             name: Ziel
             icon: mdi:target
-            features_position: bottom
+            hide_state: true
+            vertical: false
             features:
               - type: select-options
-            grid_options:
-              columns: full
+            features_position: bottom
+          - type: tile
+            entity: script.astro_start_s50
+            name: Session starten
+            icon: mdi:play-circle
+            vertical: false
+            tap_action:
+              action: perform-action
+              perform_action: script.astro_start_s50
+              confirmation:
+                text: S50 jetzt starten (Deep-Sky)?
+            features:
+              - type: button
+            features_position: inline
+          - type: tile
+            entity: switch.seestar_s50_dew_heater
+            name: Tauheizung
+            vertical: false
+            features:
+              - type: toggle
+            features_position: bottom
           - type: tile
             entity: script.astro_goto_s50
             name: GoTo starten
@@ -284,18 +369,6 @@ views:
             features:
               - type: button
           - type: tile
-            entity: script.astro_start_s50
-            name: Session starten
-            icon: mdi:play-circle
-            tap_action:
-              action: perform-action
-              perform_action: script.astro_start_s50
-              confirmation:
-                text: S50 jetzt starten (Deep-Sky)?
-            features:
-              - type: button
-          # Kein „Drücken“-Knopf: Kachel-Funktionen kennen (noch) keine Rückfrage
-          - type: tile
             entity: script.astro_stopp_s50
             name: Stoppen
             icon: mdi:stop-circle
@@ -304,7 +377,9 @@ views:
               action: perform-action
               perform_action: script.astro_stopp_s50
               confirmation:
-                text: "S50: Aufnahme jetzt stoppen?"
+                text: 'S50: Aufnahme jetzt stoppen?'
+            features:
+              - type: button
           - type: tile
             entity: script.astro_parken_s50
             name: Parken
@@ -314,12 +389,22 @@ views:
               action: perform-action
               perform_action: script.astro_parken_s50
               confirmation:
-                text: "S50: Aufnahme stoppen und parken?"
-          # ---- Zustand der Montierung
+                text: 'S50: Aufnahme stoppen und parken?'
+            features:
+              - type: button
           - type: heading
             heading: Montierung
             icon: mdi:axis-arrow
             heading_style: subtitle
+            badges:
+              - type: entity
+                show_state: true
+                show_icon: true
+                entity: sensor.seestar_s50_azimuth
+              - type: entity
+                show_state: true
+                show_icon: true
+                entity: sensor.seestar_s50_altitude
           - type: tile
             entity: sensor.seestar_s50_goto_state
             name: GoTo
@@ -332,96 +417,19 @@ views:
           - type: tile
             entity: binary_sensor.seestar_s50_slewing
             name: Fährt
-          - type: tile
-            entity: sensor.seestar_s50_altitude
-            name: Höhe
-          - type: tile
-            entity: sensor.seestar_s50_azimuth
-            name: Azimut
-          # ---- Gerät
           - type: heading
             heading: Gerät
             icon: mdi:battery-heart-variant
             heading_style: subtitle
           - type: tile
-            entity: sensor.seestar_s50_battery
-            name: Akku
-            features_position: bottom
-            features:
-              - type: trend-graph
-                hours_to_show: 12
-          - type: tile
             entity: sensor.seestar_s50_charger
             name: Ladegerät
             icon: mdi:power-plug
-          - type: tile
-            entity: sensor.seestar_s50_storage_used
-            name: Speicher belegt
-          - type: tile
-            entity: sensor.seestar_s50_sensor_temperature
-            name: Sensortemperatur
-            features_position: bottom
-            features:
-              - type: trend-graph
-                hours_to_show: 12
           - type: tile
             entity: binary_sensor.seestar_s50_dew_heater
             name: Tauheizung (Gerät)
           - type: tile
             entity: sensor.seestar_s50_firmware
             name: Firmware
-      # ---------------------------------------------------------------- Nachverarbeitung
       - type: grid
-        cards:
-          - type: heading
-            heading: Nachverarbeitung
-            icon: mdi:image-filter-hdr
-            heading_style: subtitle
-          - type: tile
-            entity: sensor.siril_auto_stacking_status
-            name: Siril
-            state_content:
-              - state
-              - target
-            grid_options:
-              columns: full
-          # Bild des letzten Stacks (Template-Bild aus astro_stacks.yaml), Tippen öffnet die Galerie
-          - type: picture-entity
-            entity: image.astro_letzter_stack
-            show_state: false
-            show_name: true
-            name: Zuletzt gestackt
-            tap_action:
-              action: url
-              url_path: http://astro.lan
-            grid_options:
-              columns: full
-          - type: tile
-            entity: sensor.siril_auto_stacking_letztes_ergebnis
-            name: Letztes Ergebnis
-            state_content:
-              - target
-              - filter
-              - frames
-            grid_options:
-              columns: full
-          - type: tile
-            entity: sensor.astro_stacks_dieser_nacht
-            name: Stacks diese Nacht
-            icon: mdi:image-multiple
-          - type: tile
-            entity: input_boolean.astro_push_pro_stack
-            name: Push je Stack
-            features_position: inline
-            features:
-              - type: toggle
-          - type: tile
-            entity: image.astro_letzter_stack
-            name: Astro-Galerie öffnen
-            icon: mdi:open-in-new
-            hide_state: true
-            tap_action:
-              action: url
-              url_path: http://astro.lan
-            grid_options:
-              columns: full
+        cards: []
