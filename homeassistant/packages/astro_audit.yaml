@@ -12,6 +12,8 @@
 #   * Automationen: Audit am Abend,
 #     Steuerung sperren, Tauheizung (automatisch), Schutz bei Regen/Wind/Tau
 #     (automatisch parken, abschaltbar) – gestartet wird nie automatisch (Zeit/Bedingung)
+#   * Aus den ha-seestar-Entities aller Geraete (ohne feste Liste): juengste Warnung,
+#     "Wenig Sterne" waehrend einer Session, "Seestar pruefen" (Speicher/Akku) – je mit Push
 #
 # VOR DEM EINSATZ ANPASSEN:
 #   Abschnitt KONFIGURATION (script astro_benachrichtigen, oben unter script:):
@@ -102,6 +104,73 @@ template:
             {% for name, t_id, d_id in quellen | reverse %}
               {% if states(t_id) | is_number and states(d_id) | is_number %}{% set ns.q = name %}{% endif %}
             {% endfor %}{{ ns.q }}
+
+  # Zusammenfassungen aus den ha-seestar-Entities aller Geraete (Praefix sensor.seestar_*),
+  # ohne feste Entity-Liste – so meldet Spook nichts fuer Geraete, die es (noch) nicht gibt.
+  - sensor:
+      # Juengste Warnung eines Seestar ("Last alert"), z. B. "Seestar S50: …"
+      - name: Astro – Seestar-Warnung
+        unique_id: astro_seestar_warnung
+        icon: mdi:alert-circle
+        state: >-
+          {% set ns = namespace(t=none, txt='keine') %}
+          {% for s in states.sensor | selectattr('entity_id', 'match', 'sensor\\.seestar_[a-z0-9_]+_last_alert$') %}
+            {% if s.state not in ['unknown', 'unavailable', '', 'None', 'none'] and (ns.t is none or s.last_changed > ns.t) %}
+              {% set ns.t = s.last_changed %}
+              {% set ns.txt = (s.name | replace(' Last alert', '')) ~ ': ' ~ s.state %}
+            {% endif %}
+          {% endfor %}{{ ns.txt[:250] }}
+  - binary_sensor:
+      # Waehrend gestackt wird, aber kaum Sterne erkannt werden (Wolken, Tau, Dunst).
+      # Schwelle: ASTRO_MIN_STERNE unten (20) – normal sind einige hundert.
+      - name: Astro – Wenig Sterne
+        unique_id: astro_wenig_sterne
+        icon: mdi:weather-cloudy-alert
+        state: >-
+          {% set ns = namespace(l=[]) %}
+          {% for s in states.sensor | selectattr('entity_id', 'match', 'sensor\\.seestar_[a-z0-9_]+_stack_state$') %}
+            {% set p = s.entity_id[7:-12] %}
+            {% set n = states('sensor.' ~ p ~ '_stars_detected') | int(-1) %}
+            {% if s.state | lower in ['working', 'start'] and 0 <= n < 20 %}
+              {% set ns.l = ns.l + [(s.name | replace(' Stack state', '')) ~ ' (' ~ n ~ ' Sterne)'] %}
+            {% endif %}
+          {% endfor %}{{ ns.l | count > 0 }}
+        attributes:
+          geraete: >-
+            {% set ns = namespace(l=[]) %}
+            {% for s in states.sensor | selectattr('entity_id', 'match', 'sensor\\.seestar_[a-z0-9_]+_stack_state$') %}
+              {% set p = s.entity_id[7:-12] %}
+              {% set n = states('sensor.' ~ p ~ '_stars_detected') | int(-1) %}
+              {% if s.state | lower in ['working', 'start'] and 0 <= n < 20 %}
+                {% set ns.l = ns.l + [(s.name | replace(' Stack state', '')) ~ ' (' ~ n ~ ' Sterne)'] %}
+              {% endif %}
+            {% endfor %}{{ ns.l | join(', ') }}
+      # Verbundenes Seestar mit vollem Speicher (>= 85 %) oder schwachem Akku (< 30 %) ohne Ladegeraet
+      - name: Astro – Seestar prüfen
+        unique_id: astro_seestar_pruefen
+        icon: mdi:alert
+        state: >-
+          {% set ns = namespace(n=0) %}
+          {% for c in states.binary_sensor | selectattr('entity_id', 'match', 'binary_sensor\\.seestar_[a-z0-9_]+_connected$') | selectattr('state', 'eq', 'on') %}
+            {% set p = c.entity_id[14:-10] %}
+            {% set ch = states('sensor.' ~ p ~ '_charger') | lower %}
+            {% set laedt = ('charg' in ch and 'discharg' not in ch) or 'full' in ch %}
+            {% if states('sensor.' ~ p ~ '_storage_used') | float(0) >= 85 %}{% set ns.n = ns.n + 1 %}{% endif %}
+            {% if states('sensor.' ~ p ~ '_battery') | float(100) < 30 and not laedt %}{% set ns.n = ns.n + 1 %}{% endif %}
+          {% endfor %}{{ ns.n > 0 }}
+        attributes:
+          probleme: >-
+            {% set ns = namespace(l=[]) %}
+            {% for c in states.binary_sensor | selectattr('entity_id', 'match', 'binary_sensor\\.seestar_[a-z0-9_]+_connected$') | selectattr('state', 'eq', 'on') %}
+              {% set p = c.entity_id[14:-10] %}
+              {% set name = c.name | replace(' Connected', '') %}
+              {% set ch = states('sensor.' ~ p ~ '_charger') | lower %}
+              {% set laedt = ('charg' in ch and 'discharg' not in ch) or 'full' in ch %}
+              {% set sp = states('sensor.' ~ p ~ '_storage_used') | float(0) %}
+              {% set ak = states('sensor.' ~ p ~ '_battery') | float(100) %}
+              {% if sp >= 85 %}{% set ns.l = ns.l + [name ~ ': Speicher ' ~ sp | round(0) | int ~ ' %'] %}{% endif %}
+              {% if ak < 30 and not laedt %}{% set ns.l = ns.l + [name ~ ': Akku ' ~ ak | round(0) | int ~ ' % ohne Ladegerät'] %}{% endif %}
+            {% endfor %}{{ ns.l | join(', ') }}
 
 script:
   # ===========================================================================
@@ -854,20 +923,26 @@ automation:
           parken: "{{ is_state('input_boolean.astro_schutz_parken', 'on') }}"
           namen: >-
             {{ teleskope | selectattr('prefix', 'in', draussen) | map(attribute='name') | join(', ') }}
-      - if: "{{ parken }}"
+          # schon geparkte Geraete nicht erneut anfahren
+          zu_parken: >-
+            {% set ns = namespace(l=[]) %}
+            {% for p in draussen if not is_state('binary_sensor.' ~ p ~ '_parked', 'on') %}
+              {% set ns.l = ns.l + [p] %}
+            {% endfor %}{{ ns.l }}
+      - if: "{{ parken and zu_parken | count > 0 }}"
         then:
           - action: switch.turn_on
             target:
               entity_id: >-
                 {% set ns = namespace(l=[]) %}
-                {% for p in draussen %}
+                {% for p in zu_parken %}
                   {% set ns.l = ns.l + ['switch.' ~ p ~ '_controls_enabled', 'switch.' ~ p ~ '_allow_power_actions'] %}
                 {% endfor %}{{ ns.l }}
           - action: button.press
             target:
               entity_id: >-
                 {% set ns = namespace(l=[]) %}
-                {% for p in draussen %}{% set ns.l = ns.l + ['button.' ~ p ~ '_park'] %}{% endfor %}{{ ns.l }}
+                {% for p in zu_parken %}{% set ns.l = ns.l + ['button.' ~ p ~ '_park'] %}{% endfor %}{{ ns.l }}
             continue_on_error: true
       - action: script.astro_benachrichtigen
         data:
@@ -877,3 +952,66 @@ automation:
             priority: high
             tag: astro_schutz
       - delay: "00:10:00"     # nicht im Minutentakt erneut melden
+
+  # ---- Meldungen aus den Seestar-Entities (nur Benachrichtigung, es wird nichts geschaltet)
+  # Warnung des Geraets ("Last alert") an alle Handys
+  - id: astro_seestar_warnung
+    alias: Astro – Warnung vom Seestar
+    mode: queued
+    triggers:
+      - trigger: state
+        entity_id: sensor.astro_seestar_warnung
+    conditions:
+      - condition: template
+        value_template: >-
+          {{ trigger.to_state.state not in ['keine', 'unknown', 'unavailable']
+             and trigger.from_state is not none
+             and trigger.from_state.state not in ['unknown', 'unavailable'] }}
+    actions:
+      - action: script.astro_benachrichtigen
+        data:
+          title: ⚠️ Seestar
+          message: "{{ trigger.to_state.state }}"
+          data:
+            group: astro
+            tag: astro_seestar_warnung
+
+  # Kaum Sterne waehrend einer Session (Wolken, Tau, Dunst) – hoechstens einmal pro Stunde
+  - id: astro_wenig_sterne
+    alias: Astro – Kaum Sterne
+    mode: single
+    max_exceeded: silent
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.astro_wenig_sterne
+        to: "on"
+        for: "00:10:00"
+    actions:
+      - action: script.astro_benachrichtigen
+        data:
+          title: ☁️ Kaum Sterne
+          message: >-
+            {{ state_attr('binary_sensor.astro_wenig_sterne', 'geraete') }} – seit 10 Minuten.
+            Wolken oder Tau? Live-Bild prüfen.
+          data:
+            group: astro
+            tag: astro_wenig_sterne
+      - delay: "01:00:00"
+
+  # Verbundenes Seestar mit vollem Speicher oder schwachem Akku ohne Ladegeraet
+  - id: astro_seestar_pruefen
+    alias: Astro – Seestar prüfen
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.astro_seestar_prufen
+        to: "on"
+        for: "00:02:00"
+    actions:
+      - action: script.astro_benachrichtigen
+        data:
+          title: 🔋 Seestar prüfen
+          message: "{{ state_attr('binary_sensor.astro_seestar_prufen', 'probleme') }}"
+          data:
+            group: astro
+            tag: astro_seestar_pruefen
