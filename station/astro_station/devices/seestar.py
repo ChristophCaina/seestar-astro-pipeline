@@ -432,6 +432,21 @@ class Seestar(Device):
         return self.jpeg
 
     # ------------------------------------------------------------ Befehle
+    def _busy(self) -> bool:
+        """Laeuft noch etwas, das ein neues Ziel blockieren wuerde (Ansicht, GoTo mit Wiederholungen, Plan)?"""
+        e = self.events
+        return (self.view_active() or _nav(e, "ViewPlan", "state") == "working"
+                or any(_nav(e, k, "state") in ("start", "working") for k in ("AutoGoto", "PlateSolve", "AutoFocus")))
+
+    async def _end_view(self):
+        """Laufende Ansicht/Plan beenden, damit die Firmware nicht am alten Ziel festhaelt."""
+        if not self._busy():
+            return
+        if _nav(self.events, "ViewPlan", "state") == "working":
+            await self.call("stop_scheduler", {})
+        await self.method("iscope_stop_view")
+        await asyncio.sleep(1.5)
+
     def _need_arm(self):
         if not self.online:
             raise Refused(f"{self.name}: nicht verbunden – läuft seestar_alp?")
@@ -442,6 +457,7 @@ class Seestar(Device):
         self._need_arm()
         name = target.get("name") or "Ziel"
         kind = target.get("kind")
+        await self._end_view()                       # altes Ziel samt Wiederholversuchen beenden
         if kind == "moon":
             await self.method("iscope_start_view", {"mode": "moon"})
             await self.method("start_scan_planet")
@@ -521,16 +537,13 @@ class Seestar(Device):
             text = "Arm fährt aus …"
         elif action_id == "park":
             # erst Plan und Ansicht beenden – sonst faehrt die Firmware nach dem Parken ihr letztes Ziel wieder an
-            if _nav(self.events, "ViewPlan", "state") == "working":
-                await self.call("stop_scheduler", {})
-            if self.view_active() or _nav(self.events, "AutoGoto", "state") in ("start", "working"):
-                await self.method("iscope_stop_view")
-                await asyncio.sleep(1.5)
+            await self._end_view()
             await self.method("scope_park")
             self.device_state = {}
             text = "Ansicht beendet, parkt …"
         elif action_id == "live":
             self._need_arm()
+            await self._end_view()
             await self.method("iscope_start_view", {"mode": "star"})
             text = "Live-Ansicht gestartet"
         elif action_id == "stack":
@@ -539,6 +552,7 @@ class Seestar(Device):
             text = "Stacking gestartet"
         elif action_id in ("moon", "sun"):
             self._need_arm()
+            await self._end_view()
             await self.method("iscope_start_view", {"mode": action_id})
             await self.method("start_scan_planet")
             text = ("Mond" if action_id == "moon" else "Sonnen") + "-Suchlauf gestartet"

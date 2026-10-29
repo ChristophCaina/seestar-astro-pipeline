@@ -157,6 +157,11 @@ class SeestarTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(p["mode"], "star")
         self.assertTrue(p["lp_filter"])
         self.assertGreater(p["target_ra_dec"][0], 20.98)             # praezediert (JNow)
+        await self.dev.poll_once(1)
+        n = len(self.scope.calls)
+        await self.dev.goto({"name": "M 31", "ra": 0.71232, "dec": 41.2691})           # neues Ziel: alte Ansicht zuerst beenden
+        new = [m for m, _ in self.scope.calls[n:]]
+        self.assertEqual(new[:2], ["iscope_stop_view", "iscope_start_view"])
         await self.dev.action("stack", {})
         await self.dev.poll_once(1)
         snap = self.dev.snapshot()
