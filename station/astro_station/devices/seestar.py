@@ -520,9 +520,15 @@ class Seestar(Device):
             self.device_state = {}                   # Arm-Stand beim naechsten Abfragen vom Geraet holen
             text = "Arm fährt aus …"
         elif action_id == "park":
+            # erst Plan und Ansicht beenden – sonst faehrt die Firmware nach dem Parken ihr letztes Ziel wieder an
+            if _nav(self.events, "ViewPlan", "state") == "working":
+                await self.call("stop_scheduler", {})
+            if self.view_active() or _nav(self.events, "AutoGoto", "state") in ("start", "working"):
+                await self.method("iscope_stop_view")
+                await asyncio.sleep(1.5)
             await self.method("scope_park")
             self.device_state = {}
-            text = "parkt …"
+            text = "Ansicht beendet, parkt …"
         elif action_id == "live":
             self._need_arm()
             await self.method("iscope_start_view", {"mode": "star"})

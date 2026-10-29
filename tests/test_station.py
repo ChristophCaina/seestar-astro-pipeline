@@ -163,7 +163,9 @@ class SeestarTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(snap["live"]["active"])
         self.assertTrue(snap["live"]["stacking"])
         self.assertIn("Stacking", snap["op"])
-        await self.dev.stop()
+        await self.dev.action("park", {})
+        calls = [m for m, _ in self.scope.calls]
+        self.assertLess(calls.index("iscope_stop_view"), calls.index("scope_park"))   # erst Ansicht beenden
         await self.dev.poll_once(2)
         self.assertFalse(self.dev.view_active())
 
