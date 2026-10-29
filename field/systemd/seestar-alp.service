@@ -1,0 +1,13 @@
+# seestar_alp auf dem Feld-Laptop (systemd --user). Pfade: ~/Astro/seestar_alp mit venv.
+[Unit]
+Description=seestar_alp (Seestar-Treiber, Web-UI :5432, Alpaca :5555)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/Astro/seestar_alp
+ExecStart=%h/Astro/seestar_alp/venv/bin/python root_app.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
