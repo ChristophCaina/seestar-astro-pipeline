@@ -1,0 +1,438 @@
+"""Seestar (S50, S30, S30 Pro) ueber seestar_alp.
+
+Alles geht ueber die Alpaca-Schnittstelle von seestar_alp (dieselben Befehle wie dessen Web-UI):
+  get_event_state            nicht-blockierend, alle 2 s: Ansicht, Stack, Akku, Arm, Vorgaenge
+  scope_get_equ_coord        alle 3 s: Position (JNow) fuer Anzeige und Stellarium
+  get_device_state           alle 30 s: Arm, Speicher, Modell
+Bilder (Live/Stack) liefert der Bildserver von seestar_alp direkt: <imaging>/<n>/vid (MJPEG).
+
+Keine Automatik: Arm ausfahren, Stacking usw. passieren nur auf Knopfdruck.
+GoTo und Bewegen werden abgelehnt, solange der Arm eingeklappt ist.
+"""
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import re
+import time
+from datetime import datetime, timezone
+from urllib.parse import quote
+
+import aiohttp
+
+from .. import astro
+from .base import Action, Device, Refused
+
+log = logging.getLogger("astro_station.seestar")
+
+TIMEOUT_SENTINEL = "Exceeded allotted wait time"
+PLANETS = {"merkur": "mercury", "venus": "venus", "mars": "mars", "jupiter": "jupiter", "saturn": "saturn",
+           "uranus": "uranus", "neptun": "neptune"}
+PLANET_RE = re.compile(r"""(?P<rh>\d+)h\s*(?P<rm>\d+)m\s*(?P<rs>[\d.]+)s\s*,\s*"""
+                       r"""(?P<sign>[+-]?)(?P<dd>\d+)deg\s*(?P<dm>\d+)'\s*(?P<ds>[\d.]+)\"""")
+# Richtung -> Winkel fuer scope_speed_move (wie der Joystick in seestar_alp: 0 = rechts, 90 = oben)
+ANGLE = {"N": 90, "S": 270, "W": 180, "E": 0}
+SPEEDS = (80, 300, 800, 1440)
+WITH_WIDE = ("S30",)          # Modelle mit Weitwinkelkamera (S30, S30 Pro)
+
+OP_EVENTS = {"ScopeMoveToHorizon": "Arm ausfahren", "ScopeHome": "Parken", "AutoGoto": "GoTo",
+             "AutoFocus": "Autofokus", "PlateSolve": "Plate-Solving", "DarkLibrary": "Dunkelbilder",
+             "Initialise": "Start", "3PPA": "Einnorden", "Stack": "Stacking"}
+STATE_DE = {"start": "startet", "working": "läuft", "complete": "fertig", "fail": "fehlgeschlagen",
+            "cancel": "abgebrochen"}
+VIEW_DE = {"star": "Deep Sky", "moon": "Mond", "sun": "Sonne", "planet": "Planet", "scenery": "Landschaft"}
+STAGE_DE = {"AutoGoto": "GoTo", "ContinuousExposure": "Live-Ansicht", "Stack": "Stacking", "RTSP": "Live-Video",
+            "ScanSun": "Suchlauf", "ScanMoon": "Suchlauf", "ScanPlanet": "Suchlauf"}
+
+
+def parse_planet(text: str) -> tuple[float, float] | None:
+    m = PLANET_RE.search(text or "")
+    if not m:
+        return None
+    ra = int(m["rh"]) + int(m["rm"]) / 60 + float(m["rs"]) / 3600
+    dec = int(m["dd"]) + int(m["dm"]) / 60 + float(m["ds"]) / 3600
+    return ra, -dec if m["sign"] == "-" else dec
+
+
+def _nav(obj, *path):
+    for k in path:
+        if isinstance(obj, dict):
+            obj = obj.get(k)
+        elif isinstance(obj, list) and isinstance(k, int) and -len(obj) <= k < len(obj):
+            obj = obj[k]
+        else:
+            return None
+    return obj
+
+
+def _stamp(ev) -> float:
+    try:
+        return float(ev.get("Timestamp"))
+    except (TypeError, ValueError, AttributeError):
+        return float("-inf")
+
+
+def operations(events: dict) -> tuple[str, str, bool]:
+    """(aktueller Vorgang, letztes Ergebnis, Ergebnis ok) aus get_event_state."""
+    ops = []
+    for name, ev in (events or {}).items():
+        if isinstance(ev, dict) and isinstance(name, str):
+            label = OP_EVENTS.get(name) or ("Mond/Sonne-Suche" if name.startswith("Scan") else None)
+            if label:
+                ops.append((_stamp(ev), label, ev))
+    ops.sort(key=lambda o: o[0], reverse=True)
+    view = events.get("View") if isinstance(events.get("View"), dict) else {}
+    target = view.get("target_name")
+    running = [o for o in ops if o[2].get("state") in ("start", "working")]
+    short = [o for o in running if o[1] != "Stacking"]
+    if short:
+        current = short[0][1] + (f" – {target}" if target and short[0][1] == "GoTo" else "")
+    elif running:
+        current = "Stacking" + (f" – {target}" if target else "")
+    elif view.get("state") in ("start", "working"):
+        current = f"{STAGE_DE.get(view.get('stage'), 'Ansicht')} ({VIEW_DE.get(view.get('mode'), view.get('mode') or '?')})" \
+                  + (f" – {target}" if target else "")
+    else:
+        current = "Bereit"
+    result, ok = "", True
+    done = [o for o in ops if o[2].get("state") in ("complete", "fail", "cancel")]
+    if done:
+        _, label, ev = done[0]
+        result = f"{label}: {STATE_DE.get(ev['state'], ev['state'])}"
+        if ev.get("error"):
+            result += f" – {ev['error']}"
+        elif ev["state"] == "complete" and isinstance(ev.get("lapse_ms"), (int, float)):
+            result += f" ({round(ev['lapse_ms'] / 1000)} s)"
+        ok = ev["state"] == "complete"
+    return current, result, ok
+
+
+class Seestar(Device):
+    def __init__(self, id: str, name: str, alp: str = "http://localhost:5555", device_num: int = 1,
+                 imaging: str = "http://localhost:7556", webui: str = "http://localhost:5432",
+                 stellarium_port: int = 0, enabled: bool = True, **_):
+        super().__init__(id=id, name=name, kind="seestar", stellarium_port=stellarium_port, enabled=enabled)
+        self.alp, self.n = alp.rstrip("/"), int(device_num)
+        self.imaging, self.webui = imaging.rstrip("/"), webui.rstrip("/")
+        self.events: dict = {}
+        self.device_state: dict = {}
+        self.arm_closed: bool | None = None
+        self._arm_seen: tuple | None = None
+        self.model = ""
+        self.view_since: float | None = None          # seit wann eine Ansicht laeuft (Station-Zeit)
+        self._txn = 0
+        self._http: aiohttp.ClientSession | None = None
+        self._tasks: list[asyncio.Task] = []
+        self._move_task: asyncio.Task | None = None
+        self._lock = asyncio.Lock()
+
+    # ------------------------------------------------------------ Transport
+    async def _session(self) -> aiohttp.ClientSession:
+        if self._http is None or self._http.closed:
+            self._http = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15))
+        return self._http
+
+    async def call(self, action: str, params: dict | None = None):
+        """PUT /api/v1/telescope/<n>/action – wie die Web-UI von seestar_alp."""
+        async with self._lock:
+            self._txn += 1
+            body = {"Action": action, "Parameters": json.dumps(params or {}), "ClientID": 1,
+                    "ClientTransactionID": self._txn}
+            s = await self._session()
+            async with s.put(f"{self.alp}/api/v1/telescope/{self.n}/action", json=body) as r:
+                data = await r.json(content_type=None)
+        if data.get("ErrorNumber"):
+            raise RuntimeError(f"{action}: {data.get('ErrorMessage') or data['ErrorNumber']}")
+        val = data.get("Value")
+        if isinstance(val, dict) and isinstance(val.get("code"), int) and val["code"] != 0:
+            raise Refused(f"{self.name}: abgelehnt – {val.get('result') or val.get('error') or val['code']}")
+        if isinstance(val, dict) and "result" in val and isinstance(val["result"], (dict, list)):
+            val = val["result"]
+        sentinel = val.get("result") if isinstance(val, dict) else val
+        if isinstance(sentinel, str) and TIMEOUT_SENTINEL in sentinel:
+            raise TimeoutError(f"{action}: Seestar beschäftigt")
+        if isinstance(val, dict) and val.get("error"):
+            raise Refused(f"{self.name}: {val['error']}")
+        return val
+
+    async def method(self, method: str, params=None):
+        p = {"method": method}
+        if params is not None:
+            p["params"] = params
+        return await self.call("method_sync", p)
+
+    async def connected(self) -> bool:
+        try:
+            s = await self._session()
+            async with s.get(f"{self.alp}/api/v1/telescope/{self.n}/connected",
+                             params={"ClientID": 1, "ClientTransactionID": 0},
+                             timeout=aiohttp.ClientTimeout(total=4)) as r:
+                return bool((await r.json(content_type=None)).get("Value"))
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, OSError):
+            return False
+
+    # ------------------------------------------------------------ Abfragen
+    async def start(self):
+        self._tasks = [asyncio.create_task(self._poll())]
+
+    async def close(self):
+        for t in self._tasks + ([self._move_task] if self._move_task else []):
+            t.cancel()
+        if self._http:
+            await self._http.close()
+
+    async def _poll(self):
+        n = 0
+        while True:
+            try:
+                await self.poll_once(n)
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:                  # seestar_alp weg, Neustart ...
+                log.debug("%s: %s", self.id, e)
+                self.online = False
+            n += 1
+            await asyncio.sleep(2)
+
+    async def poll_once(self, n: int = 0):
+        self.online = await self.connected()
+        if not self.online:
+            return
+        ev = await self.call("get_event_state", {})
+        if isinstance(ev, dict):
+            self.update_events(ev)
+        if n % 15 == 0 or not self.device_state:
+            try:
+                ds = await self.method("get_device_state")
+                if isinstance(ds, dict):
+                    self.update_device_state(ds)
+            except (TimeoutError, Refused):
+                pass
+        if n % 2 == 0:
+            try:
+                pos = await self.method("scope_get_equ_coord")
+                if isinstance(pos, dict) and pos.get("ra") is not None:
+                    self.position = (float(pos["ra"]), float(pos["dec"]))
+            except (TimeoutError, Refused, ValueError, TypeError):
+                pass
+
+    def update_events(self, ev: dict):
+        self.events = ev
+        best = None
+        for name in ("ScopeHome", "ScopeMoveToHorizon"):
+            e = ev.get(name)
+            if isinstance(e, dict) and isinstance(e.get("close"), bool) and (best is None or _stamp(e) > _stamp(best)):
+                best = e
+        if best is not None:
+            key = (best.get("Timestamp"), best.get("state"), best["close"])
+            if key != self._arm_seen:               # nur neue Ereignisse ueberschreiben get_device_state
+                self._arm_seen = key
+                self.arm_closed = best["close"]
+        active = self.view_active()
+        if active and self.view_since is None:
+            self.view_since = time.time()
+        elif not active:
+            self.view_since = None
+
+    def update_device_state(self, ds: dict):
+        self.device_state = ds
+        if isinstance(_nav(ds, "mount", "close"), bool):
+            self.arm_closed = ds["mount"]["close"]
+        self.model = _nav(ds, "device", "product_model") or self.model
+
+    def view_active(self) -> bool:
+        v = self.events.get("View") if isinstance(self.events.get("View"), dict) else {}
+        return v.get("state") in ("start", "working")
+
+    def live(self) -> dict:
+        """Daten fuer das Live-Fenster."""
+        e = self.events
+        v = e.get("View") if isinstance(e.get("View"), dict) else {}
+        st = e.get("Stack") if isinstance(e.get("Stack"), dict) else {}
+        exp_ms, exp_us = _nav(e, "Exposure", "exp_ms"), _nav(e, "Exposure", "exp_us")
+        exp_s = exp_ms / 1000 if isinstance(exp_ms, (int, float)) else (exp_us / 1e6 if isinstance(exp_us, (int, float)) else None)
+        stacking = v.get("stage") == "Stack" or st.get("state") in ("start", "working")
+        frames = st.get("stacked_frame") if stacking else None
+        return {"active": self.view_active(), "since": self.view_since, "stacking": bool(stacking),
+                "mode": VIEW_DE.get(v.get("mode"), v.get("mode") or ""), "stage": STAGE_DE.get(v.get("stage"), v.get("stage") or ""),
+                "target": v.get("target_name") or "", "frames": frames, "dropped": st.get("dropped_frame") if stacking else None,
+                "exposure_s": exp_s, "total_min": round(frames * exp_s / 60, 1) if frames and exp_s else None,
+                "mjpeg": f"{self.imaging}/{self.n}/vid"}
+
+    # ------------------------------------------------------------ Anzeige
+    def _alt_az(self):
+        if not self.position or self.location.get("lat") is None:
+            return None
+        return astro.altaz(*self.position, self.location["lat"], self.location["lon"], datetime.now(timezone.utc))
+
+    def snapshot(self) -> dict:
+        d = super().snapshot()
+        ds, e = self.device_state, self.events
+        battery = _nav(ds, "pi_status", "battery_capacity") or _nav(e, "PiStatus", "battery_capacity")
+        charging = (_nav(ds, "pi_status", "charger_status") or _nav(e, "PiStatus", "charger_status") or "")
+        vol = _nav(ds, "storage", "storage_volume", 0)
+        disk = None
+        if isinstance(vol, dict) and vol.get("state") == "mounted":
+            disk = vol.get("used_percent")
+            if disk is None and vol.get("totalMB") and vol.get("freeMB") is not None:
+                disk = round(100 * (1 - vol["freeMB"] / vol["totalMB"]))
+        aa = self._alt_az()
+        op, res, ok = operations(e)
+        arm = {True: "eingeklappt", False: "ausgefahren", None: "?"}[self.arm_closed]
+        d.update({
+            "sub": f"{self.model or 'Seestar'} · seestar_alp {self.alp.split('//')[-1]}",
+            "model": self.model, "arm_closed": self.arm_closed,
+            "can": {"goto": True, "move": True, "center": False, "series": False, "rig": False},
+            "facts": [
+                {"label": "Arm", "value": arm},
+                {"label": "Ansicht", "value": op if self.view_active() else "keine"},
+                {"label": "RA / Dec (JNow)", "value": fmt_radec(self.position)},
+                {"label": "Höhe / Azimut", "value": f"{aa[0]:.1f}° · {aa[1]:.1f}°".replace(".", ",") if aa else "–"},
+                {"label": "Akku", "value": (f"{battery} %" + (" · lädt" if str(charging).lower().startswith("charg") else "")) if battery is not None else "–"},
+                {"label": "Speicher belegt", "value": f"{disk} %" if disk is not None else "–"},
+            ],
+            "op": op if self.online else "–",
+            "result": self.last_result or res or "–", "result_ok": self.last_result_ok if self.last_result else ok,
+            "image": {"title": "Live-Ansicht", "hint": "seestar_alp · Bildserver", "mjpeg": self.live()["mjpeg"]},
+            "live": self.live(),
+            "actions": [a.as_dict() for a in self.actions()],
+        })
+        return d
+
+    def actions(self) -> list[Action]:
+        closed = self.arm_closed
+        off = "" if self.online else "nicht verbunden"
+        acts = [
+            Action("unfold", "Arm ausfahren", "zum Horizont", confirm=f"{self.name}: Arm ausfahren?", primary=True, disabled=off)
+            if closed is not False else
+            Action("park", "Parken (Arm einklappen)", "beendet alles", confirm=f"{self.name}: Arm einklappen und parken?",
+                   primary=True, disabled=off),
+            Action("live", "Live-Ansicht starten", "an der aktuellen Position", disabled=off or ("Arm eingeklappt" if closed else "")),
+            Action("stack", "Stacking starten", "nach dem GoTo", primary=True,
+                   disabled=off or ("Arm eingeklappt" if closed else "") or ("erst GoTo oder Live-Ansicht" if not self.view_active() else "")),
+            Action("moon", "Mond suchen", "Suchlauf am Gerät", disabled=off or ("Arm eingeklappt" if closed else "")),
+            Action("sun", "Sonne suchen", "nur mit Sonnenfilter!", confirm="Sonnenfilter aufgesetzt? Ohne Filter nimmt der Sensor Schaden.",
+                   disabled=off or ("Arm eingeklappt" if closed else "")),
+            Action("stop", "Stopp", "Ansicht, Stack, GoTo", danger=True, disabled=off),
+        ]
+        return acts
+
+    # ------------------------------------------------------------ Befehle
+    def _need_arm(self):
+        if not self.online:
+            raise Refused(f"{self.name}: nicht verbunden – läuft seestar_alp?")
+        if self.arm_closed:
+            raise Refused(f"{self.name}: Arm eingeklappt – erst „Arm ausfahren“.")
+
+    async def goto(self, target: dict) -> str:
+        self._need_arm()
+        name = target.get("name") or "Ziel"
+        kind = target.get("kind")
+        if kind == "moon":
+            await self.method("iscope_start_view", {"mode": "moon"})
+            await self.method("start_scan_planet")
+            msg = f"{self.name}: Mond-Suchlauf gestartet"
+        elif kind == "planet":
+            ra, dec = await self.planet_position(target.get("planet") or name)
+            await self.method("iscope_start_view", {"mode": "planet", "target_name": name,
+                                                    "target_ra_dec": [ra, dec], "lp_filter": False})
+            msg = f"{self.name}: GoTo {name} (Planetenmodus)"
+        else:
+            if "ra_jnow" in target:
+                ra, dec = float(target["ra_jnow"]), float(target["dec_jnow"])
+            else:
+                ra, dec = astro.j2000_to_date(float(target["ra"]), float(target["dec"]), datetime.now(timezone.utc))
+            lp = bool(target.get("lp"))
+            await self.method("iscope_start_view", {"mode": "star", "target_ra_dec": [round(ra, 6), round(dec, 5)],
+                                                    "target_name": name, "lp_filter": lp})
+            msg = f"{self.name}: GoTo {name}" + (" mit LP-Filter" if lp else "")
+        self.note(msg.split(": ", 1)[1])
+        return msg
+
+    async def planet_position(self, planet: str) -> tuple[float, float]:
+        key = PLANETS.get(planet.lower(), planet.lower())
+        s = await self._session()
+        try:
+            async with s.get(f"{self.webui}/getplanetcoordinates?planetname={quote(key + ' barycenter')}") as r:
+                pos = parse_planet(await r.text())
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            raise Refused(f"Planetenposition nicht abrufbar ({e.__class__.__name__}) – Web-UI {self.webui} erreichbar?") from None
+        if not pos:
+            raise Refused(f"Planetenposition für {planet} nicht gefunden")
+        return pos
+
+    async def move(self, direction: str, speed: int, on: bool) -> None:
+        if self._move_task:
+            self._move_task.cancel()
+            self._move_task = None
+        if not on:
+            await self.method("scope_speed_move", {"speed": 0, "angle": 0, "dur_sec": 1})
+            return
+        self._need_arm()
+        angle, spd = ANGLE[direction], SPEEDS[max(0, min(speed, len(SPEEDS) - 1))]
+
+        async def hold():                          # solange gedrueckt: alle 1 s verlaengern, max. 20 s
+            try:
+                for _ in range(20):
+                    await self.method("scope_speed_move", {"speed": spd, "angle": angle, "dur_sec": 2})
+                    await asyncio.sleep(1)
+                await self.method("scope_speed_move", {"speed": 0, "angle": 0, "dur_sec": 1})
+            except asyncio.CancelledError:
+                pass
+            except Exception as e:
+                log.warning("%s: Bewegen: %s", self.id, e)
+        self._move_task = asyncio.create_task(hold())
+
+    async def stop(self) -> str:
+        if self._move_task:
+            self._move_task.cancel()
+        if not self.online:
+            return f"{self.name}: nicht verbunden"
+        if _nav(self.events, "ViewPlan", "state") == "working":
+            await self.call("stop_scheduler", {})
+        await self.method("iscope_stop_view")
+        self.note("gestoppt")
+        return f"{self.name}: gestoppt"
+
+    async def action(self, action_id: str, params: dict) -> str:
+        if action_id == "stop":
+            return await self.stop()
+        if not self.online:
+            raise Refused(f"{self.name}: nicht verbunden – läuft seestar_alp?")
+        if action_id == "unfold":
+            await self.method("scope_move_to_horizon")
+            self.arm_closed = False
+            text = "Arm fährt aus …"
+        elif action_id == "park":
+            await self.method("scope_park")
+            self.arm_closed = True
+            text = "parkt …"
+        elif action_id == "live":
+            self._need_arm()
+            await self.method("iscope_start_view", {"mode": "star"})
+            text = "Live-Ansicht gestartet"
+        elif action_id == "stack":
+            self._need_arm()
+            await self.call("start_stack", {"restart": True})
+            text = "Stacking gestartet"
+        elif action_id in ("moon", "sun"):
+            self._need_arm()
+            await self.method("iscope_start_view", {"mode": action_id})
+            await self.method("start_scan_planet")
+            text = ("Mond" if action_id == "moon" else "Sonnen") + "-Suchlauf gestartet"
+        else:
+            raise Refused(f"{self.name}: unbekannte Aktion {action_id}")
+        self.note(text)
+        return f"{self.name}: {text}"
+
+
+def fmt_radec(pos) -> str:
+    if not pos:
+        return "–"
+    ra, dec = pos
+    h = int(ra)
+    m = int(round((ra - h) * 60))
+    if m == 60:
+        h, m = (h + 1) % 24, 0
+    return f"{h:02d}h {m:02d}m · {dec:+.1f}°".replace(".", ",")

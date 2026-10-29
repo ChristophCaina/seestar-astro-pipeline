@@ -25,7 +25,7 @@ jobs:
         run: shellcheck -S warning siril/*.sh scripts/*.sh field/*.sh
 
       - name: JavaScript-Syntax
-        run: node --check gallery/site/app.js && node --check pi/web/app.js && node --check pi/web/sw.js
+        run: node --check gallery/site/app.js && node --check pi/web/app.js && node --check pi/web/sw.js && node --check station/astro_station/web/app.js
 
       - name: Tests
         run: |

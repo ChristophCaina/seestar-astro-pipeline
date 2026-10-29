@@ -27,12 +27,12 @@ bash ~/Astro/seestar-astro-pipeline/field/install-desktop.sh --server-alp 192.16
 
 `--server-alp` ist die Adresse von seestar_alp im Heimnetz (LXC). Läuft der Dienst dort, fragt der Starter nach, bevor er einen zweiten seestar_alp startet.
 
-Das Skript kopiert die Dienste nach `~/.config/systemd/user`, schaltet den Autostart beim Anmelden ab und legt auf dem Desktop und im Menü zwei Starter an:
+Das Skript kopiert die Dienste nach `~/.config/systemd/user`, schaltet den Autostart beim Anmelden ab, legt die Konfiguration der [Astro-Station](../station/README.md) an und auf dem Desktop und im Menü zwei Starter:
 
-- **Astro-Session starten**: seestar_alp, INDI-Server und Standort-Timer starten, warten bis seestar_alp antwortet, dann Web-UI (`http://localhost:5432`) und Stellarium öffnen. Fortschritt als Desktop-Benachrichtigung.
+- **Astro-Session starten**: seestar_alp, INDI-Server, Standort-Timer und Astro-Station starten, warten bis seestar_alp antwortet, dann die Astro-Station (`http://localhost:8070`) und Stellarium öffnen. Das Live-Fenster läuft unsichtbar mit und geht auf, sobald der Seestar Bilder liefert. Fortschritt als Desktop-Benachrichtigung.
 - **Astro-Session beenden**: alles wieder stoppen.
 
-Einstellungen in `~/.config/astro-session.env` (`OPEN_STELLARIUM=0`, `OPEN_BROWSER=0`, andere `WEBUI_URL`). Im Terminal: `field/astro-session.sh start|stop|status`.
+Einstellungen in `~/.config/astro-session.env` (`OPEN_STELLARIUM=0`, `OPEN_BROWSER=0`, `OPEN_LIVEWIN=0`, andere `STATION_URL`/`ALP_URL`). Im Terminal: `field/astro-session.sh start|stop|status`. Die Web-UI von seestar_alp bleibt unter `http://localhost:5432` erreichbar.
 
 ## Dienste einrichten (systemd --user, ohne Starter)
 
@@ -90,4 +90,4 @@ Vor dem ersten GoTo muss der Arm ausgefahren sein: Web-UI `http://localhost:5432
 
 ## Stellarium
 
-Die Stellarium-Pakete für Ubuntu 24.04 / Mint 22 (PPA, Flatpak) haben keine INDI-Teleskopsteuerung: Stellarium 26.x braucht INDI 2.x, Ubuntu 24.04 liefert 1.9.9. Stellarium also zum Planen nutzen und mit KStars steuern, oder für Deep-Sky-Ziele in der Web-UI von seestar_alp *Goto Target → Retrieve RA/Dec from Stellarium* (Plugin *Remote Control*, Port 8090, `sthost`/`stport` in der config.toml).
+Die Stellarium-Pakete für Ubuntu 24.04 / Mint 22 (PPA, Flatpak) haben keine INDI-Teleskopsteuerung: Stellarium 26.x braucht INDI 2.x, Ubuntu 24.04 liefert 1.9.9. Deshalb bietet die Astro-Station pro Gerät einen Port für Stellarium an („Externe Software“, Seestar `localhost:10001`, iEXOS `localhost:10002`, JNow). Einrichtung: [`station/README.md`](../station/README.md#stellarium-verbinden-einmalig).

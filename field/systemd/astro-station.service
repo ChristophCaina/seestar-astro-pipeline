@@ -1,0 +1,14 @@
+# Astro-Station (Web-App :8070, Stellarium-Ports 10001/10002) auf dem Feld-Laptop (systemd --user).
+# Pfade: Repo unter ~/Astro/seestar-astro-pipeline, Konfiguration ~/.config/astro-station.toml.
+[Unit]
+Description=Astro-Station (Web-App :8070, Stellarium-Bruecke)
+After=seestar-alp.service seestar-indi.service
+
+[Service]
+WorkingDirectory=%h/Astro/seestar-astro-pipeline/station
+ExecStart=/usr/bin/python3 -m astro_station.server
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

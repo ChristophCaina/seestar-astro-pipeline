@@ -1,0 +1,80 @@
+# Astro-Station – Ablage: ~/.config/astro-station.toml
+# Jedes [[device]] ist ein Geraet; welche davon in der Session mitmachen, schaltest du in der Web-App ein und aus.
+
+[web]
+host = "127.0.0.1"      # "0.0.0.0" = auch vom Tablet/Handy im selben WLAN erreichbar (ohne Passwort!)
+port = 8070
+
+[location]
+# leer lassen: Standort aus der config.toml von seestar_alp (dort pflegt ihn seestar_location_sync.py)
+# lat = 48.7
+# lon = 9.1
+alp_config = "~/Astro/seestar_alp/device/config.toml"
+
+# ------------------------------------------------------------------ Seestar ueber seestar_alp
+[[device]]
+id = "s50"
+type = "seestar"
+name = "Seestar S50"
+alp = "http://localhost:5555"        # Alpaca von seestar_alp
+device_num = 1                       # Nummer in seestar_alp ([[seestars]] in dessen config.toml)
+imaging = "http://localhost:7556"    # Bildserver (Live/Stack fuer das Live-Fenster)
+webui = "http://localhost:5432"      # Web-UI (Planetenpositionen)
+stellarium_port = 10001
+
+# Zweiter Seestar (z. B. S30 Pro) im selben seestar_alp:
+# [[device]]
+# id = "s30"
+# type = "seestar"
+# name = "Seestar S30 Pro"
+# device_num = 2
+# stellarium_port = 10003
+# enabled = false
+
+# ------------------------------------------------------------------ Montierung ueber INDI
+[[device]]
+id = "iexos"
+type = "indi-mount"
+name = "iEXOS-100"
+enabled = false                      # erst einschalten, wenn die Montierung angeschlossen ist
+indi = "localhost:7624"              # derselbe indiserver wie der Seestar-Treiber
+mount = ""                           # INDI-Geraetename; leer = erste Montierung, die kein Seestar ist
+fifo = "/tmp/seestar"                # FIFO des indiserver (field/systemd/seestar-indi.service)
+driver = "indi_pmc8_telescope"       # wird beim Einschalten ueber die FIFO gestartet
+capture_dir = "~/Astro/captures"     # Aufnahmen: <Ziel>_sub/Light_<Ziel>_<Bel.>s_<Filter>_<Zeit>.fits
+stellarium_port = 10002
+# Kameras, die an die Montierung kommen koennen (Auswahl in der Web-App unter "Aufbau").
+# indi = INDI-Geraetename (leer = erste Kamera), driver = INDI-Treiber, device_id/filter = Ablage in siril-auto
+[[device.cameras]]
+id = "eos6d"
+name = "EOS 6D"
+sub = "gphoto · USB"
+driver = "indi_canon_ccd"
+indi = "Canon DSLR"
+width_mm = 35.8
+height_mm = 23.9
+pixel_um = 6.54
+filter = "DSLR"
+device_id = "eos6d"
+
+[[device.cameras]]
+id = "asi533"
+name = "ZWO ASI 533MC"
+sub = "INDI · USB 3"
+driver = "indi_asi_ccd"
+indi = ""
+width_mm = 11.3
+height_mm = 11.3
+pixel_um = 3.76
+filter = "OSC"
+device_id = "asi533"
+
+[[device.optics]]
+name = "Samyang 135 mm f/2"
+focal = 135
+aperture = 67
+
+[[device.optics]]
+name = "EF 400 mm f/5.6"
+focal = 400
+aperture = 71

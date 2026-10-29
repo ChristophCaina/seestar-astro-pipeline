@@ -26,6 +26,7 @@ flowchart LR
 | [`tests/`](tests) | Tests ohne Siril und Teleskop (`python3 -m unittest discover -s tests`), laufen per GitHub Actions |
 | [`homeassistant/`](homeassistant) | Dashboard-Karte, Packages **Astro-Audit** (KI-Empfehlung → Helfer → Automationen) und **Astro-Stacks** (Push mit Vorschaubild, Morgen-Zusammenfassung), Dashboard **Sternwarte** |
 | [`field/`](field) | Feld-Laptop (Linux): seestar_alp und INDI-Server als Dienste für KStars/Ekos, Standort automatisch per GPS-Stick oder aus der Seestar-App |
+| [`station/`](station) | Astro-Station: eine Web-App für alle Geräte der Session (Seestar, iEXOS mit Kamera), Stellarium-Brücke, Live-Fenster mit Live-Bild und Stack-Vorschau |
 | [`pi/`](pi) | Astro-Pi: Montierung (iEXOS-100, NexStar) und EOS 6D über INDI, Web-App fürs Tablet mit GoTo, Serien, Live View, Plate-Solving |
 | [`gallery/`](gallery) | Astro-Galerie: statisches Frontend, Builder (`meta.json` → Website), Beispieldaten, nginx-vhost |
 
