@@ -48,23 +48,23 @@ class ConfigTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "config.toml"
             p.write_text(CONFIG)
-            self.assertTrue(sls.update_config(str(p), 48.77, 8.92))
+            self.assertTrue(sls.update_config(str(p), 50.11, 10.02))
             self.assertEqual(Path(str(p) + ".bak").read_text(), CONFIG)
-            self.assertFalse(sls.update_config(str(p), 48.772, 8.921))   # < ~1 km
-            self.assertEqual(sls.read_location(p.read_text()), (48.77, 8.92))
+            self.assertFalse(sls.update_config(str(p), 50.112, 10.021))   # < ~1 km
+            self.assertEqual(sls.read_location(p.read_text()), (50.11, 10.02))
 
 
 class SourceTest(unittest.TestCase):
     def test_gpsd_line(self):
-        self.assertEqual(sls.parse_gpsd_line(b'{"class":"TPV","mode":3,"lat":48.765432,"lon":8.934567}'),
-                         (48.76543, 8.93457))
+        self.assertEqual(sls.parse_gpsd_line(b'{"class":"TPV","mode":3,"lat":50.123456,"lon":10.054321}'),
+                         (50.12346, 10.05432))
         self.assertIsNone(sls.parse_gpsd_line(b'{"class":"TPV","mode":1}'))           # kein Fix
         self.assertIsNone(sls.parse_gpsd_line(b'{"class":"SKY"}'))
         self.assertIsNone(sls.parse_gpsd_line(b'kein json'))
 
     def test_device_state_lon_lat_order(self):
-        reply = {"Value": {"result": {"location_lon_lat": [8.93, 48.77]}}, "ErrorNumber": 0}
-        self.assertEqual(sls.parse_device_state(reply), (48.77, 8.93))
+        reply = {"Value": {"result": {"location_lon_lat": [10.05, 50.11]}}, "ErrorNumber": 0}
+        self.assertEqual(sls.parse_device_state(reply), (50.11, 10.05))
         self.assertIsNone(sls.parse_device_state({"Value": {"result": {"location_lon_lat": [0, 0]}}}))
         self.assertIsNone(sls.parse_device_state({"Value": {"result": {}}}))
 
