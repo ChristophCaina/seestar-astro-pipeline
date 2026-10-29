@@ -46,6 +46,33 @@ STAGE_DE = {"AutoGoto": "GoTo", "ContinuousExposure": "Live-Ansicht", "Stack": "
             "ScanSun": "Suchlauf", "ScanMoon": "Suchlauf", "ScanPlanet": "Suchlauf"}
 
 
+ERROR_DE = {
+    "below horizon": "unter dem Horizont – liegt das Ziel tief? Sonst Kompass und Horizont in der Seestar-App kalibrieren",
+    "mount goto failed": "Montierung hat das GoTo nicht ausgeführt",
+    "solve failed": "Plate-Solving fehlgeschlagen (Wolken, zu hell, drinnen?)",
+    "fail to operate": "Seestar beschäftigt oder Bedienung gesperrt",
+}
+
+
+def error_de(err: str) -> str:
+    low = str(err).lower()
+    return next((v for k, v in ERROR_DE.items() if k in low), str(err))
+
+
+def local_tz_name() -> str:
+    """IANA-Zeitzone des Laptops (fuer pi_set_time), z. B. Europe/Berlin."""
+    import os
+    try:
+        return open("/etc/timezone").read().strip() or "UTC"
+    except OSError:
+        pass
+    try:
+        link = os.path.realpath("/etc/localtime")
+        return link.split("zoneinfo/", 1)[1] if "zoneinfo/" in link else "UTC"
+    except OSError:
+        return "UTC"
+
+
 def parse_planet(text: str) -> tuple[float, float] | None:
     m = PLANET_RE.search(text or "")
     if not m:
@@ -101,7 +128,7 @@ def operations(events: dict) -> tuple[str, str, bool]:
         _, label, ev = done[0]
         result = f"{label}: {STATE_DE.get(ev['state'], ev['state'])}"
         if ev.get("error"):
-            result += f" – {ev['error']}"
+            result += f" – {error_de(ev['error'])}"
         elif ev["state"] == "complete" and isinstance(ev.get("lapse_ms"), (int, float)):
             result += f" ({round(ev['lapse_ms'] / 1000)} s)"
         ok = ev["state"] == "complete"
@@ -124,6 +151,9 @@ class Seestar(Device):
         self.jpeg: bytes | None = None                 # letztes Standbild vom Bildserver
         self.frame = 0                                 # zaehlt neue Standbilder (fuer Browser/Live-Fenster)
         self.wanted = 0.0                              # wann zuletzt jemand Bilder wollte
+        self.alerts: list[str] = []                    # neue Fehlermeldungen der Firmware (Station meldet sie)
+        self._fail_seen: set = set()
+        self._clock_for: tuple | None = None           # Standort, fuer den Uhr/Standort zuletzt gesetzt wurden
         self._txn = 0
         self._http: aiohttp.ClientSession | None = None
         self._tasks: list[asyncio.Task] = []
@@ -245,7 +275,9 @@ class Seestar(Device):
     async def poll_once(self, n: int = 0):
         self.online = await self.connected()
         if not self.online:
+            self._clock_for = None
             return
+        await self.init_clock()
         ev = await self.call("get_event_state", {})
         if isinstance(ev, dict):
             self.update_events(ev)
@@ -264,8 +296,37 @@ class Seestar(Device):
             except (TimeoutError, Refused, ValueError, TypeError):
                 pass
 
+    async def init_clock(self, force: bool = False):
+        """Uhrzeit, Zeitzone und Standort im Seestar setzen – beim Verbinden und wenn sich der Standort aendert.
+
+        Dasselbe macht die Startsequenz von seestar_alp bzw. die Seestar-App beim Verbinden. Ohne stimmt die
+        Lageberechnung nicht und die Firmware lehnt GoTos ab. Bewegt nichts."""
+        lat, lon = self.location.get("lat"), self.location.get("lon")
+        if lat is None or lon is None or (not force and self._clock_for == (lat, lon)):
+            return
+        from datetime import datetime as _dt
+        now = _dt.now().astimezone()
+        try:
+            await self.method("pi_set_time", {"year": now.year, "mon": now.month, "day": now.day, "hour": now.hour,
+                                              "min": now.minute, "sec": now.second, "time_zone": local_tz_name()})
+            await self.method("set_user_location", {"lat": lat, "lon": lon, "force": True})
+            self._clock_for = (lat, lon)
+            self.note(f"Uhr und Standort gesetzt ({lat:.2f}, {lon:.2f})".replace(".", ","))
+        except (TimeoutError, Refused, RuntimeError) as e:
+            log.warning("%s: Uhr/Standort setzen: %s", self.id, e)
+
     def update_events(self, ev: dict):
         self.events = ev
+        seeding = not getattr(self, "_events_seen", False)   # alte Fehler beim ersten Abruf nicht melden
+        for name, e in ev.items():                   # neue Fehlschlaege der Firmware melden
+            if isinstance(e, dict) and e.get("state") == "fail" and (name in OP_EVENTS or name.startswith("Scan")):
+                key = (name, e.get("Timestamp"))
+                if key not in self._fail_seen:
+                    self._fail_seen.add(key)
+                    if not seeding:
+                        label = OP_EVENTS.get(name) or "Mond/Sonne-Suche"
+                        self.alerts.append(f"{self.name}: {label} abgelehnt – {error_de(e.get('error') or 'fehlgeschlagen')}")
+        self._events_seen = True
         best = None
         for name in ("ScopeHome", "ScopeMoveToHorizon"):
             e = ev.get(name)
@@ -454,12 +515,13 @@ class Seestar(Device):
         if not self.online:
             raise Refused(f"{self.name}: nicht verbunden – läuft seestar_alp?")
         if action_id == "unfold":
+            await self.init_clock(force=True)
             await self.method("scope_move_to_horizon")
-            self.arm_closed = False
+            self.device_state = {}                   # Arm-Stand beim naechsten Abfragen vom Geraet holen
             text = "Arm fährt aus …"
         elif action_id == "park":
             await self.method("scope_park")
-            self.arm_closed = True
+            self.device_state = {}
             text = "parkt …"
         elif action_id == "live":
             self._need_arm()

@@ -150,6 +150,7 @@ class SeestarTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(Refused):
             await self.dev.goto({"name": "NGC 891", "ra": 2.37595, "dec": 42.3491})
         await self.dev.action("unfold", {})
+        await self.dev.poll_once(1)
         await self.dev.goto({"name": "NGC 7000", "ra": 20.98, "dec": 44.33, "lp": True})
         m, p = self.scope.calls[-1]
         self.assertEqual(m, "iscope_start_view")
@@ -166,9 +167,26 @@ class SeestarTest(unittest.IsolatedAsyncioTestCase):
         await self.dev.poll_once(2)
         self.assertFalse(self.dev.view_active())
 
+    async def test_clock_on_connect_and_firmware_alert(self):
+        await self.dev.poll_once(0)
+        sent = [m for m, _ in self.scope.calls]
+        self.assertIn("pi_set_time", sent)
+        self.assertIn("set_user_location", sent)
+        n = len(self.scope.calls)
+        await self.dev.poll_once(1)                                   # nur einmal pro Standort
+        self.assertNotIn("pi_set_time", [m for m, _ in self.scope.calls[n:]])
+        self.scope._ev("AutoGoto", state="fail", error="below horizon", code=270)
+        await self.dev.poll_once(2)
+        self.assertTrue(self.dev.alerts and "Horizont" in self.dev.alerts[0])
+        await self.dev.action("unfold", {})
+        self.assertTrue(self.dev.arm_closed is None or self.dev.arm_closed is True)   # erst die Meldung zaehlt
+        await self.dev.poll_once(3)
+        self.assertFalse(self.dev.arm_closed)
+
     async def test_planet_and_move(self):
         await self.dev.poll_once(0)
         await self.dev.action("unfold", {})
+        await self.dev.poll_once(1)
         ra, dec = await self.dev.planet_position("Saturn")
         self.assertAlmostEqual(ra, 23 + 25 / 60 + 10 / 3600, places=4)
         self.assertLess(dec, 0)
@@ -184,8 +202,9 @@ class SeestarTest(unittest.IsolatedAsyncioTestCase):
     async def test_snapshot_instead_of_stream(self):
         await self.dev.poll_once(0)
         await self.dev.action("unfold", {})
-        await self.dev.action("live", {})
         await self.dev.poll_once(1)
+        await self.dev.action("live", {})
+        await self.dev.poll_once(2)
         img = await self.dev.fetch_image()
         self.assertTrue(img and img.startswith(b"\xff\xd8"))
         self.dev.wanted = time.time()
@@ -252,6 +271,7 @@ class StationApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(status, 409)
         self.assertIn("Arm eingeklappt", res["error"])
         self.assertEqual((await self.post("/api/dev/s50/action", {"action": "unfold"}))[0], 200)
+        await self.station.devices[0].poll_once(1)
         self.assertEqual((await self.post("/api/dev/s50/goto", {"target": {"name": "M 31", "ra": 0.71232, "dec": 41.2691}}))[0], 200)
         status, res = await self.post("/api/stop_all", {})
         self.assertEqual(status, 200)

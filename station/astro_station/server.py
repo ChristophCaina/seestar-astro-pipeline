@@ -85,7 +85,15 @@ class Station:
                     self.bridges[d.id] = b
                 except OSError as e:
                     log.warning("Stellarium-Port %s: %s", d.stellarium_port, e)
-        self._tasks = [asyncio.create_task(self._background())]
+        self._tasks = [asyncio.create_task(self._background()), asyncio.create_task(self._alerts())]
+
+    async def _alerts(self):
+        """Fehlermeldungen der Geraete (z. B. GoTo von der Firmware abgelehnt) melden – auch als Desktop-Hinweis."""
+        while True:
+            for d in self.devices:
+                while getattr(d, "alerts", None):
+                    self.say(d.alerts.pop(0), "warn", desktop=True)
+            await asyncio.sleep(2)
 
     async def close(self):
         for t in self._tasks:
