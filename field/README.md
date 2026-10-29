@@ -30,9 +30,9 @@ bash ~/Astro/seestar-astro-pipeline/field/install-desktop.sh --server-alp 192.16
 Das Skript kopiert die Dienste nach `~/.config/systemd/user`, schaltet den Autostart beim Anmelden ab, legt die Konfiguration der [Astro-Station](../station/README.md) an und auf dem Desktop und im Menü zwei Starter:
 
 - **Astro-Session starten**: seestar_alp, INDI-Server, Standort-Timer und Astro-Station starten, warten bis seestar_alp antwortet, dann die Astro-Station (`http://localhost:8070`) und Stellarium öffnen. Das Live-Fenster läuft unsichtbar mit und geht auf, sobald der Seestar Bilder liefert. Fortschritt als Desktop-Benachrichtigung.
-- **Astro-Session beenden**: alles wieder stoppen.
+- **Astro-Session beenden**: alles wieder stoppen, Live-Fenster und Stellarium schließen.
 
-Einstellungen in `~/.config/astro-session.env` (`OPEN_STELLARIUM=0`, `OPEN_BROWSER=0`, `OPEN_LIVEWIN=0`, andere `STATION_URL`/`ALP_URL`). Im Terminal: `field/astro-session.sh start|stop|status`. Die Web-UI von seestar_alp bleibt unter `http://localhost:5432` erreichbar.
+Einstellungen in `~/.config/astro-session.env` (`OPEN_STELLARIUM=0`, `OPEN_BROWSER=0`, `OPEN_LIVEWIN=0`, `CLOSE_STELLARIUM=0`, andere `STATION_URL`/`ALP_URL`). Im Terminal: `field/astro-session.sh start|stop|status`. Die Web-UI von seestar_alp bleibt unter `http://localhost:5432` erreichbar.
 
 ## Dienste einrichten (systemd --user, ohne Starter)
 

@@ -13,6 +13,7 @@
 #   OPEN_STELLARIUM=1                 # 0 = Stellarium nicht oeffnen
 #   OPEN_BROWSER=1                    # 0 = Astro-Station nicht im Browser oeffnen
 #   OPEN_LIVEWIN=1                    # 0 = kein Live-Fenster
+#   CLOSE_STELLARIUM=1                # 0 = Stellarium beim Beenden offen lassen
 set -u
 
 CONF="${XDG_CONFIG_HOME:-$HOME/.config}/astro-session.env"
@@ -24,6 +25,7 @@ STATION_URL="${STATION_URL:-http://localhost:8070}"
 OPEN_STELLARIUM="${OPEN_STELLARIUM:-1}"
 OPEN_BROWSER="${OPEN_BROWSER:-1}"
 OPEN_LIVEWIN="${OPEN_LIVEWIN:-1}"
+CLOSE_STELLARIUM="${CLOSE_STELLARIUM:-1}"
 STATION_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../station" && pwd)"
 SERVICES=(seestar-alp.service seestar-indi.service astro-station.service)
 TITLE="Astro-Session"
@@ -96,6 +98,11 @@ Trotzdem hier starten?" || { say "Abgebrochen."; exit 1; }
 
 stop() {
   pkill -f "astro_station[.]livewin" 2>/dev/null
+  if [[ "$CLOSE_STELLARIUM" == 1 ]] && pgrep -x stellarium >/dev/null; then
+    # erst höflich über das Fenster schließen (Stellarium speichert dann), sonst SIGTERM
+    if command -v wmctrl >/dev/null; then wmctrl -c Stellarium 2>/dev/null; sleep 3; fi
+    pkill -x stellarium 2>/dev/null
+  fi
   systemctl --user stop seestar-location.timer "${SERVICES[@]}"
   say "Astro-Session beendet."
 }
