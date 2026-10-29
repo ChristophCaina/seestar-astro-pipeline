@@ -69,6 +69,7 @@ class Station:
         self.events.append({"id": (self.events[-1]["id"] + 1) if self.events else 1, "t": time.time(),
                             "text": text, "kind": kind})
         del self.events[:-50]
+        (log.warning if kind == "warn" else log.info)("%s", text)
         if desktop:
             self.notify(text)
 
@@ -200,7 +201,13 @@ def make_app(cfg: dict, station: Station | None = None) -> web.Application:
     async def index(_):
         return web.FileResponse(WEB / "index.html", headers={"Cache-Control": "no-cache"})
 
+    def watching():
+        for d in st.devices:
+            if isinstance(d, Seestar):
+                d.wanted = time.time()
+
     async def state(_):
+        watching()
         return web.json_response(st.state())
 
     async def tonight(request):
@@ -255,7 +262,8 @@ def make_app(cfg: dict, station: Station | None = None) -> web.Application:
         return web.Response(body=data, content_type="image/jpeg", headers={"Cache-Control": "no-store"})
 
     async def live(_):
-        """Fuer das Live-Fenster: alle eingeschalteten Seestars mit Bildserver-Adresse und Stack-Zahlen."""
+        """Fuer das Live-Fenster: alle eingeschalteten Seestars mit Bild-Adresse und Stack-Zahlen."""
+        watching()
         return web.json_response([{"id": d.id, "name": d.name, "online": d.online, **d.live()}
                                   for d in st.devices if isinstance(d, Seestar) and d.enabled])
 
@@ -271,6 +279,7 @@ def make_app(cfg: dict, station: Station | None = None) -> web.Application:
     r.add_post("/api/dev/{id}/move", move)
     r.add_post("/api/dev/{id}/action", action)
     r.add_get("/api/dev/{id}/preview.jpg", preview)
+    r.add_get("/api/dev/{id}/live.jpg", preview)
     r.add_static("/static", WEB, show_index=False)
 
     async def on_start(_):
@@ -294,7 +303,8 @@ def main():
     if a.port:
         cfg["web"]["port"] = a.port
     print(f"Astro-Station: http://{cfg['web']['host']}:{cfg['web']['port']}", flush=True)
-    web.run_app(make_app(cfg), host=cfg["web"]["host"], port=int(cfg["web"]["port"]), print=None)
+    web.run_app(make_app(cfg), host=cfg["web"]["host"], port=int(cfg["web"]["port"]), print=None,
+                access_log=None, shutdown_timeout=3)
 
 
 if __name__ == "__main__":

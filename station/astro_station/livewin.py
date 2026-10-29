@@ -31,7 +31,6 @@ except ImportError:
     raise SystemExit("Für das Live-Fenster fehlt python3-gi-cairo:  sudo apt install python3-gi-cairo") from None
 from gi.repository import GdkPixbuf, GLib, Gtk  # noqa: E402
 
-from .livestream import frames  # noqa: E402
 
 CSS = b"""
 window, .bar { background: #0a0e1a; color: #e8ebf4; }
@@ -120,7 +119,10 @@ class LiveWindow(Gtk.Window):
         pw, ph = self.pixbuf.get_width(), self.pixbuf.get_height()
         s = min(w / pw, h / ph)
         sw, sh = max(1, int(pw * s)), max(1, int(ph * s))
-        scaled = self.pixbuf.scale_simple(sw, sh, GdkPixbuf.InterpType.BILINEAR)
+        key = (id(self.pixbuf), sw, sh)
+        if getattr(self, "_scaled_key", None) != key:          # nur neu skalieren bei neuem Bild/Fenstergroesse
+            self._scaled, self._scaled_key = self.pixbuf.scale_simple(sw, sh, GdkPixbuf.InterpType.BILINEAR), key
+        scaled = self._scaled
         from gi.repository import Gdk
         Gdk.cairo_set_source_pixbuf(cr, scaled, (w - sw) / 2, (h - sh) / 2)
         cr.paint()
@@ -203,12 +205,18 @@ class LiveWindow(Gtk.Window):
 
 
 class Watcher(threading.Thread):
-    """Fragt die Station, ob eine Ansicht laeuft, und liest dann den MJPEG-Strom."""
+    """Fragt die Station alle 2 s nach dem Stand und holt neue Standbilder (kein Dauerstrom).
+
+    Es liegt immer nur das neueste Bild zur Anzeige bereit: ist die Oberflaeche beschaeftigt,
+    werden aeltere Bilder verworfen statt sich aufzustauen."""
 
     def __init__(self, station: str, dev_id: str, app):
         super().__init__(daemon=True)
         self.station, self.dev_id, self.app = station.rstrip("/"), dev_id, app
         self.stopped = False
+        self.last_frame = None
+        self._lock = threading.Lock()
+        self._pending: bytes | None = None
 
     def info(self) -> dict | None:
         try:
@@ -216,32 +224,31 @@ class Watcher(threading.Thread):
         except (OSError, ValueError):
             return None
 
+    def _deliver(self):
+        with self._lock:
+            jpeg, self._pending = self._pending, None
+        if jpeg:
+            self.app.frame(self.dev_id, jpeg)
+        return False
+
     def run(self):
         while not self.stopped:
             info = self.info()
             if info:
                 GLib.idle_add(self.app.info, info)
-            if info and info.get("active") and info.get("mjpeg"):
-                ticker = threading.Thread(target=self._tick, daemon=True)
-                self._streaming = True
-                ticker.start()
-                try:
-                    for jpeg in frames(info["mjpeg"], lambda: self.stopped):
-                        GLib.idle_add(self.app.frame, self.dev_id, jpeg)
-                except OSError:
-                    pass
-                self._streaming = False
-                time.sleep(1)
-            else:
-                time.sleep(2)
-
-    def _tick(self):
-        """Waehrend des Stroms Stack-Zahlen weiter aktualisieren."""
-        while getattr(self, "_streaming", False) and not self.stopped:
-            time.sleep(3)
-            info = self.info()
-            if info:
-                GLib.idle_add(self.app.info, info)
+                if info.get("active") and info.get("jpeg") and info.get("frame") != self.last_frame:
+                    try:
+                        with urllib.request.urlopen(f"{self.station}{info['jpeg']}", timeout=10) as r:
+                            jpeg = r.read()
+                        self.last_frame = info.get("frame")
+                        with self._lock:
+                            first = self._pending is None
+                            self._pending = jpeg
+                        if first:
+                            GLib.idle_add(self._deliver)
+                    except OSError:
+                        pass
+            time.sleep(2)
 
 
 class App:

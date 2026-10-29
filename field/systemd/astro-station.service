@@ -9,6 +9,7 @@ WorkingDirectory=%h/Astro/seestar-astro-pipeline/station
 ExecStart=/usr/bin/python3 -m astro_station.server
 Restart=on-failure
 RestartSec=5
+TimeoutStopSec=15
 
 [Install]
 WantedBy=default.target

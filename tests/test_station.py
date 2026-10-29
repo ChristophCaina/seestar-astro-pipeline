@@ -6,7 +6,6 @@ import random
 import socket
 import sys
 import tempfile
-import threading
 import time
 import unittest
 from datetime import datetime, timezone
@@ -17,7 +16,7 @@ sys.path.insert(0, str(ROOT / "station"))
 sys.path.insert(0, str(ROOT / "station" / "tools"))
 
 from astro_station import astro, config, stellarium  # noqa: E402
-from astro_station.livestream import MjpegParser, frames  # noqa: E402
+from astro_station.livestream import MjpegParser  # noqa: E402
 
 try:
     import aiohttp  # noqa: F401
@@ -182,23 +181,21 @@ class SeestarTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((moves[0]["angle"], moves[0]["speed"]), (90, 800))
         self.assertEqual(moves[-1]["speed"], 0)
 
-    async def test_mjpeg_frames_drop_idle_tile(self):
+    async def test_snapshot_instead_of_stream(self):
         await self.dev.poll_once(0)
         await self.dev.action("unfold", {})
         await self.dev.action("live", {})
-        got = []
-        stop = threading.Event()
-
-        def read():
-            for f in frames(self.dev.live()["mjpeg"], stop.is_set, timeout=10):
-                got.append(f)
-        t = threading.Thread(target=read, daemon=True)
-        t.start()
-        await asyncio.sleep(2.5)
-        await self.dev.stop()
-        await asyncio.get_running_loop().run_in_executor(None, t.join, 10)
-        self.assertGreaterEqual(len(got), 2)
-        self.assertTrue(all(f.startswith(b"\xff\xd8") for f in got))
+        await self.dev.poll_once(1)
+        img = await self.dev.fetch_image()
+        self.assertTrue(img and img.startswith(b"\xff\xd8"))
+        self.dev.wanted = time.time()
+        await self.dev.start()
+        for _ in range(40):
+            if self.dev.jpeg:
+                break
+            await asyncio.sleep(0.1)
+        self.assertTrue(self.dev.live()["jpeg"].endswith("/live.jpg"))
+        self.assertGreaterEqual(self.dev.live()["frame"], 1)
 
 
 @unittest.skipUnless(HAVE_AIOHTTP, "aiohttp fehlt")

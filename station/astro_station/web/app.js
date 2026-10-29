@@ -270,7 +270,7 @@ function renderImage(d) {
   $('img-hint').textContent = im.hint || '';
   let src = '';
   if (d.kind === 'seestar') {
-    src = d.live && d.live.active ? im.mjpeg : '';
+    src = im.jpeg || '';
     $('img-ph').textContent = d.online ? 'Live-Bild, sobald eine Ansicht läuft – oder im Live-Fenster' : 'nicht verbunden';
   } else if (im.jpeg) {
     src = im.jpeg + '?t=' + Math.floor(Date.now() / 3000);

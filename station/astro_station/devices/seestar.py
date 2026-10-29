@@ -121,6 +121,9 @@ class Seestar(Device):
         self._arm_seen: tuple | None = None
         self.model = ""
         self.view_since: float | None = None          # seit wann eine Ansicht laeuft (Station-Zeit)
+        self.jpeg: bytes | None = None                 # letztes Standbild vom Bildserver
+        self.frame = 0                                 # zaehlt neue Standbilder (fuer Browser/Live-Fenster)
+        self.wanted = 0.0                              # wann zuletzt jemand Bilder wollte
         self._txn = 0
         self._http: aiohttp.ClientSession | None = None
         self._tasks: list[asyncio.Task] = []
@@ -160,7 +163,18 @@ class Seestar(Device):
         p = {"method": method}
         if params is not None:
             p["params"] = params
-        return await self.call("method_sync", p)
+        quiet = method in ("get_device_state", "scope_get_equ_coord", "scope_speed_move")
+        if not quiet:
+            log.info("%s → %s %s", self.id, method, json.dumps(params) if params is not None else "")
+        try:
+            res = await self.call("method_sync", p)
+        except Exception as e:
+            if not quiet:
+                log.warning("%s ← %s: %s", self.id, method, e)
+            raise
+        if not quiet:
+            log.info("%s ← %s: %s", self.id, method, str(res)[:300])
+        return res
 
     async def connected(self) -> bool:
         try:
@@ -174,7 +188,40 @@ class Seestar(Device):
 
     # ------------------------------------------------------------ Abfragen
     async def start(self):
-        self._tasks = [asyncio.create_task(self._poll())]
+        self._tasks = [asyncio.create_task(self._poll()), asyncio.create_task(self._snapshots())]
+
+    # ------------------------------------------------------------ Bilder
+    async def fetch_image(self) -> bytes | None:
+        """Ein Bild vom Bildserver: verbinden, erstes JPEG lesen, trennen.
+
+        Ein dauerhaft offener MJPEG-Strom kostet seestar_alp viel Rechenzeit (pro Zuschauer eine
+        Analyse-Schleife ~10x/s). Beim Verbinden schickt es sofort das aktuelle Bild – das reicht."""
+        from ..livestream import MjpegParser
+        parser = MjpegParser()
+        s = await self._session()
+        async with s.get(f"{self.imaging}/{self.n}/vid", timeout=aiohttp.ClientTimeout(total=12)) as r:
+            async for chunk in r.content.iter_chunked(65536):
+                for ctype, body in parser.feed(chunk):
+                    if "jpeg" in ctype:
+                        return body
+                    # "Loading"-GIF: noch kein Bild – weiterlesen
+        return None
+
+    async def _snapshots(self):
+        """Solange eine Ansicht laeuft und jemand zuschaut: alle 3 s (Stacking 6 s) ein Standbild holen."""
+        while True:
+            try:
+                if self.online and self.view_active() and time.time() - self.wanted < 30:
+                    img = await self.fetch_image()
+                    if img and img != self.jpeg:
+                        self.jpeg, self.frame = img, self.frame + 1
+                    await asyncio.sleep(6 if self.live()["stacking"] else 3)
+                    continue
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                log.debug("%s: Standbild: %s", self.id, e)
+            await asyncio.sleep(2)
 
     async def close(self):
         for t in self._tasks + ([self._move_task] if self._move_task else []):
@@ -258,7 +305,7 @@ class Seestar(Device):
                 "mode": VIEW_DE.get(v.get("mode"), v.get("mode") or ""), "stage": STAGE_DE.get(v.get("stage"), v.get("stage") or ""),
                 "target": v.get("target_name") or "", "frames": frames, "dropped": st.get("dropped_frame") if stacking else None,
                 "exposure_s": exp_s, "total_min": round(frames * exp_s / 60, 1) if frames and exp_s else None,
-                "mjpeg": f"{self.imaging}/{self.n}/vid"}
+                "frame": self.frame, "jpeg": f"/api/dev/{self.id}/live.jpg" if self.jpeg else ""}
 
     # ------------------------------------------------------------ Anzeige
     def _alt_az(self):
@@ -294,7 +341,8 @@ class Seestar(Device):
             ],
             "op": op if self.online else "–",
             "result": self.last_result or res or "–", "result_ok": self.last_result_ok if self.last_result else ok,
-            "image": {"title": "Live-Ansicht", "hint": "seestar_alp · Bildserver", "mjpeg": self.live()["mjpeg"]},
+            "image": {"title": "Live-Ansicht", "hint": "Standbild alle paar Sekunden",
+                      "jpeg": f"/api/dev/{self.id}/live.jpg?f={self.frame}" if self.jpeg and self.view_active() else ""},
             "live": self.live(),
             "actions": [a.as_dict() for a in self.actions()],
         })
@@ -317,6 +365,10 @@ class Seestar(Device):
             Action("stop", "Stopp", "Ansicht, Stack, GoTo", danger=True, disabled=off),
         ]
         return acts
+
+    def preview_jpeg(self) -> bytes | None:
+        self.wanted = time.time()
+        return self.jpeg
 
     # ------------------------------------------------------------ Befehle
     def _need_arm(self):
@@ -348,6 +400,7 @@ class Seestar(Device):
                                                     "target_name": name, "lp_filter": lp})
             msg = f"{self.name}: GoTo {name}" + (" mit LP-Filter" if lp else "")
         self.note(msg.split(": ", 1)[1])
+        log.info("%s", msg)
         return msg
 
     async def planet_position(self, planet: str) -> tuple[float, float]:
