@@ -424,6 +424,9 @@ class Seestar(Device):
             Action("sun", "Sonne suchen", "nur mit Sonnenfilter!", confirm="Sonnenfilter aufgesetzt? Ohne Filter nimmt der Sensor Schaden.",
                    disabled=off or ("Arm eingeklappt" if closed else "")),
             Action("stop", "Stopp", "Ansicht, Stack, GoTo", danger=True, disabled=off),
+            Action("shutdown", "Ausschalten", "parkt vorher",
+                   confirm=f"{self.name} ausschalten? Laufende Ansicht wird beendet, der Arm eingeklappt. "
+                           "Wieder einschalten geht nur am Gerät.", disabled=off),
         ]
         return acts
 
@@ -564,6 +567,12 @@ class Seestar(Device):
             await self.method("scope_park")
             self.device_state = {}
             text = "Ansicht beendet, parkt …"
+        elif action_id == "shutdown":
+            # Ansicht beenden; seestar_alp parkt bei pi_shutdown selbst und schaltet danach aus
+            await self._end_view()
+            await self.method("pi_shutdown")
+            self.device_state = {}
+            text = "parkt und schaltet aus …"
         elif action_id == "live":
             self._need_arm()
             self._guard_stack("die Live-Ansicht starten", bool(params.get("confirm")))

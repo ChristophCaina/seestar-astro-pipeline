@@ -96,5 +96,5 @@ Arm ausfahren → Ziel wählen → GoTo: Das Live-Fenster geht auf. Danach „St
 | POST | `/api/session` | `{"id": "iexos", "enabled": true}` |
 | POST | `/api/dev/<id>/goto` | `{"target": {...aus /api/tonight}, "center": false}` |
 | POST | `/api/dev/<id>/move` | `{"dir": "N", "speed": 0..3, "on": true}` |
-| POST | `/api/dev/<id>/action` | `{"action": "unfold" \| "park" \| "live" \| "stack" \| "moon" \| "sun" \| "stop" \| "rig" \| "series" …, "params": {}}` |
+| POST | `/api/dev/<id>/action` | `{"action": "unfold" \| "park" \| "live" \| "stack" \| "moon" \| "sun" \| "stop" \| "shutdown" \| "rig" \| "series" …, "params": {}}` |
 | POST | `/api/stop_all` | – |

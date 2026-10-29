@@ -195,6 +195,17 @@ class SeestarTest(unittest.IsolatedAsyncioTestCase):
         await self.dev.poll_once(3)
         self.assertFalse(self.dev.arm_closed)
 
+    async def test_shutdown_ends_view_first(self):
+        await self.dev.poll_once(0)
+        await self.dev.action("unfold", {})
+        await self.dev.poll_once(1)
+        await self.dev.action("live", {})
+        await self.dev.poll_once(2)
+        await self.dev.action("shutdown", {})
+        calls = [m for m, _ in self.scope.calls]
+        self.assertLess(calls.index("iscope_stop_view"), calls.index("pi_shutdown"))
+        self.assertIn("shutdown", [a["id"] for a in self.dev.snapshot()["actions"]])
+
     async def test_planet_and_move(self):
         await self.dev.poll_once(0)
         await self.dev.action("unfold", {})
