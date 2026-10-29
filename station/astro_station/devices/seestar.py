@@ -454,7 +454,20 @@ class Seestar(Device):
         if _nav(self.events, "ViewPlan", "state") == "working":
             await self.call("stop_scheduler", {})
         await self.method("iscope_stop_view")
-        await asyncio.sleep(1.5)
+        # warten, bis die Firmware wirklich frei meldet (Plate-Solving/Autofokus raeumen erst auf)
+        for _ in range(30):
+            await asyncio.sleep(0.5)
+            try:
+                ev = await self.call("get_event_state", {})
+                if isinstance(ev, dict):
+                    self.update_events(ev)
+            except (TimeoutError, Refused, RuntimeError, aiohttp.ClientError, asyncio.TimeoutError):
+                continue
+            if not self._busy():
+                break
+        else:
+            log.warning("%s: Seestar meldet nach 15 s noch nicht frei – neues Ziel trotzdem", self.id)
+        await asyncio.sleep(0.5)
 
     def _need_arm(self):
         if not self.online:
