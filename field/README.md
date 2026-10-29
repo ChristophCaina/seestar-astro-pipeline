@@ -19,7 +19,22 @@ Zu Hause übernimmt seestar_alp im LXC (`docs/01-seestar-alp-lxc.md`). **Pro See
 
 Andere Pfade: in den Dateien unter `systemd/` anpassen.
 
-## Dienste einrichten (systemd --user)
+## Einrichten mit Desktop-Starter (empfohlen)
+
+```bash
+bash ~/Astro/seestar-astro-pipeline/field/install-desktop.sh --server-alp 192.168.1.XX:5555
+```
+
+`--server-alp` ist die Adresse von seestar_alp im Heimnetz (LXC). Läuft der Dienst dort, fragt der Starter nach, bevor er einen zweiten seestar_alp startet.
+
+Das Skript kopiert die Dienste nach `~/.config/systemd/user`, schaltet den Autostart beim Anmelden ab und legt auf dem Desktop und im Menü zwei Starter an:
+
+- **Astro-Session starten**: seestar_alp, INDI-Server und Standort-Timer starten, warten bis seestar_alp antwortet, dann Web-UI (`http://localhost:5432`) und Stellarium öffnen. Fortschritt als Desktop-Benachrichtigung.
+- **Astro-Session beenden**: alles wieder stoppen.
+
+Einstellungen in `~/.config/astro-session.env` (`OPEN_STELLARIUM=0`, `OPEN_BROWSER=0`, andere `WEBUI_URL`). Im Terminal: `field/astro-session.sh start|stop|status`.
+
+## Dienste einrichten (systemd --user, ohne Starter)
 
 ```bash
 mkdir -p ~/.config/systemd/user
