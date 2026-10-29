@@ -22,6 +22,10 @@ async function api(path, body) {
   const r = await fetch(path, opt);
   let data = null;
   try { data = await r.json(); } catch (e) { data = null; }
+  if (data && data.confirm && body && !body.confirm) {       // z. B. laufendes Stacking: erst nachfragen
+    if (await ask(data.confirm)) return api(path, { ...body, confirm: true });
+    throw new Error('abgebrochen');
+  }
   if (!r.ok || (data && data.ok === false)) {
     const msg = (data && data.error) || `${r.status} ${r.statusText}`;
     toast(msg, 'warn');

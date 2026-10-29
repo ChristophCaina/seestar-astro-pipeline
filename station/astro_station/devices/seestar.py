@@ -22,7 +22,7 @@ from urllib.parse import quote
 import aiohttp
 
 from .. import astro
-from .base import Action, Device, Refused
+from .base import Action, Device, NeedsConfirm, Refused
 
 log = logging.getLogger("astro_station.seestar")
 
@@ -438,6 +438,15 @@ class Seestar(Device):
         return (self.view_active() or _nav(e, "ViewPlan", "state") == "working"
                 or any(_nav(e, k, "state") in ("start", "working") for k in ("AutoGoto", "PlateSolve", "AutoFocus")))
 
+    def _guard_stack(self, new: str, confirmed: bool):
+        """Laufendes Stacking nur mit Bestaetigung in der Station beenden."""
+        live = self.live()
+        if live["stacking"] and not confirmed:
+            frames = f" ({live['frames']} Frames)" if live.get("frames") else ""
+            target = live.get("target") or "dem aktuellen Ziel"
+            raise NeedsConfirm(f"{self.name}: Stacking läuft{frames} – erst in der Station bestätigen",
+                               f"Stacking an {target}{frames} beenden und {new}?")
+
     async def _end_view(self):
         """Laufende Ansicht/Plan beenden, damit die Firmware nicht am alten Ziel festhaelt."""
         if not self._busy():
@@ -457,6 +466,7 @@ class Seestar(Device):
         self._need_arm()
         name = target.get("name") or "Ziel"
         kind = target.get("kind")
+        self._guard_stack(f"zu {name} wechseln", bool(target.get("confirm")))
         await self._end_view()                       # altes Ziel samt Wiederholversuchen beenden
         if kind == "moon":
             await self.method("iscope_start_view", {"mode": "moon"})
@@ -543,6 +553,7 @@ class Seestar(Device):
             text = "Ansicht beendet, parkt …"
         elif action_id == "live":
             self._need_arm()
+            self._guard_stack("die Live-Ansicht starten", bool(params.get("confirm")))
             await self._end_view()
             await self.method("iscope_start_view", {"mode": "star"})
             text = "Live-Ansicht gestartet"
@@ -552,6 +563,7 @@ class Seestar(Device):
             text = "Stacking gestartet"
         elif action_id in ("moon", "sun"):
             self._need_arm()
+            self._guard_stack("den Suchlauf starten", bool(params.get("confirm")))
             await self._end_view()
             await self.method("iscope_start_view", {"mode": action_id})
             await self.method("start_scan_planet")

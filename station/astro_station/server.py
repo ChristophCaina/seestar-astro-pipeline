@@ -21,7 +21,7 @@ from pathlib import Path
 from aiohttp import web
 
 from . import config as C
-from .devices import Device, Refused, make
+from .devices import Device, NeedsConfirm, Refused, make
 from .devices.seestar import Seestar
 from .stellarium import Bridge
 from .tonight import PLANETS_DE, Sky
@@ -185,6 +185,8 @@ def make_app(cfg: dict, station: Station | None = None) -> web.Application:
             return await handler(request)
         except web.HTTPException:
             raise
+        except NeedsConfirm as e:                    # Web-App fragt nach und schickt mit confirm=true erneut
+            return web.json_response({"ok": False, "error": str(e), "confirm": e.question}, status=409)
         except Refused as e:
             st.say(str(e), "warn")
             return web.json_response({"ok": False, "error": str(e)}, status=409)
@@ -239,6 +241,8 @@ def make_app(cfg: dict, station: Station | None = None) -> web.Application:
         t = b.get("target") or b
         if b.get("center"):
             t = {**t, "center": True}
+        if b.get("confirm"):
+            t = {**t, "confirm": True}
         return ok(await d.goto(t))
 
     async def move(request):
@@ -250,7 +254,10 @@ def make_app(cfg: dict, station: Station | None = None) -> web.Application:
     async def action(request):
         d = st.dev(request.match_info["id"])
         b = await body(request)
-        return ok(await d.action(b["action"], b.get("params") or {}))
+        params = dict(b.get("params") or {})
+        if b.get("confirm"):
+            params["confirm"] = True
+        return ok(await d.action(b["action"], params))
 
     async def stop_all(_):
         msgs = []

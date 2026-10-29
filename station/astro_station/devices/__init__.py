@@ -1,11 +1,11 @@
 """Geraete-Typen der Astro-Station. Neuer Typ: Klasse schreiben (siehe base.Device) und hier eintragen."""
-from .base import Action, Device, Refused
+from .base import Action, Device, NeedsConfirm, Refused
 from .indi_mount import IndiMount
 from .seestar import Seestar
 
 TYPES = {"seestar": Seestar, "indi-mount": IndiMount}
 
-__all__ = ["Action", "Device", "Refused", "TYPES", "make"]
+__all__ = ["Action", "Device", "NeedsConfirm", "Refused", "TYPES", "make"]
 
 
 def make(spec: dict) -> Device:

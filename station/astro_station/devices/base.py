@@ -13,6 +13,16 @@ class Refused(Exception):
     """Befehl abgelehnt – Text geht als Meldung an die Web-App (kein Fehler im Log)."""
 
 
+class NeedsConfirm(Refused):
+    """Befehl braucht eine Bestaetigung in der Station (z. B. laufendes Stacking beenden).
+    Die Web-App fragt mit `question` nach und schickt den Befehl mit confirm=true erneut;
+    aus Stellarium (ohne Rueckfrage-Moeglichkeit) bleibt es abgelehnt."""
+
+    def __init__(self, message: str, question: str):
+        super().__init__(message)
+        self.question = question
+
+
 @dataclass
 class Action:
     id: str

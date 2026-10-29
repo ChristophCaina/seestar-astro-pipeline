@@ -164,6 +164,11 @@ class SeestarTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(new[:2], ["iscope_stop_view", "iscope_start_view"])
         await self.dev.action("stack", {})
         await self.dev.poll_once(1)
+        from astro_station.devices import NeedsConfirm
+        with self.assertRaises(NeedsConfirm):                       # Stacking nur mit Bestaetigung beenden
+            await self.dev.goto({"name": "M 33", "ra": 1.56, "dec": 30.66})
+        with self.assertRaises(NeedsConfirm):                       # Stellarium kann nicht bestaetigen
+            await self.dev.goto_jnow(1.6, 30.8)
         snap = self.dev.snapshot()
         self.assertTrue(snap["live"]["active"])
         self.assertTrue(snap["live"]["stacking"])
@@ -280,6 +285,13 @@ class StationApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.post("/api/dev/s50/action", {"action": "unfold"}))[0], 200)
         await self.station.devices[0].poll_once(1)
         self.assertEqual((await self.post("/api/dev/s50/goto", {"target": {"name": "M 31", "ra": 0.71232, "dec": 41.2691}}))[0], 200)
+        self.assertEqual((await self.post("/api/dev/s50/action", {"action": "stack"}))[0], 200)
+        await self.station.devices[0].poll_once(2)
+        status, res = await self.post("/api/dev/s50/goto", {"target": {"name": "M 33", "ra": 1.56, "dec": 30.66}})
+        self.assertEqual(status, 409)
+        self.assertIn("beenden", res["confirm"])
+        status, _ = await self.post("/api/dev/s50/goto", {"target": {"name": "M 33", "ra": 1.56, "dec": 30.66}, "confirm": True})
+        self.assertEqual(status, 200)
         status, res = await self.post("/api/stop_all", {})
         self.assertEqual(status, 200)
         self.assertIn("gestoppt", res["message"])
