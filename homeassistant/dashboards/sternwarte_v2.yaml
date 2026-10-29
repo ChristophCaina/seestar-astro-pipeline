@@ -247,63 +247,34 @@ views:
       grid_options:
         columns: full
   - type: grid
+    # Nur während eine Aufnahme läuft (gilt für die ganze Section).
+    visibility:
+    - condition: state
+      entity: sensor.seestar_s50_stack_state
+      state:
+      - working
+      - start
     cards:
     - type: heading
       heading: Session
       icon: mdi:layers
       heading_style: subtitle
-      visibility:
-      - condition: state
-        entity: sensor.seestar_s50_stack_state
-        state:
-        - working
-        - start
     - type: tile
       entity: sensor.seestar_s50_telephoto_target
       name: Ziel
       icon: mdi:image-filter-center-focus
-      visibility:
-      - condition: state
-        entity: sensor.seestar_s50_stack_state
-        state:
-        - working
-        - start
     - type: tile
       entity: sensor.seestar_s50_integration_time
       name: Belichtung gesamt
-      visibility:
-      - condition: state
-        entity: sensor.seestar_s50_stack_state
-        state:
-        - working
-        - start
     - type: tile
       entity: sensor.seestar_s50_stacked_frames
       name: Gestackt
-      visibility:
-      - condition: state
-        entity: sensor.seestar_s50_stack_state
-        state:
-        - working
-        - start
     - type: tile
       entity: sensor.seestar_s50_dropped_frames
       name: Verworfen
-      visibility:
-      - condition: state
-        entity: sensor.seestar_s50_stack_state
-        state:
-        - working
-        - start
     - type: tile
       entity: sensor.seestar_s50_stars_detected
       name: Sterne erkannt
-      visibility:
-      - condition: state
-        entity: sensor.seestar_s50_stack_state
-        state:
-        - working
-        - start
       features_position: bottom
   - type: grid
     cards:
