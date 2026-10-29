@@ -45,9 +45,9 @@ if [[ ! -f "$DATA/NGC.csv" ]]; then
   done
 fi
 missing=()
-python3 -c "import aiohttp" 2>/dev/null || missing+=(python3-aiohttp)
-python3 -c "import gi; gi.require_version('Gtk', '3.0'); gi.require_foreign('cairo')" 2>/dev/null || missing+=(python3-gi python3-gi-cairo gir1.2-gtk-3.0)
-python3 -c "import numpy, PIL" 2>/dev/null || missing+=(python3-numpy python3-pil)
+/usr/bin/python3 -c "import aiohttp" 2>/dev/null || missing+=(python3-aiohttp)
+/usr/bin/python3 -c "import gi; gi.require_version('Gtk', '3.0'); gi.require_foreign('cairo')" 2>/dev/null || missing+=(python3-gi python3-gi-cairo gir1.2-gtk-3.0)
+/usr/bin/python3 -c "import numpy, PIL" 2>/dev/null || missing+=(python3-numpy python3-pil)
 if (( ${#missing[@]} )); then
   echo "Bitte noch installieren:  sudo apt install ${missing[*]}"
 fi

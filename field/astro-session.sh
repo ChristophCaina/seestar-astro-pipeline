@@ -82,8 +82,8 @@ Trotzdem hier starten?" || { say "Abgebrochen."; exit 1; }
     fi
   fi
   if [[ "$OPEN_LIVEWIN" == 1 ]] && ! pgrep -f "astro_station[.]livewin" >/dev/null; then
-    if python3 -c "import gi; gi.require_version('Gtk', '3.0'); gi.require_foreign('cairo')" 2>/dev/null; then
-      (cd "$STATION_DIR" && setsid python3 -m astro_station.livewin --station "$STATION_URL" >/dev/null 2>&1 &)
+    if /usr/bin/python3 -c "import gi; gi.require_version('Gtk', '3.0'); gi.require_foreign('cairo')" 2>/dev/null; then
+      (cd "$STATION_DIR" && setsid /usr/bin/python3 -m astro_station.livewin --station "$STATION_URL" >/dev/null 2>&1 &)
     else
       say "Live-Fenster braucht python3-gi-cairo: sudo apt install python3-gi-cairo"
     fi
