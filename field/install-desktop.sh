@@ -4,7 +4,9 @@
 #   bash ~/Astro/seestar-astro-pipeline/field/install-desktop.sh [--server-alp 192.168.1.XX:5555]
 #
 # Legt an:
-#   ~/.config/systemd/user/seestar-*.service|timer   (aus field/systemd)
+#   ~/.config/systemd/user/seestar-*.service|timer, astro-station.service   (aus field/systemd)
+#   ~/.config/astro-station.toml (aus station/astro-station.toml.example, falls noch nicht da)
+#   siril/data/NGC.csv (OpenNGC-Katalog fuer die Zielsuche, falls noch nicht da)
 #   Desktop:  "Astro-Session starten" / "Astro-Session beenden"
 #   Menue:    dieselben Eintraege unter Bildung/Wissenschaft
 # Die Dienste starten danach NICHT mehr automatisch beim Anmelden, nur ueber den Starter.
@@ -28,8 +30,27 @@ mkdir -p "$UNIT_DIR" "$APP_DIR" "$DESK_DIR"
 # Dienste: aktualisieren, Autostart beim Anmelden aus (der Starter entscheidet)
 cp "$HERE"/systemd/* "$UNIT_DIR"/
 systemctl --user daemon-reload
-systemctl --user disable seestar-alp.service seestar-indi.service seestar-location.timer >/dev/null 2>&1 || true
+systemctl --user disable seestar-alp.service seestar-indi.service seestar-location.timer astro-station.service >/dev/null 2>&1 || true
 chmod +x "$HERE/astro-session.sh" "$HERE/seestar_location_sync.py"
+
+# Astro-Station: Konfiguration und Zielkatalog
+STATION_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/astro-station.toml"
+[[ -f "$STATION_CONF" ]] || cp "$HERE/../station/astro-station.toml.example" "$STATION_CONF"
+DATA="$HERE/../siril/data"
+if [[ ! -f "$DATA/NGC.csv" ]]; then
+  mkdir -p "$DATA"
+  for f in NGC.csv addendum.csv; do
+    curl -fsSL -o "$DATA/$f" "https://raw.githubusercontent.com/mattiaverga/OpenNGC/master/database_files/$f" \
+      || echo "Hinweis: OpenNGC ($f) nicht geladen – die Zielsuche nutzt dann nur die eingebaute Liste."
+  done
+fi
+missing=()
+/usr/bin/python3 -c "import aiohttp" 2>/dev/null || missing+=(python3-aiohttp)
+/usr/bin/python3 -c "import gi; gi.require_version('Gtk', '3.0'); gi.require_foreign('cairo')" 2>/dev/null || missing+=(python3-gi python3-gi-cairo gir1.2-gtk-3.0)
+/usr/bin/python3 -c "import numpy, PIL" 2>/dev/null || missing+=(python3-numpy python3-pil)
+if (( ${#missing[@]} )); then
+  echo "Bitte noch installieren:  sudo apt install ${missing[*]}"
+fi
 
 if [[ ! -f "$CONF" ]]; then
   cat > "$CONF" <<EOF
@@ -55,7 +76,7 @@ Categories=Education;Science;Astronomy;
 EOF
 }
 
-for spec in "start|Astro-Session starten|seestar_alp, INDI und Standort starten, Stellarium und Web-UI öffnen|applications-science" \
+for spec in "start|Astro-Session starten|seestar_alp, INDI, Standort und Astro-Station starten, Stellarium öffnen|applications-science" \
             "stop|Astro-Session beenden|seestar_alp und INDI beenden|process-stop"; do
   IFS='|' read -r action name comment icon <<< "$spec"
   file="astro-session-$action.desktop"
@@ -68,3 +89,4 @@ done
 
 echo "Fertig: Starter auf dem Desktop ($DESK_DIR) und im Menü."
 echo "Einstellungen: $CONF"
+echo "Geräte der Astro-Station: $STATION_CONF"

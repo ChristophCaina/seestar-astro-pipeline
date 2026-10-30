@@ -146,3 +146,40 @@ def preview(fits_bytes: bytes, max_w: int = 1600) -> dict:
     h, n = hfr(rgb.mean(axis=2))
     return {"jpeg": jpeg(stretch(rgb), max_w), "hfr": h, "stars": n,
             "width": int(arr.shape[-1]), "height": int(arr.shape[-2]), "header": hdr}
+
+
+def _card(key: str, value) -> bytes:
+    if isinstance(value, bool):
+        v = f"{'T' if value else 'F':>20}"
+    elif isinstance(value, (int, float)):
+        v = f"{value:>20}" if isinstance(value, int) else f"{value:>20.6f}"
+    else:
+        s = str(value).replace("'", "''")[:68]
+        v = f"'{s:<8}'"
+    return f"{key[:8]:<8}= {v}".ljust(80)[:80].encode("ascii", "replace")
+
+
+def add_cards(data: bytes, cards: dict) -> bytes:
+    """Schluesselwoerter in den primaeren FITS-Header schreiben (ersetzen oder vor END anfuegen).
+    Daten bleiben unveraendert; der Header wird auf volle 2880-Byte-Bloecke aufgefuellt."""
+    if not cards or not data.startswith(b"SIMPLE"):
+        return data
+    out, pos = [], 0
+    while pos + 80 <= len(data):
+        card = data[pos:pos + 80]
+        pos += 80
+        if card[:8].rstrip() == b"END":
+            break
+        out.append(card)
+    else:
+        return data
+    data_start = ((pos + 2879) // 2880) * 2880
+    keys = {k.upper()[:8]: v for k, v in cards.items() if v is not None and v != ""}
+    for i, card in enumerate(out):
+        k = card[:8].decode("ascii", "replace").rstrip()
+        if k in keys:
+            out[i] = _card(k, keys.pop(k))
+    out += [_card(k, v) for k, v in keys.items()]
+    head = b"".join(out) + b"END".ljust(80)
+    head += b" " * (-len(head) % 2880)
+    return head + data[data_start:]

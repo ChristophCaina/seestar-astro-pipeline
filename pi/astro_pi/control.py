@@ -71,6 +71,7 @@ class Controller:
         self._series_task: asyncio.Task | None = None
         self._capture_lock = asyncio.Lock()
         self.target_name = ""
+        self.extra_cards: dict = {}                  # zusaetzliche FITS-Schluessel fuer jede Aufnahme (Aufbau, Standort)
         self.ready = asyncio.Event()                 # Geraete eingerichtet (BLOBs aktiv, Upload an Client)
         indi.on_blob(self._blob)
         indi.on_property(self._prop)
@@ -328,7 +329,10 @@ class Controller:
                 n += 1
                 path = base.with_name(f"{base.stem}_{n}{base.suffix}")
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(b.data)
+            data = b.data
+            if self.extra_cards and path.suffix.lower() in (".fits", ".fit"):
+                data = image.add_cards(data, {"OBJECT": target or self.target_name, **self.extra_cards})
+            path.write_bytes(data)
         if ext.lower() in (".fits", ".fit"):
             pv = await asyncio.to_thread(image.preview, b.data)
             self.preview = {"jpeg": pv["jpeg"], "hfr": pv["hfr"], "stars": pv["stars"], "time": time.time(),
