@@ -1,0 +1,8 @@
+# Standort fuer seestar_alp: GPS (gpsd) bevorzugt, sonst der Standort aus dem Seestar (Seestar-App).
+[Unit]
+Description=Standort fuer seestar_alp aktualisieren
+After=seestar-alp.service gpsd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/Astro/seestar-astro-pipeline/field/seestar_location_sync.py --config %h/Astro/seestar_alp/device/config.toml --push

@@ -22,7 +22,7 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y -qq indi-bin   # INDI-Simulatoren fuer tests/test_pi.py
 
       - name: shellcheck
-        run: shellcheck -S warning siril/*.sh scripts/*.sh
+        run: shellcheck -S warning siril/*.sh scripts/*.sh field/*.sh
 
       - name: JavaScript-Syntax
         run: node --check gallery/site/app.js && node --check pi/web/app.js && node --check pi/web/sw.js

@@ -1,0 +1,19 @@
+# INDI-Server mit dem Seestar-Treiber (Port 7624) fuer KStars/Ekos.
+# Startet nach seestar_alp; der Treiber fragt seestar_alp alle 2 s nach der Position.
+[Unit]
+Description=INDI-Server mit Seestar-Treiber (:7624)
+After=seestar-alp.service
+BindsTo=seestar-alp.service
+
+[Service]
+# indiserver startet indi/seestar.py ueber "#!/usr/bin/env python3" – das muss das Python der venv sein
+Environment=PATH=%h/Astro/seestar_alp/venv/bin:/usr/local/bin:/usr/bin:/bin
+ExecStartPre=/bin/sh -c 'rm -f /tmp/seestar && mkfifo /tmp/seestar'
+ExecStart=/usr/bin/indiserver -f /tmp/seestar
+ExecStartPost=/bin/sh -c 'sleep 2 && exec python %h/Astro/seestar_alp/indi/start_indi_devices.py'
+ExecStopPost=/bin/rm -f /tmp/seestar
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=seestar-alp.service
